@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../src/services/supabaseClient';
-import SEO from '../components/SEO';
 import { BlogPost } from '../types';
 import { Loader, ArrowLeft, Calendar, User, Tag } from 'lucide-react';
+import useDocumentTitle from '../hooks/useDocumentTitle';
 import ReactMarkdown from 'react-markdown';
-import rehypeRaw from 'rehype-raw'; 
+import rehypeRaw from 'rehype-raw';
 
 const PostPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -47,6 +47,12 @@ const PostPage: React.FC = () => {
         fetchPost();
     }, [id]);
 
+    const metaTitle = post?.meta_title || post?.title || 'Blog de VidaMed';
+    const metaDescription = post?.meta_description || post?.summary || '';
+    const metaKeywords = (post?.keywords || []).join(', ');
+
+    useDocumentTitle(metaTitle, metaDescription, metaKeywords);
+
     if (isLoading) {
         return <div className="flex justify-center items-center h-screen"><Loader className="animate-spin text-primary" size={48} /></div>;
     }
@@ -66,13 +72,6 @@ const PostPage: React.FC = () => {
             <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl">
                 <Link to="/blog" className="flex items-center text-primary hover:underline mb-8"><ArrowLeft size={18} className="mr-2" />Volver al Blog</Link>
                 
-        <SEO
-                title={post.meta_title || post.title}
-                description={post.meta_description || post.summary}
-                keywords={post.keywords}
-                imageUrl={post.imageUrl}
-                url={window.location.href}
-            />
           <article>
               <header className="mb-8">
                   <div className="flex items-center text-sm text-primary font-semibold mb-2">

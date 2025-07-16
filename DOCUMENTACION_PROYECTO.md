@@ -1,6 +1,6 @@
 # Documentación Técnica del Proyecto VidaMed
 
-**Fecha de Documentación:** 14 de julio de 2025
+**Fecha de Documentación:** 16 de Julio de 2025
 
 ## 1. Resumen del Proyecto
 
@@ -18,6 +18,7 @@ Este documento detalla la arquitectura, funcionalidades y componentes técnicos 
 -   **IA de Chat (Voz):** ElevenLabs (`@elevenlabs/react`)
 -   **Estilos:** Tailwind CSS
 -   **Iconos:** Lucide React
+-   **Gráficos:** Recharts
 -   **PWA (Progressive Web App):** `vite-plugin-pwa`
 
 ---
@@ -38,18 +39,25 @@ Se eligió **Supabase** como la solución Backend-as-a-Service (BaaS) para acele
 Se definieron las siguientes tablas en la base de datos de Supabase (los nombres de las tablas y columnas están en español):
 
 -   **`estudios`**: Almacena el catálogo de análisis clínicos.
-    -   `id`, `nombre`, `categoria`, `descripcion`, `preparacion`, `costo_usd`, `costo_bs`, `tiempo_entrega`
+    -   `id`, `nombre`, `categoria`, `descripcion`, `preparacion`, `costo_usd`, `costo_bs`, `tasa_bcv`, `tiempo_entrega`, `veces_realizado`
     -   `campos_formulario` (JSON): Define la estructura de los campos para el ingreso manual de resultados de cada estudio.
 -   **`pacientes`**: Registro central de pacientes.
-    -   `id`, `nombres`, `apellidos`, `cedula_identidad` (único), `email`, `telefono`
+    -   `id` (TEXT, alfanumérico), `nombres`, `apellidos`, `cedula_identidad` (único), `email`, `telefono`, `direccion`
 -   **`citas`**: Almacena las citas agendadas.
     -   `id`, `paciente_id` (relación con `pacientes`), `fecha_cita`, `estudios_solicitados`, `ubicacion`, `status`
 -   **`publicaciones_blog`**: Contenido del blog.
+    -   `id`, `titulo`, `resumen`, `contenido`, `categoria`, `imagen_url`, `autor`, `fecha`, `meta_title`, `meta_description`, `keywords` (array de texto)
 -   **`testimonios`**: Testimonios de los pacientes.
-    -   Incluye un campo `is_approved` (booleano) para la moderación.
+    -   `id`, `texto`, `autor`, `ciudad`, `rating`, `estudio_realizado`, `is_approved` (booleano)
 -   **`resultados_pacientes`**: Almacena los resultados de los pacientes.
-    -   `id`, `paciente_id` (relación con `pacientes`), `resultado_data` (JSON). El JSON puede contener una URL a un archivo o los valores de un resultado manual.
+    -   `id`, `paciente_id` (relación con `pacientes`), `resultado_data` (JSON).
+-   **`resultados_eliminados`**: Registro de auditoría de resultados eliminados.
+-   **`dias_no_disponibles`**: Almacena las fechas en que el laboratorio no está disponible para citas.
 -   **`administradores`**: Gestionado por Supabase Auth para el login al panel.
+
+### 1.4. Funciones de Base de Datos (RPC)
+
+Se crearon funciones de PostgreSQL para manejar lógica de negocio compleja directamente en la base de datos, mejorando el rendimiento y la seguridad.
 
 ---
 
@@ -57,31 +65,29 @@ Se definieron las siguientes tablas en la base de datos de Supabase (los nombres
 
 ### 2.1. Migración de Datos
 
--   Todas las páginas que antes usaban datos de prueba (`mockData.ts`) ahora obtienen la información dinámicamente desde Supabase usando `useEffect` y `useState`.
--   Páginas migradas: `HomePage`, `StudiesPage`, `BlogPage`.
+-   Todas las páginas que antes usaban datos de prueba (`mockData.ts`) ahora obtienen la información dinámicamente desde Supabase.
 
 ### 2.2. Funcionalidades Implementadas
 
--   **Búsqueda de Estudios:** La barra de búsqueda en `HomePage` redirige a `StudiesPage` con un parámetro de consulta (`?q=...`), que se utiliza para filtrar los resultados.
+-   **Búsqueda de Estudios:** La barra de búsqueda en `HomePage` redirige a `StudiesPage` con un parámetro de consulta.
 -   **Portal de Pacientes (`PatientPortalPage`):**
-    -   Se eliminó el login simulado.
-    -   Se implementó un formulario de acceso único por **cédula de identidad**.
-    -   La lógica busca al paciente y luego sus resultados asociados en la base de datos.
+    -   Acceso por cédula de identidad.
+    -   Visualización de resultados (manuales y archivos).
+    -   Formulario para enviar testimonios con calificación por estrellas, visible solo después de una búsqueda exitosa.
 -   **Agendamiento de Citas (`SchedulingPage`):**
-    -   El formulario ahora es completamente funcional.
-    -   Implementa una lógica **"upsert"**: si el paciente (identificado por su cédula) no existe, se crea; si ya existe, se actualizan sus datos. Luego, se crea la cita asociada.
+    -   Selector de estudios múltiple (`react-select`).
+    -   Campo de dirección condicional para "Servicio a Domicilio".
+    -   Calendario interactivo (`react-day-picker`) que muestra y deshabilita los días no disponibles.
+    -   Selector de hora en formato 12h (AM/PM).
+    -   Lógica **"upsert"** para pacientes.
 -   **Asistente de IA Dual (`ChatWidget.tsx`):**
-    -   El widget ahora presenta una pantalla de selección para "Chatear" o "Llamar".
-    -   **Modo Chat:** Utiliza el hook `useChat` existente con Google Gemini.
-    -   **Modo Voz:** Renderiza el nuevo componente `VoiceChat.tsx`.
-        -   Utiliza el hook `useConversation` de `@elevenlabs/react`.
-        -   Solicita permisos de micrófono.
-        -   Gestiona el estado de la conexión y muestra feedback visual al usuario.
+    -   Chat de texto con Google Gemini y chat de voz con ElevenLabs.
+-   **Blog (`BlogPage.tsx`, `PostPage.tsx`):**
+    -   Página de listado y página de detalle para cada post.
+    -   Renderizado de contenido con `react-markdown`.
+    -   SEO dinámico con un hook personalizado (`useDocumentTitle`) que actualiza las metaetiquetas.
 -   **Progressive Web App (PWA):**
-    -   Se instaló y configuró `vite-plugin-pwa`.
-    -   Se creó `src/vite-env.d.ts` para los tipos de PWA.
-    -   Se actualizó `vite.config.ts` para generar el `manifest.webmanifest` y el `service-worker.js`.
-    -   Se enlazó el manifest en `index.html`.
+    -   Configurado con `vite-plugin-pwa` para ser instalable y funcional offline.
 
 ---
 
@@ -89,31 +95,24 @@ Se definieron las siguientes tablas en la base de datos de Supabase (los nombres
 
 ### 3.1. Estructura y Autenticación
 
--   **Rutas:** Se crearon las rutas `/login` y `/admin/*`.
--   **Login (`LoginPage.tsx`):** Página de inicio de sesión que utiliza `supabase.auth.signInWithPassword` para autenticar a los administradores.
--   **Ruta Protegida (`ProtectedRoute.tsx`):** Componente que envuelve las rutas del panel. Verifica si hay una sesión de Supabase activa; si no, redirige a `/login`.
--   **Layout del Panel (`AdminLayout.tsx`):** Proporciona una estructura consistente con una barra de navegación lateral para todas las páginas del panel y un botón para cerrar sesión.
+-   **Rutas:** `/login` y `/admin/*`.
+-   **Login (`LoginPage.tsx`):** Autenticación con Supabase Auth.
+-   **Ruta Protegida (`ProtectedRoute.tsx`):** Protege las rutas del panel.
+-   **Layout del Panel (`AdminLayout.tsx`):** Estructura consistente con navegación.
 
 ### 3.2. Módulos de Gestión (CRUD)
 
-Se han implementado los siguientes módulos de gestión:
-
--   **Gestión de Estudios (`StudiesAdminPage.tsx`):**
-    -   Muestra una tabla de todos los estudios.
-    -   Utiliza el modal `StudyForm.tsx` para **crear** y **editar** estudios.
-    -   Permite **eliminar** estudios con confirmación.
-    -   El formulario incluye un campo para definir la estructura JSON de los resultados (`campos_formulario`).
--   **Gestión de Blog (`PostsAdminPage.tsx`):**
-    -   Sigue el mismo patrón que la gestión de estudios, con una tabla y el modal `PostForm.tsx` para el CRUD de publicaciones.
--   **Gestión de Testimonios (`TestimonialsAdminPage.tsx`):**
-    -   Muestra una tabla de testimonios.
-    -   Permite **aprobar/desaprobar** y **eliminar** testimonios.
+-   **Gestión de Estudios (`StudiesAdminPage.tsx`):** CRUD completo, incluyendo la definición de `campos_formulario`.
+-   **Gestión de Blog (`PostsAdminPage.tsx`):** CRUD completo, incluyendo subida de imágenes a Supabase Storage y campos para metadatos SEO.
+-   **Gestión de Testimonios (`TestimonialsAdminPage.tsx`):** Muestra testimonios con su calificación, permite aprobar/desaprobar y eliminar. Incluye un modal para ver el texto completo.
 -   **Gestión de Citas (`AppointmentsAdminPage.tsx`):**
-    -   Muestra una tabla de citas con información del paciente.
-    -   Permite **cambiar el estado** de la cita (Pendiente, Confirmada, Cancelada).
-    -   Incluye un modal para **reagendar** citas.
+    -   Tabla de citas con búsqueda y filtros en el frontend para una respuesta instantánea.
+    -   Permite cambiar el estado de la cita y reagendar.
+    -   **Gestión de Disponibilidad:** Calendario interactivo para marcar días no disponibles.
 -   **Gestión de Pacientes y Resultados:**
-    -   **`PatientsAdminPage.tsx`**: Página principal con búsqueda de pacientes y un botón para abrir el modal `PatientForm.tsx` y **registrar nuevos pacientes**.
-    -   **`PatientDetailPage.tsx`**: Vista detallada de un paciente que muestra su información y su historial.
-    -   **Carga de Resultados (Archivo):** Implementada la funcionalidad para subir un archivo a Supabase Storage y vincularlo al paciente.
-    -   **Carga de Resultados (Manual):** Implementado un sistema de formularios dinámicos (`ManualResultForm.tsx`) que se genera según la estructura JSON definida en el estudio seleccionado.
+    -   **`PatientsAdminPage.tsx`**: Búsqueda y filtrado en el frontend, registro y edición de pacientes.
+    -   **`PatientDetailPage.tsx`**: Vista detallada del paciente con historial de citas y resultados.
+    -   **Carga de Resultados:**
+        -   **Archivo:** Modal para asociar el archivo a un estudio específico.
+        -   **Manual:** Formularios dinámicos basados en la configuración del estudio.
+    -   **Eliminación de Resultados:** Funcionalidad para eliminar resultados, que actualiza los contadores y crea un registro de auditoría.

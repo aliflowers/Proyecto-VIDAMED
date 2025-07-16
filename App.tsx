@@ -1,6 +1,5 @@
 
 import React from 'react';
-import { HelmetProvider } from 'react-helmet-async';
 import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -47,7 +46,6 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 const App: React.FC = () => {
   return (
-    <HelmetProvider>
         <HashRouter>
             <MainLayout>
                 <Routes>
@@ -56,9 +54,9 @@ const App: React.FC = () => {
                     <Route path="/estudios" element={<StudiesPage />} />
                     <Route path="/agendar" element={<SchedulingPage />} />
                     <Route path="/portal" element={<PatientPortalPage />} />
-                    <Route path="/blog" element={<BlogPage />} />
-                    <Route path="/blog/:id" element={<PostPage />} />
-                    <Route path="/quienes-somos" element={<AboutPage />} />
+                <Route path="/blog" element={<BlogPage />} />
+                <Route path="/blog/:id" element={<PostPage />} />
+                <Route path="/quienes-somos" element={<AboutPage />} />
                     <Route path="/contacto" element={<ContactPage />} />
                     
                     {/* Admin Routes */}
@@ -83,7 +81,6 @@ const App: React.FC = () => {
                 </Routes>
             </MainLayout>
         </HashRouter>
-    </HelmetProvider>
   );
 };
 

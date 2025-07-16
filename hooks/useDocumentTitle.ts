@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-function useDocumentTitle(title: string, description: string, keywords: string[]) {
+function useDocumentTitle(title: string, description: string, keywords: string) {
     useEffect(() => {
         document.title = title;
 
@@ -18,7 +18,7 @@ function useDocumentTitle(title: string, description: string, keywords: string[]
             metaKeywords.setAttribute('name', 'keywords');
             document.head.appendChild(metaKeywords);
         }
-        metaKeywords.setAttribute('content', keywords.join(', '));
+        metaKeywords.setAttribute('content', keywords);
 
     }, [title, description, keywords]);
 }
