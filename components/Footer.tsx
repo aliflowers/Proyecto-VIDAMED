@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import Logo from './Logo';
@@ -15,8 +14,8 @@ const Footer: React.FC = () => {
   const companyLinks = [
     { name: 'Quiénes Somos', path: '/quienes-somos' },
     { name: 'Contacto', path: '/contacto' },
-    { name: 'Términos de Servicio', path: '#' },
-    { name: 'Política de Privacidad', path: '#' },
+    { name: 'Términos de Servicio', path: '/terminos-de-servicio' },
+    { name: 'Política de Privacidad', path: '/politica-de-privacidad' },
   ];
 
   return (
@@ -67,7 +66,7 @@ const Footer: React.FC = () => {
           <div>
             <h3 className="text-lg font-semibold text-white mb-4">Contacto</h3>
             <address className="not-italic text-gray-300 space-y-2">
-              <p>Av. Principal, Nro 123, Ciudad Capital</p>
+              <p>Calle Principal, entre Calle 1 y Calle 2, Urb. Calicanto, Maracay, Edo. Aragua, Venezuela.</p>
               <p><strong>Teléfono:</strong> +58 (212) 555-1234</p>
               <p><strong>Email:</strong> contacto@vidamed.lab</p>
             </address>

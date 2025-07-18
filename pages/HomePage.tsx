@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Stethoscope, FlaskConical, Beaker, TestTube, Search, ChevronRight, Star } from 'lucide-react';
-import { supabase } from '../src/services/supabaseClient';
+import { supabasePublic as supabase } from '../src/services/supabaseClient';
 import { Testimonial, BlogPost } from '../types';
 import useEmblaCarousel from 'embla-carousel-react';
 import Autoplay from 'embla-carousel-autoplay';
@@ -16,9 +16,11 @@ const serviceIcons = {
 const HomePage: React.FC = () => {
     const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
     const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
+    const [heroImages, setHeroImages] = useState<any[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const navigate = useNavigate();
-    const [emblaRef] = useEmblaCarousel({ loop: true, align: 'start' }, [Autoplay({ delay: 4000 })]);
+    const [emblaRefHero] = useEmblaCarousel({ loop: true }, [Autoplay({ delay: 2000, stopOnInteraction: false })]);
+    const [emblaRefTestimonials] = useEmblaCarousel({ loop: true, align: 'start' }, [Autoplay({ delay: 4000 })]);
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
@@ -29,6 +31,10 @@ const HomePage: React.FC = () => {
 
     useEffect(() => {
         const fetchHomePageData = async () => {
+            // Fetch Hero Images
+            const { data: heroData } = await supabase.from('hero_images').select('*').eq('is_active', true).order('orden');
+            if (heroData) setHeroImages(heroData);
+
             // Fetch Testimonials
             const { data: testimonialsData, error: testimonialsError } = await supabase
                 .from('testimonios')
@@ -78,21 +84,31 @@ const HomePage: React.FC = () => {
     return (
       <div className="bg-white">
         {/* Hero Section */}
-        <section className="relative bg-light pt-20 pb-24 md:pt-28 md:pb-32">
-            <div className="absolute inset-0 bg-grid-pattern opacity-50"></div>
-            <style>{`.bg-grid-pattern { background-image: linear-gradient(#d1e9ff 1px, transparent 1px), linear-gradient(to right, #d1e9ff 1px, transparent 1px); background-size: 20px 20px; }`}</style>
+        <section className="relative bg-light pt-20 pb-24 md:pt-28 md:pb-32 overflow-hidden">
+            {heroImages.length > 0 && (
+                <div className="absolute inset-0" ref={emblaRefHero}>
+                    <div className="flex h-full">
+                        {heroImages.map(image => (
+                            <div key={image.id} className="flex-shrink-0 w-full h-full relative">
+                            <img src={image.image_url} alt={image.alt_text} className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-primary opacity-70"></div>
+                        </div>
+                    ))}
+                    </div>
+                </div>
+            )}
             <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
-                <h1 className="text-4xl md:text-6xl font-bold text-dark tracking-tight">
-                    Resultados precisos, <span className="text-primary">cuidado cercano.</span>
+                <h1 className="text-4xl md:text-6xl font-bold text-white tracking-tight">
+                    Resultados precisos, <span className="text-secondary">cuidado cercano.</span>
                 </h1>
-                <p className="mt-4 max-w-2xl mx-auto text-lg md:text-xl text-gray-600">
+                <p className="mt-4 max-w-2xl mx-auto text-lg md:text-xl text-white/90">
                     Tu salud en manos expertas. Accede a un catálogo completo de estudios, agenda tu cita en línea y consulta tus resultados de forma segura y confidencial.
                 </p>
                 <div className="mt-8 flex justify-center gap-4 flex-wrap">
                     <Link to="/agendar" className="inline-block bg-primary text-white font-semibold px-8 py-3 rounded-full hover:bg-primary-dark transition-transform transform hover:scale-105">
                         Agendar Cita
                     </Link>
-                    <Link to="/portal" className="inline-block bg-white text-primary font-semibold px-8 py-3 rounded-full border border-primary hover:bg-primary/5 transition-transform transform hover:scale-105">
+                    <Link to="/portal" className="inline-block bg-white text-primary font-semibold px-8 py-3 rounded-full border border-primary hover:bg-primary hover:text-white transition-all duration-300 transform hover:scale-105">
                         Ver Resultados
                     </Link>
                 </div>
@@ -100,7 +116,7 @@ const HomePage: React.FC = () => {
         </section>
 
         {/* Search Bar Section */}
-        <section className="bg-white py-16 -mt-16 relative z-20">
+        <section className="bg-transparent py-16 -mt-16 relative z-20">
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
                 <form onSubmit={handleSearch} className="max-w-3xl mx-auto bg-white p-6 rounded-lg shadow-lg">
                     <label htmlFor="study-search" className="block text-lg font-semibold text-dark mb-2">Busca un Estudio</label>
@@ -154,14 +170,17 @@ const HomePage: React.FC = () => {
                 </div>
                 <div className="grid md:grid-cols-3 gap-8 text-center">
                     <div className="p-6">
+                        <img src="/Gemini_Generated_Image_30pwzh30pwzh30pw.png" alt="Tecnología de Punta" className="w-full h-48 object-cover rounded-lg mb-4" />
                         <h3 className="text-xl font-semibold text-dark">Tecnología de Punta</h3>
                         <p className="mt-2 text-gray-600">Equipos de última generación para garantizar la máxima precisión en cada resultado.</p>
                     </div>
                     <div className="p-6">
+                        <img src="/Captura de pantalla 2025-07-16 234131.png" alt="Personal Certificado" className="w-full h-48 object-cover object-top rounded-lg mb-4" />
                         <h3 className="text-xl font-semibold text-dark">Personal Certificado</h3>
                         <p className="mt-2 text-gray-600">Nuestro equipo de bioanalistas y personal de salud está altamente calificado y en constante formación.</p>
                     </div>
                     <div className="p-6">
+                        <img src="/Captura de pantalla 2025-07-16 234037.png" alt="Entrega Rápida y Segura" className="w-full h-48 object-cover rounded-lg mb-4" />
                         <h3 className="text-xl font-semibold text-dark">Entrega Rápida y Segura</h3>
                         <p className="mt-2 text-gray-600">Accede a tus resultados en línea a través de nuestro portal seguro, en tiempo récord.</p>
                     </div>
@@ -175,7 +194,7 @@ const HomePage: React.FC = () => {
                 <div className="text-center mb-12">
                     <h2 className="text-3xl font-bold text-dark">Lo que dicen nuestros pacientes</h2>
                 </div>
-                <div className="overflow-hidden" ref={emblaRef}>
+                <div className="overflow-hidden" ref={emblaRefTestimonials}>
                     <div className="flex">
                         {testimonials.map(testimonial => (
                             <div key={testimonial.id} className="flex-shrink-0 w-full md:w-1/3 p-4">

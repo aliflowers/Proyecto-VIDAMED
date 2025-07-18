@@ -11,6 +11,8 @@ import BlogPage from './pages/BlogPage';
 import PostPage from './pages/PostPage';
 import AboutPage from './pages/AboutPage';
 import ContactPage from './pages/ContactPage';
+import TermsOfServicePage from './pages/TermsOfServicePage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import NotFoundPage from './pages/NotFoundPage';
 import ChatWidget from './components/ChatWidget';
 import LoginPage from './pages/LoginPage';
@@ -24,6 +26,7 @@ import AppointmentsAdminPage from './pages/admin/AppointmentsAdminPage';
 import PatientsAdminPage from './pages/admin/PatientsAdminPage';
 import PatientDetailPage from './pages/admin/PatientDetailPage';
 import StatisticsPage from './pages/admin/StatisticsPage';
+import SiteConfigPage from './pages/admin/SiteConfigPage';
 
 // Componente para renderizar el layout principal
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -58,6 +61,8 @@ const App: React.FC = () => {
                 <Route path="/blog/:id" element={<PostPage />} />
                 <Route path="/quienes-somos" element={<AboutPage />} />
                     <Route path="/contacto" element={<ContactPage />} />
+                    <Route path="/terminos-de-servicio" element={<TermsOfServicePage />} />
+                    <Route path="/politica-de-privacidad" element={<PrivacyPolicyPage />} />
                     
                     {/* Admin Routes */}
                     <Route path="/login" element={<LoginPage />} />
@@ -70,10 +75,11 @@ const App: React.FC = () => {
                             <Route path="testimonials" element={<TestimonialsAdminPage />} />
                             <Route path="appointments" element={<AppointmentsAdminPage />} />
                             <Route path="patients" element={<PatientsAdminPage />} />
-                            <Route path="patients/:id" element={<PatientDetailPage />} />
-                            <Route path="statistics" element={<StatisticsPage />} />
-                            {/* Aquí se añadirán las otras rutas del panel de admin */}
-                        </Route>
+                        <Route path="patients/:id" element={<PatientDetailPage />} />
+                        <Route path="statistics" element={<StatisticsPage />} />
+                        <Route path="config" element={<SiteConfigPage />} />
+                        {/* Aquí se añadirán las otras rutas del panel de admin */}
+                    </Route>
                     </Route>
 
                     {/* Not Found */}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { supabase } from '../src/services/supabaseClient';
+import { supabasePublic as supabase } from '../src/services/supabaseClient';
 import { BlogPost } from '../types';
 import { Loader, ArrowLeft, Calendar, User, Tag } from 'lucide-react';
 import useDocumentTitle from '../hooks/useDocumentTitle';

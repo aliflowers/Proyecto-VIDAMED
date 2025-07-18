@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { supabase } from '../src/services/supabaseClient';
+import { supabasePublic as supabase } from '../src/services/supabaseClient';
 import { BlogPost } from '../types';
 import { ChevronRight, Tag, Loader } from 'lucide-react';
 

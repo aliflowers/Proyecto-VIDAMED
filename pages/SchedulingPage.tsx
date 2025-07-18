@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Calendar, Clock, MapPin, User, Mail, Phone, Home, AlertCircle, CheckCircle, Loader, Fingerprint, Map } from 'lucide-react';
-import { supabase } from '../src/services/supabaseClient';
+import { supabasePublic as supabase } from '../src/services/supabaseClient';
 import { Study } from '../types';
 import Select from 'react-select';
 import { DayPicker } from 'react-day-picker';
@@ -9,6 +10,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 const SchedulingPage: React.FC = () => {
+    const location = useLocation();
     const [studies, setStudies] = useState<Study[]>([]);
     const [unavailableDays, setUnavailableDays] = useState<Date[]>([]);
     const [formData, setFormData] = useState({
@@ -31,7 +33,10 @@ const SchedulingPage: React.FC = () => {
     useEffect(() => {
         fetchStudies();
         fetchUnavailableDays();
-    }, []);
+        if (location.state?.selectedStudy) {
+            setFormData(prev => ({ ...prev, selectedStudies: [location.state.selectedStudy] }));
+        }
+    }, [location.state]);
 
     const fetchStudies = async () => {
         const { data, error } = await supabase.from('estudios').select('*');

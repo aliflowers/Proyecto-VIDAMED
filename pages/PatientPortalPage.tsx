@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { User, Search, Download, Eye, Loader, AlertCircle } from 'lucide-react';
 import Logo from '../components/Logo';
-import { supabase } from '../src/services/supabaseClient';
+import { supabasePublic as supabase } from '../src/services/supabaseClient';
 import ResultViewer from '../components/admin/ResultViewer';
 import TestimonialForm from '../components/TestimonialForm';
 import { Study, Patient } from '../types';
@@ -69,29 +69,34 @@ const PatientPortalPage: React.FC = () => {
         }
 
         try {
-            const { data: patientData, error: patientError } = await supabase
-                .from('pacientes')
-                .select('*')
-                .eq('cedula_identidad', cedula.trim())
-                .single();
+            console.log(`Llamando a RPC get_patient_results_public con cédula: '${cedula.trim()}'`);
+            const { data, error: rpcError } = await supabase.rpc('get_patient_results_public', {
+                p_cedula: cedula.trim(),
+            });
 
-            if (patientError || !patientData) {
-                throw new Error('No se encontró ningún paciente con esa cédula de identidad.');
+            console.log('Respuesta de Supabase (RPC):', { data, rpcError });
+
+            if (rpcError) {
+                console.error('Error en RPC:', rpcError);
+                throw new Error('Ocurrió un error al buscar los resultados.');
             }
-            
-            setPatient(patientData as Patient);
 
-            const { data: resultsData, error: resultsError } = await supabase
-                .from('resultados_pacientes')
-                .select('id, fecha_creacion, resultado_data')
-                .eq('paciente_id', patientData.id)
-                .order('fecha_creacion', { ascending: false });
+            if (!data || data.length === 0) {
+                throw new Error('No se encontró ningún paciente o resultados con esa cédula de identidad.');
+            }
 
-            if (resultsError) throw new Error('Ocurrió un error al buscar los resultados.');
+            // Como todos los resultados son del mismo paciente, tomamos los datos del primero.
+            const patientInfo = {
+                nombres: data[0].paciente_nombres,
+                apellidos: data[0].paciente_apellidos,
+            };
+            setPatient(patientInfo as Patient); // Hacemos un type assertion parcial, ya que no tenemos todos los campos del paciente.
 
-            setResults(resultsData || []);
+            setResults(data);
+            console.log(`Se encontraron ${data.length} resultados para ${patientInfo.nombres} ${patientInfo.apellidos}.`);
 
         } catch (err: any) {
+            console.error('Error en handleSearch:', err);
             setError(err.message);
         } finally {
             setIsLoading(false);

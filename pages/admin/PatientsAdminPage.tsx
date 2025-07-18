@@ -4,6 +4,7 @@ import { Loader, Search, UserPlus, Eye, Edit } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import PatientForm from '../../components/admin/PatientForm';
 import { Patient } from '../../types';
+import { useStatistics } from '../../src/context/StatisticsContext';
 
 const PatientsAdminPage: React.FC = () => {
     const [allPatients, setAllPatients] = useState<Patient[]>([]);
@@ -11,6 +12,7 @@ const PatientsAdminPage: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
+    const { refreshStats } = useStatistics();
 
     useEffect(() => {
         fetchPatients();
@@ -60,6 +62,7 @@ const PatientsAdminPage: React.FC = () => {
             setIsModalOpen(false);
             setEditingPatient(null);
             fetchPatients();
+            refreshStats(); // ¡Aquí está la corrección!
         } catch (error: any) {
             alert(error.message);
         } finally {
@@ -88,7 +91,7 @@ const PatientsAdminPage: React.FC = () => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             </div>
 
-            <div className="bg-white shadow-md rounded-lg overflow-hidden">
+            <div className="bg-white shadow-md rounded-lg overflow-x-auto">
                 <table className="min-w-full">
                     <thead className="bg-gray-50">
                         <tr>

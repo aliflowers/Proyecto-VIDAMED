@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../../src/services/supabaseClient';
 import { Study } from '../../types';
-import { Loader, Plus, Edit, Trash2, Search } from 'lucide-react';
+import { Loader, Plus, Edit, Trash2, Search, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import StudyForm from '../../components/admin/StudyForm';
+
+type SortOption = 'nombre' | 'costo_usd' | 'veces_realizado';
 
 const StudiesAdminPage: React.FC = () => {
     const [studies, setStudies] = useState<Study[]>([]);
@@ -11,17 +13,32 @@ const StudiesAdminPage: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingStudy, setEditingStudy] = useState<Study | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [categories, setCategories] = useState<string[]>([]);
+    const [selectedCategory, setSelectedCategory] = useState('all');
+    const [sortOption, setSortOption] = useState<SortOption>('nombre');
+    const [sortAsc, setSortAsc] = useState(true);
 
-    useEffect(() => {
-        fetchStudies();
-    }, []);
-
-    const fetchStudies = async () => {
+    const fetchStudiesAndCategories = useCallback(async () => {
         setIsLoading(true);
-        const { data, error } = await supabase
-            .from('estudios')
-            .select('*')
-            .order('nombre', { ascending: true });
+        
+        // Fetch categories
+        const { data: categoriesData, error: categoriesError } = await supabase.rpc('get_distinct_categories');
+        if (categoriesError) {
+            console.error('Error fetching categories:', categoriesError);
+        } else {
+            setCategories(categoriesData || []);
+        }
+
+        // Fetch studies
+        let query = supabase.from('estudios').select('*');
+        
+        if (selectedCategory !== 'all') {
+            query = query.eq('categoria', selectedCategory);
+        }
+
+        query = query.order(sortOption, { ascending: sortAsc });
+
+        const { data, error } = await query;
 
         if (error) {
             console.error('Error fetching studies:', error);
@@ -43,17 +60,37 @@ const StudiesAdminPage: React.FC = () => {
             setStudies(formattedData);
         }
         setIsLoading(false);
-    };
+    }, [selectedCategory, sortOption, sortAsc]);
+
+    useEffect(() => {
+        fetchStudiesAndCategories();
+    }, [fetchStudiesAndCategories]);
 
     const filteredStudies = useMemo(() => {
+        if (!searchTerm) return studies;
         return studies.filter(study =>
             study.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             study.category.toLowerCase().includes(searchTerm.toLowerCase())
         );
     }, [searchTerm, studies]);
 
-    const handleSave = async (studyData: Omit<Study, 'id'> | Study) => {
+    const handleSave = async (studyData: Omit<Study, 'id'> | Study, file?: File) => {
         setIsLoading(true);
+        let backgroundUrl = studyData.background_url;
+
+        if (file) {
+            const cleanFileName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+            const fileName = `study_bg_${Date.now()}_${cleanFileName}`;
+            const { error: uploadError } = await supabase.storage.from('hero-slider').upload(fileName, file, { upsert: true });
+            if (uploadError) {
+                alert(`Error subiendo la imagen: ${uploadError.message}`);
+                setIsLoading(false);
+                return;
+            }
+            const { data: { publicUrl } } = supabase.storage.from('hero-slider').getPublicUrl(fileName);
+            backgroundUrl = publicUrl;
+        }
+
         const dataToSave = {
             nombre: studyData.name,
             categoria: studyData.category,
@@ -64,6 +101,7 @@ const StudiesAdminPage: React.FC = () => {
             tasa_bcv: studyData.tasa_bcv || 0,
             tiempo_entrega: studyData.deliveryTime,
             campos_formulario: studyData.campos_formulario,
+            background_url: backgroundUrl,
         };
 
         let error;
@@ -75,16 +113,16 @@ const StudiesAdminPage: React.FC = () => {
             error = createError;
         }
 
-        if (error) {
-            console.error('Error saving study:', error);
-            alert(error.message);
-        } else {
-            setIsModalOpen(false);
-            setEditingStudy(null);
-            fetchStudies();
-        }
-        setIsLoading(false);
-    };
+            if (error) {
+                console.error('Error saving study:', error);
+                alert(error.message);
+            } else {
+                setIsModalOpen(false);
+                setEditingStudy(null);
+                fetchStudiesAndCategories();
+            }
+            setIsLoading(false);
+        };
 
     const handleDelete = async (studyId: string) => {
         if (window.confirm('¿Estás seguro de que quieres eliminar este estudio?')) {
@@ -94,11 +132,35 @@ const StudiesAdminPage: React.FC = () => {
                 console.error('Error deleting study:', error);
                 alert(error.message);
             } else {
-                fetchStudies();
+                fetchStudiesAndCategories();
             }
             setIsLoading(false);
         }
     };
+
+    const handleSort = (option: SortOption) => {
+        if (option === sortOption) {
+            setSortAsc(!sortAsc);
+        } else {
+            setSortOption(option);
+            setSortAsc(true);
+        }
+    };
+
+    const SortableHeader: React.FC<{ option: SortOption, label: string }> = ({ option, label }) => (
+        <th className="py-3 px-6 text-left cursor-pointer hover:bg-gray-100" onClick={() => handleSort(option)}>
+            <div className="flex items-center">
+                {label}
+                <span className="ml-2">
+                    {sortOption === option ? (
+                        sortAsc ? <ArrowUp size={14} /> : <ArrowDown size={14} />
+                    ) : (
+                        <ArrowUpDown size={14} className="text-gray-400" />
+                    )}
+                </span>
+            </div>
+        </th>
+    );
 
     if (isLoading && studies.length === 0) {
         return <div className="flex justify-center items-center h-full"><Loader className="animate-spin text-primary" size={48} /></div>;
@@ -118,26 +180,38 @@ const StudiesAdminPage: React.FC = () => {
                 </button>
             </div>
 
-            <div className="mb-6 relative">
-                <input
-                    type="text"
-                    placeholder="Buscar por nombre o categoría..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full p-2 pl-10 border rounded-md"
-                />
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <div className="mb-6 flex flex-col md:flex-row gap-4">
+                <div className="relative flex-grow">
+                    <input
+                        type="text"
+                        placeholder="Buscar por nombre o categoría..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full p-2 pl-10 border rounded-md"
+                    />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                </div>
+                <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="p-2 border rounded-md bg-white"
+                >
+                    <option value="all">Todas las categorías</option>
+                    {categories.map((cat: any) => (
+                        <option key={cat.category} value={cat.category}>{cat.category}</option>
+                    ))}
+                </select>
             </div>
 
-            <div className="bg-white shadow-md rounded-lg overflow-hidden">
+            <div className="bg-white shadow-md rounded-lg overflow-x-auto">
                 <table className="min-w-full">
                     <thead className="bg-gray-50">
                         <tr>
-                            <th className="py-3 px-6 text-left">Nombre</th>
+                            <SortableHeader option="nombre" label="Nombre" />
                             <th className="py-3 px-6 text-left">Categoría</th>
-                            <th className="py-3 px-6 text-left">Precio (USD)</th>
+                            <SortableHeader option="costo_usd" label="Precio (USD)" />
                             <th className="py-3 px-6 text-left">Precio (Bs)</th>
-                            <th className="py-3 px-6 text-center">Realizados</th>
+                            <SortableHeader option="veces_realizado" label="Realizados" />
                             <th className="py-3 px-6 text-right">Acciones</th>
                         </tr>
                     </thead>

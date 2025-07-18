@@ -17,6 +17,7 @@ export interface Study {
   deliveryTime: string;
   campos_formulario?: any[]; // Puede ser un array de objetos
   veces_realizado?: number;
+  background_url?: string;
 }
 
 export interface BlogPost {

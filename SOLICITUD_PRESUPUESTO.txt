@@ -1,0 +1,65 @@
+**Asunto: Solicitud de Presupuesto - Desarrollo de Sitio Web para Laboratorio Clínico**
+
+**Estimados [Nombre de la Empresa/Desarrollador],**
+
+Mi nombre es [Su Nombre] y represento al Laboratorio Clínico [Nombre de su Laboratorio]. Estamos buscando desarrollar una plataforma web moderna, robusta y escalable para mejorar nuestra presencia en línea y optimizar la gestión de nuestros servicios.
+
+Hemos investigado y tenemos una visión clara de las funcionalidades que requerimos, inspiradas en el sitio web del Laboratorio Clínico VidaMed. A continuación, detallamos los requerimientos funcionales para los que solicitamos un presupuesto detallado.
+
+---
+
+### **Requerimientos Generales**
+
+*   **Tecnología:** Preferiblemente desarrollado con React (TypeScript), Vite y Tailwind CSS para el frontend, y utilizando Supabase como Backend-as-a-Service (BaaS) para la base de datos (PostgreSQL), autenticación y almacenamiento.
+*   **Diseño:** El sitio debe ser 100% responsivo, garantizando una experiencia de usuario impecable en dispositivos móviles, tabletas y computadoras de escritorio.
+*   **SEO:** La estructura del sitio debe ser amigable para los motores de búsqueda, con especial atención en la optimización de las páginas del blog.
+*   **PWA (Progressive Web App):** La aplicación debe ser instalable en dispositivos y tener capacidades sin conexión.
+
+---
+
+### **Funcionalidades del Portal Público**
+
+1.  **Página de Inicio:** Página de aterrizaje atractiva con secciones para servicios destacados, testimonios y últimas entradas del blog.
+2.  **Catálogo de Estudios:** Una página para listar todos los análisis clínicos ofrecidos por el laboratorio, con descripciones, precios, e instrucciones de preparación.
+3.  **Agendamiento de Citas:** Un formulario avanzado que permita:
+    *   Seleccionar múltiples estudios.
+    *   Elegir entre atención en sede o servicio a domicilio (con campo de dirección condicional).
+    *   Seleccionar fecha y hora en un calendario que muestre los días no disponibles.
+    *   Crear o actualizar (upsert) el registro del paciente automáticamente.
+4.  **Portal de Pacientes:** Un área segura donde los pacientes puedan acceder a su historial de resultados usando únicamente su número de cédula. Debe permitir la visualización de resultados manuales y la descarga de archivos (PDFs).
+5.  **Formulario de Testimonios:** Integrado en el portal de pacientes, para que puedan dejar su opinión y calificación después de ver sus resultados.
+6.  **Blog:** Una sección de blog con una página de listado y páginas de detalle para cada artículo.
+7.  **Asistente de IA:** Un widget de chat flotante con capacidad para chat de texto (integrado con una API como Google Gemini) y, opcionalmente, chat de voz.
+8.  **Páginas Estáticas:** "Sobre Nosotros", "Contacto", "Términos de Servicio" y "Política de Privacidad".
+
+---
+
+### **Funcionalidades del Panel de Administración**
+
+1.  **Autenticación Segura:** Sistema de login para el personal del laboratorio.
+2.  **Dashboard Principal:** Una vista general con estadísticas clave (KPIs) y gráficos sobre la actividad reciente (nuevos pacientes, citas, estudios más solicitados). Las estadísticas deben actualizarse en tiempo real.
+3.  **Gestión de Estudios (CRUD):** Funcionalidad completa para crear, leer, actualizar y eliminar los estudios del catálogo. Debe incluir un sistema para definir campos de resultados personalizados (formato JSON).
+4.  **Gestión de Blog (CRUD):** Funcionalidad completa para gestionar las publicaciones del blog, incluyendo subida de imágenes y campos para metadatos SEO.
+5.  **Gestión de Testimonios:** Un módulo para moderar (aprobar/rechazar) y eliminar los testimonios enviados por los pacientes.
+6.  **Gestión de Citas:**
+    *   Visualización de todas las citas con filtros y búsqueda.
+    *   Capacidad para cambiar el estado de una cita (pendiente, confirmada, cancelada) y reagendarla.
+    *   Un calendario para gestionar los días no disponibles del laboratorio.
+7.  **Gestión de Pacientes y Resultados:**
+    *   Una base de datos de pacientes con búsqueda y capacidad de edición.
+    *   Una vista de detalle por paciente que muestre su historial completo.
+    *   Un sistema dual para cargar resultados: subida de archivos (PDF) y entrada manual a través de formularios dinámicos basados en la configuración de cada estudio.
+
+---
+
+Agradeceríamos que nos proporcionaran un presupuesto desglosado que cubra el desarrollo de todas las funcionalidades mencionadas, así como un tiempo estimado para la finalización del proyecto.
+
+Quedamos a su disposición para cualquier aclaración o reunión que consideren necesaria.
+
+Atentamente,
+
+[Su Nombre]
+[Su Cargo]
+Laboratorio Clínico [Nombre de su Laboratorio]
+[Su Correo Electrónico]
+[Su Número de Teléfono]

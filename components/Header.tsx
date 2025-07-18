@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import Logo from './Logo';
 import { Menu, X } from 'lucide-react';
 
@@ -23,7 +22,7 @@ const Header: React.FC = () => {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           <NavLink to="/">
-            <Logo className="h-12" />
+            <Logo className="h-16" />
           </NavLink>
           <nav className="hidden lg:flex items-center space-x-8">
             {navLinks.map((link) => (

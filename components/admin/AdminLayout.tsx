@@ -1,8 +1,9 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { supabase } from '../../src/services/supabaseClient';
-import { LayoutDashboard, FlaskConical, Newspaper, MessageSquare, Calendar, Users, BarChart2, LogOut } from 'lucide-react';
+import { LayoutDashboard, FlaskConical, Newspaper, MessageSquare, Calendar, Users, BarChart2, Settings, LogOut } from 'lucide-react';
 import Logo from '../Logo';
+import { StatisticsProvider } from '../../src/context/StatisticsContext';
 
 const AdminLayout: React.FC = () => {
     const navigate = useNavigate();
@@ -20,6 +21,7 @@ const AdminLayout: React.FC = () => {
         { to: "/admin/appointments", icon: Calendar, label: "Citas" },
         { to: "/admin/patients", icon: Users, label: "Pacientes" },
         { to: "/admin/statistics", icon: BarChart2, label: "Estadísticas" },
+        { to: "/admin/config", icon: Settings, label: "Configuración" },
     ];
 
     return (
@@ -61,8 +63,10 @@ const AdminLayout: React.FC = () => {
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 p-8 overflow-y-auto">
-                <Outlet />
+            <main className="flex-1 p-8 overflow-y-auto bg-light">
+                <StatisticsProvider>
+                    <Outlet />
+                </StatisticsProvider>
             </main>
         </div>
     );

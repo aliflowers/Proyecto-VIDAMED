@@ -1,12 +1,26 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { supabase } from '../src/services/supabaseClient';
+import { supabasePublic as supabase } from '../src/services/supabaseClient';
 import { Study } from '../types';
 import { Search, ChevronDown, Tag, DollarSign, Clock, Info, Syringe, Loader } from 'lucide-react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 
-const StudyCard: React.FC<{ study: Study }> = ({ study }) => (
-    <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 flex flex-col">
-        <h3 className="text-xl font-bold text-primary mb-2">{study.name}</h3>
+const StudyCard: React.FC<{ study: Study, backgroundUrl?: string }> = ({ study, backgroundUrl }) => {
+    const navigate = useNavigate();
+
+    const handleAgendarClick = () => {
+        navigate('/agendar', { state: { selectedStudy: { value: study.id, label: `${study.name} - $${study.price.toFixed(2)}` } } });
+    };
+
+    return (
+        <div className="relative bg-white p-6 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden group hover:scale-105">
+            {backgroundUrl && (
+                <div 
+                    className="absolute inset-0 bg-cover bg-center opacity-10 group-hover:opacity-20 transition-opacity"
+                    style={{ backgroundImage: `url(${backgroundUrl})` }}
+                ></div>
+            )}
+            <div className="relative z-10 flex flex-col flex-grow">
+                <h3 className="text-xl font-bold text-primary mb-2">{study.name}</h3>
         <div className="flex items-center text-gray-500 text-sm mb-3">
             <Tag className="w-4 h-4 mr-2" />
             <span>{study.category}</span>
@@ -22,11 +36,13 @@ const StudyCard: React.FC<{ study: Study }> = ({ study }) => (
                 <p className="text-xs text-gray-400">A la tasa del BCV de hoy</p>
             </div>
         </div>
-        <button className="w-full mt-4 bg-secondary text-white font-semibold py-2 px-4 rounded-full hover:bg-primary transition-colors">
-            Agendar este estudio
-        </button>
-    </div>
-);
+                <button onClick={handleAgendarClick} className="w-full mt-4 bg-secondary text-white font-semibold py-2 px-4 rounded-full hover:bg-primary transition-colors">
+                    Agendar este estudio
+                </button>
+            </div>
+        </div>
+    );
+};
 
 
 const StudiesPage: React.FC = () => {
@@ -39,9 +55,7 @@ const StudiesPage: React.FC = () => {
 
     useEffect(() => {
         const fetchStudies = async () => {
-            const { data, error } = await supabase
-                .from('estudios')
-                .select('*');
+            const { data, error } = await supabase.from('estudios').select('*');
 
             if (error) {
                 console.error('Error fetching studies:', error);
@@ -58,6 +72,7 @@ const StudiesPage: React.FC = () => {
                     costo_bs: item.costo_bs,
                     deliveryTime: item.tiempo_entrega,
                     campos_formulario: item.campos_formulario,
+                    background_url: item.background_url,
                 }));
                 setStudies(formattedData);
             }
@@ -135,7 +150,7 @@ const StudiesPage: React.FC = () => {
                 {filteredStudies.length > 0 ? (
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {filteredStudies.map(study => (
-                           <StudyCard key={study.id} study={study} />
+                           <StudyCard key={study.id} study={study} backgroundUrl={study.background_url} />
                         ))}
                     </div>
                 ) : (

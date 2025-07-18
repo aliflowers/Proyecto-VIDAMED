@@ -55,7 +55,7 @@ const AboutPage: React.FC = () => {
                             </p>
                         </div>
                         <div>
-                            <img src="https://picsum.photos/seed/labteam/600/400" alt="Equipo del laboratorio VidaMed" className="rounded-lg shadow-xl" />
+                            <img src="/Image_fx (38).jpg" alt="Equipo del laboratorio VidaMed" className="rounded-lg shadow-xl w-full h-auto object-cover" />
                         </div>
                     </div>
                 </div>
@@ -70,17 +70,17 @@ const AboutPage: React.FC = () => {
                     </div>
                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
                         <div className="text-center">
-                            <img src="https://picsum.photos/seed/director/300/300" alt="Directora del Laboratorio" className="w-48 h-48 mx-auto rounded-full shadow-lg" />
+                            <img src="/Image_fx (40).jpg" alt="Directora del Laboratorio" className="w-48 h-48 mx-auto rounded-full shadow-lg object-cover" />
                             <h3 className="mt-4 text-xl font-semibold text-dark">Dra. Elena Torres</h3>
                             <p className="text-primary">Directora General y Fundadora</p>
                         </div>
                         <div className="text-center">
-                            <img src="https://picsum.photos/seed/manager/300/300" alt="Gerente de Calidad" className="w-48 h-48 mx-auto rounded-full shadow-lg" />
+                            <img src="/Image_fx (41).jpg" alt="Gerente de Calidad" className="w-48 h-48 mx-auto rounded-full shadow-lg object-cover" />
                             <h3 className="mt-4 text-xl font-semibold text-dark">Lcdo. Javier Rios</h3>
                             <p className="text-primary">Gerente de Calidad</p>
                         </div>
                         <div className="text-center">
-                            <img src="https://picsum.photos/seed/care/300/300" alt="Jefa de Atención al Paciente" className="w-48 h-48 mx-auto rounded-full shadow-lg" />
+                            <img src="/Image_fx (42).jpg" alt="Jefa de Atención al Paciente" className="w-48 h-48 mx-auto rounded-full shadow-lg object-cover" />
                             <h3 className="mt-4 text-xl font-semibold text-dark">Lcda. Isabel Luna</h3>
                             <p className="text-primary">Jefa de Atención al Paciente</p>
                         </div>

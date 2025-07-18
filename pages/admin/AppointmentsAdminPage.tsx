@@ -182,7 +182,7 @@ const AppointmentsAdminPage: React.FC = () => {
                 </select>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 bg-white shadow-md rounded-lg overflow-hidden">
+                <div className="lg:col-span-2 bg-white shadow-md rounded-lg overflow-x-auto">
                     <table className="min-w-full">
                         <thead className="bg-gray-50">
                             <tr>

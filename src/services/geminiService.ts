@@ -30,7 +30,7 @@ export const createChat = (): Chat | null => {
     return null;
   }
   return ai.chats.create({
-    model: 'gemini-2.5-flash-preview-04-17',
+    model: 'gemini-2.5-flash',
     config: {
       systemInstruction: systemInstruction,
     },
