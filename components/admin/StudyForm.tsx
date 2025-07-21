@@ -27,7 +27,6 @@ const StudyForm: React.FC<StudyFormProps> = ({ study, onSave, onCancel, isLoadin
         description: '',
         preparation: '',
         costo_usd: '',
-        tasa_bcv: '',
         costo_bs: '',
         deliveryTime: '',
         campos_formulario: '[]',
@@ -43,7 +42,6 @@ const StudyForm: React.FC<StudyFormProps> = ({ study, onSave, onCancel, isLoadin
                 description: study.description,
                 preparation: study.preparation,
                 costo_usd: String(study.price),
-                tasa_bcv: String(study.tasa_bcv || ''),
                 costo_bs: String(study.costo_bs || ''),
                 deliveryTime: study.deliveryTime,
                 campos_formulario: JSON.stringify(study.campos_formulario || [], null, 2),
@@ -54,19 +52,7 @@ const StudyForm: React.FC<StudyFormProps> = ({ study, onSave, onCancel, isLoadin
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        
-        setFormData(prev => {
-            const newFormData = { ...prev, [name]: value };
-            
-            if (name === 'costo_usd' || name === 'tasa_bcv') {
-                const usd = parseFloat(name === 'costo_usd' ? value : newFormData.costo_usd) || 0;
-                const bcv = parseFloat(name === 'tasa_bcv' ? value : newFormData.tasa_bcv) || 0;
-                const calculatedBs = usd * bcv;
-                newFormData.costo_bs = calculatedBs > 0 ? String(calculatedBs) : '';
-            }
-            
-            return newFormData;
-        });
+        setFormData(prev => ({ ...prev, [name]: value }));
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -83,8 +69,7 @@ const StudyForm: React.FC<StudyFormProps> = ({ study, onSave, onCancel, isLoadin
                 ...study,
                 ...formData,
                 price: parseFloat(formData.costo_usd) || 0,
-                costo_bs: parseFloat(formData.costo_bs) || 0,
-                tasa_bcv: parseFloat(formData.tasa_bcv) || 0,
+                costo_bs: parseFloat(formData.costo_bs) || 0, // Este valor será recalculado en la página principal
                 campos_formulario,
             };
             onSave(studyToSave, backgroundFile || undefined);
@@ -104,15 +89,14 @@ const StudyForm: React.FC<StudyFormProps> = ({ study, onSave, onCancel, isLoadin
                     </select>
                     <textarea name="description" value={formData.description} onChange={handleChange} placeholder="Descripción" required className="w-full p-2 border rounded" />
                     <textarea name="preparation" value={formData.preparation} onChange={handleChange} placeholder="Preparación" required className="w-full p-2 border rounded" />
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="relative">
                             <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 font-bold">$</span>
-                            <input type="number" name="costo_usd" value={formData.costo_usd} onChange={handleChange} placeholder="Precio" required className="w-full p-2 pl-7 border rounded" step="0.01" />
+                            <input type="number" name="costo_usd" value={formData.costo_usd} onChange={handleChange} placeholder="Precio en USD" required className="w-full p-2 pl-7 border rounded" step="0.01" />
                         </div>
-                        <input type="number" name="tasa_bcv" value={formData.tasa_bcv} onChange={handleChange} placeholder="Tasa actual del BCV" required className="w-full p-2 border rounded" step="0.01" />
                         <div className="relative">
                             <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 font-bold">Bs.</span>
-                            <input type="number" name="costo_bs" value={formData.costo_bs} readOnly placeholder="Precio" className="w-full p-2 pl-9 border rounded bg-gray-100" />
+                            <input type="number" name="costo_bs" value={formData.costo_bs} onChange={handleChange} placeholder="Precio en BS (se autocalculará)" className="w-full p-2 pl-9 border rounded bg-gray-100" readOnly />
                         </div>
                     </div>
                     <input name="deliveryTime" value={formData.deliveryTime} onChange={handleChange} placeholder="Tiempo de Entrega" required className="w-full p-2 border rounded" />

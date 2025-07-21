@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../../src/services/supabaseClient';
 import { Study } from '../../types';
-import { Loader, Plus, Edit, Trash2, Search, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { Loader, Plus, Edit, Trash2, Search, ArrowUp, ArrowDown, ArrowUpDown, Save } from 'lucide-react';
 import StudyForm from '../../components/admin/StudyForm';
 
 type SortOption = 'nombre' | 'costo_usd' | 'veces_realizado';
@@ -17,9 +17,26 @@ const StudiesAdminPage: React.FC = () => {
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [sortOption, setSortOption] = useState<SortOption>('nombre');
     const [sortAsc, setSortAsc] = useState(true);
+    const [tasaBcvGlobal, setTasaBcvGlobal] = useState(0);
+    const [tasaInput, setTasaInput] = useState('');
 
     const fetchStudiesAndCategories = useCallback(async () => {
         setIsLoading(true);
+
+        // Fetch global BCV rate
+        const { data: configData, error: configError } = await supabase
+            .from('site_config')
+            .select('tasa_bcv_global')
+            .eq('id', 1)
+            .single();
+
+        if (configError) {
+            console.error('Error fetching global BCV rate:', configError);
+            setError('No se pudo cargar la configuración de la tasa de cambio.');
+        } else if (configData) {
+            setTasaBcvGlobal(configData.tasa_bcv_global);
+            setTasaInput(configData.tasa_bcv_global.toString());
+        }
         
         // Fetch categories
         const { data: categoriesData, error: categoriesError } = await supabase.rpc('get_distinct_categories');
@@ -52,7 +69,6 @@ const StudiesAdminPage: React.FC = () => {
                 preparation: item.preparacion,
                 price: item.costo_usd,
                 costo_bs: item.costo_bs,
-                tasa_bcv: item.tasa_bcv,
                 deliveryTime: item.tiempo_entrega,
                 campos_formulario: item.campos_formulario,
                 veces_realizado: item.veces_realizado,
@@ -74,6 +90,47 @@ const StudiesAdminPage: React.FC = () => {
         );
     }, [searchTerm, studies]);
 
+    const handleSaveTasa = async () => {
+        const newTasa = parseFloat(tasaInput);
+        if (isNaN(newTasa) || newTasa <= 0) {
+            alert('Por favor, ingrese un valor de tasa válido.');
+            return;
+        }
+
+        setIsLoading(true);
+        const { error: updateError } = await supabase
+            .from('site_config')
+            .update({ tasa_bcv_global: newTasa })
+            .eq('id', 1);
+
+        if (updateError) {
+            alert(`Error al actualizar la tasa: ${updateError.message}`);
+            setIsLoading(false);
+            return;
+        }
+
+        setTasaBcvGlobal(newTasa);
+        await handleUpdateAllPrices(newTasa);
+        setIsLoading(false);
+        alert('Tasa de cambio actualizada y precios recalculados exitosamente.');
+    };
+
+    const handleUpdateAllPrices = async (newTasa: number) => {
+        const updates = studies.map(study => ({
+            id: study.id,
+            costo_bs: study.price * newTasa
+        }));
+
+        const { error } = await supabase.from('estudios').upsert(updates);
+
+        if (error) {
+            console.error('Error updating all prices:', error);
+            alert('Ocurrió un error al actualizar los precios de los estudios.');
+        } else {
+            fetchStudiesAndCategories(); // Refetch to show updated prices
+        }
+    };
+
     const handleSave = async (studyData: Omit<Study, 'id'> | Study, file?: File) => {
         setIsLoading(true);
         let backgroundUrl = studyData.background_url;
@@ -91,14 +148,16 @@ const StudiesAdminPage: React.FC = () => {
             backgroundUrl = publicUrl;
         }
 
+        const priceUSD = studyData.price || 0;
+        const costoBS = priceUSD * tasaBcvGlobal;
+
         const dataToSave = {
             nombre: studyData.name,
             categoria: studyData.category,
             descripcion: studyData.description,
             preparacion: studyData.preparation,
-            costo_usd: studyData.price,
-            costo_bs: studyData.costo_bs || 0,
-            tasa_bcv: studyData.tasa_bcv || 0,
+            costo_usd: priceUSD,
+            costo_bs: costoBS,
             tiempo_entrega: studyData.deliveryTime,
             campos_formulario: studyData.campos_formulario,
             background_url: backgroundUrl,
@@ -172,12 +231,28 @@ const StudiesAdminPage: React.FC = () => {
 
     return (
         <div>
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
                 <h1 className="text-3xl font-bold text-dark">Gestión de Estudios</h1>
-                <button onClick={() => { setEditingStudy(null); setIsModalOpen(true); }} className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-dark flex items-center">
-                    <Plus size={20} className="mr-2" />
-                    Crear Nuevo Estudio
-                </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                    <div className="relative">
+                        <input
+                            type="number"
+                            value={tasaInput}
+                            onChange={(e) => setTasaInput(e.target.value)}
+                            placeholder="Tasa BCV del día"
+                            className="p-2 border rounded-md w-40"
+                            step="0.01"
+                        />
+                    </div>
+                    <button onClick={handleSaveTasa} className="bg-secondary text-white px-4 py-2 rounded-md hover:bg-secondary-dark flex items-center">
+                        <Save size={18} className="mr-2" />
+                        Guardar Tasa
+                    </button>
+                    <button onClick={() => { setEditingStudy(null); setIsModalOpen(true); }} className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-dark flex items-center">
+                        <Plus size={20} className="mr-2" />
+                        Crear Nuevo Estudio
+                    </button>
+                </div>
             </div>
 
             <div className="mb-6 flex flex-col md:flex-row gap-4">
