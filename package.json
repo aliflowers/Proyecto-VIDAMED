@@ -1,5 +1,5 @@
 {
-  "name": "copy-of-laboratorio-clínico-vidamed",
+  "name": "vidamed-laboratorio-clinico",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,9 +10,11 @@
   },
   "dependencies": {
     "@elevenlabs/react": "^0.3.0",
-    "@google/genai": "^1.8.0",
+    "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.51.0",
+    "@types/react-select": "^5.0.0",
     "date-fns": "^4.1.0",
+    "dotenv": "^16.6.1",
     "embla-carousel-autoplay": "^8.6.0",
     "embla-carousel-react": "^8.6.0",
     "lucide-react": "^0.525.0",

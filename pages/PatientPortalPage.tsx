@@ -85,12 +85,18 @@ const PatientPortalPage: React.FC = () => {
                 throw new Error('No se encontró ningún paciente o resultados con esa cédula de identidad.');
             }
 
-            // Como todos los resultados son del mismo paciente, tomamos los datos del primero.
-            const patientInfo = {
-                nombres: data[0].paciente_nombres,
-                apellidos: data[0].paciente_apellidos,
+            // Construimos el objeto completo del paciente a partir del primer resultado.
+            const firstResult = data[0];
+            const patientInfo: Patient = {
+                id: firstResult.paciente_id,
+                nombres: firstResult.paciente_nombres,
+                apellidos: firstResult.paciente_apellidos,
+                cedula_identidad: firstResult.paciente_cedula,
+                email: firstResult.paciente_email,
+                telefono: firstResult.paciente_telefono,
+                direccion: firstResult.paciente_direccion,
             };
-            setPatient(patientInfo as Patient); // Hacemos un type assertion parcial, ya que no tenemos todos los campos del paciente.
+            setPatient(patientInfo);
 
             setResults(data);
             console.log(`Se encontraron ${data.length} resultados para ${patientInfo.nombres} ${patientInfo.apellidos}.`);

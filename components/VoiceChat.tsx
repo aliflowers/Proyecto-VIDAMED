@@ -1,12 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useConversation } from '@elevenlabs/react';
-import { Phone, Mic, MicOff, Loader, AlertCircle, PhoneOff } from 'lucide-react';
+import { Phone, Loader, PhoneOff } from 'lucide-react';
 
 const VoiceChat: React.FC = () => {
     const [micEnabled, setMicEnabled] = useState(false);
     const { status, startSession, endSession, isSpeaking } = useConversation({
-        agentId: process.env.VITE_ELEVENLABS_AGENT_ID,
-        connectionType: 'webrtc',
         onError: (errorMessage: string) => {
             console.error('Voice chat error:', errorMessage);
             alert(`Error en la llamada: ${errorMessage}`);
@@ -25,12 +23,31 @@ const VoiceChat: React.FC = () => {
     };
 
     const handleStartCall = async () => {
-        if (!micEnabled) {
-            await requestMicrophone();
-        }
-        if (micEnabled || (await navigator.mediaDevices.getUserMedia({ audio: true }))) {
-            console.log('Starting voice session...');
-            startSession();
+        try {
+            if (!micEnabled) {
+                await requestMicrophone();
+            }
+            if (micEnabled || (await navigator.mediaDevices.getUserMedia({ audio: true }))) {
+                console.log('Fetching ElevenLabs conversation token...');
+                const resp = await fetch('/api/voice/token');
+                if (!resp.ok) {
+                    const text = await resp.text();
+                    throw new Error(`No se pudo obtener el token de conversación. Detalles: ${text}`);
+                }
+                const data = await resp.json();
+                const token = data?.token as string | undefined;
+                if (!token) {
+                    throw new Error('Respuesta inválida del servidor: token ausente');
+                }
+                console.log('Starting voice session with ElevenLabs...');
+                await startSession({
+                    conversationToken: token,
+                    connectionType: 'webrtc',
+                });
+            }
+        } catch (err: any) {
+            console.error('Error al iniciar la sesión de voz:', err);
+            alert(`Error al iniciar la llamada: ${err?.message || 'Error desconocido'}`);
         }
     };
 

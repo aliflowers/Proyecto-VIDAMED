@@ -77,13 +77,24 @@ const ChatInterface: React.FC = () => {
     );
 };
 
+const CircularTextIcon = () => (
+    <svg viewBox="0 0 100 100" width="84" height="84" className="animate-spin-slow">
+        <path id="circlePath" fill="none" stroke="none" d="M 12, 50 a 38,38 0 1,1 76,0 a 38,38 0 1,1 -76,0" />
+        <text fill="#FFFFFF" fontSize="16" fontWeight="bold" letterSpacing="2.5">
+            <textPath href="#circlePath" startOffset="50%" textAnchor="middle">
+                ATENCION AL PACIENTE
+            </textPath>
+        </text>
+        <MessageCircle size={32} x="34" y="34" stroke="white" />
+    </svg>
+);
+
 const ChatWidget: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [mode, setMode] = useState<Mode>('selection');
 
     const handleClose = () => {
         setIsOpen(false);
-        // Reset to selection screen after a short delay to allow for closing animation
         setTimeout(() => setMode('selection'), 300);
     };
 
@@ -117,10 +128,10 @@ const ChatWidget: React.FC = () => {
         <>
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="fixed bottom-6 right-6 bg-primary text-white p-4 rounded-full shadow-lg hover:bg-primary-dark transition-transform transform hover:scale-110 z-50"
+                className="fixed bottom-6 right-6 bg-primary text-white w-24 h-24 rounded-full shadow-lg hover:bg-primary-dark transition-transform transform hover:scale-110 z-50 flex items-center justify-center"
                 aria-label="Abrir chat"
             >
-                {isOpen ? <X size={24} /> : <MessageCircle size={24} />}
+                {isOpen ? <X size={32} /> : <CircularTextIcon />}
             </button>
 
             {isOpen && (
@@ -128,7 +139,7 @@ const ChatWidget: React.FC = () => {
                     <header className="bg-primary text-white p-4 flex justify-between items-center rounded-t-lg">
                         <div className="flex items-center space-x-2">
                             <Bot size={20} />
-                            <h3 className="font-semibold text-lg">Asistente Virtual</h3>
+                            <h3 className="font-semibold text-lg">Atención al paciente</h3>
                         </div>
                         <button onClick={handleClose} aria-label="Cerrar chat">
                             <X size={20} />

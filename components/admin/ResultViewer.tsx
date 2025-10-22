@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Patient, Study } from '../../types';
 import Logo from '../Logo';
-import { Printer, X } from 'lucide-react';
+import { Printer, X, BrainCircuit } from 'lucide-react';
+import InterpretationViewerModal from '../InterpretationViewerModal';
 
 interface ResultViewerProps {
     patient: Patient;
@@ -10,6 +11,8 @@ interface ResultViewerProps {
 }
 
 const ResultViewer: React.FC<ResultViewerProps> = ({ patient, result, onClose }) => {
+    const [isInterpretationOpen, setIsInterpretationOpen] = useState(false);
+
     const handlePrint = () => {
         const printContents = document.getElementById('printable-result')?.innerHTML;
         const originalContents = document.body.innerHTML;
@@ -57,22 +60,42 @@ const ResultViewer: React.FC<ResultViewerProps> = ({ patient, result, onClose })
                                 <tr>
                                     <th className="p-3 font-semibold">Prueba</th>
                                     <th className="p-3 font-semibold">Resultado</th>
+                                    <th className="p-3 font-semibold">Valores de Referencia</th>
                                     <th className="p-3 font-semibold">Unidades</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {studyDetails?.campos_formulario?.map((field: any) => (
                                     <tr key={field.name} className="border-b">
-                                        <td className="p-3">{field.label} ({field.name})</td>
+                                        <td className="p-3">{field.label || field.name}</td>
                                         <td className="p-3 font-bold">{result.resultado_data.valores[field.name] || '-'}</td>
+                                        <td className="p-3 text-gray-600">{field.reference || 'N/A'}</td>
                                         <td className="p-3">{field.unit}</td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
+
+                        {result.analisis_estado === 'aprobado' && (
+                            <div className="mt-8 text-center">
+                                <button 
+                                    onClick={() => setIsInterpretationOpen(true)}
+                                    className="bg-primary text-white px-6 py-2 rounded-md hover:bg-primary-dark flex items-center mx-auto"
+                                >
+                                    <BrainCircuit size={20} className="mr-2" />
+                                    Ver Interpretación de Resultados
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
+            {isInterpretationOpen && (
+                <InterpretationViewerModal
+                    interpretation={result.analisis_editado || result.analisis_ia}
+                    onClose={() => setIsInterpretationOpen(false)}
+                />
+            )}
         </div>
     );
 };

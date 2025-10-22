@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import HomePage from './pages/HomePage';
@@ -49,7 +49,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 const App: React.FC = () => {
   return (
-        <HashRouter>
+        <BrowserRouter>
             <MainLayout>
                 <Routes>
                     {/* Public Routes */}
@@ -86,7 +86,7 @@ const App: React.FC = () => {
                     <Route path="*" element={<NotFoundPage />} />
                 </Routes>
             </MainLayout>
-        </HashRouter>
+        </BrowserRouter>
   );
 };
 

@@ -4,17 +4,16 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
+  const isDev = mode === 'development';
   return {
-    define: {
-      'process.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL),
-      'process.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY),
-      'process.env.VITE_GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY),
-      'process.env.VITE_ELEVENLABS_API_KEY': JSON.stringify(env.VITE_ELEVENLABS_API_KEY),
-      'process.env.VITE_ELEVENLABS_AGENT_ID': JSON.stringify(env.VITE_ELEVENLABS_AGENT_ID),
-    },
+    base: '/',
+    // Evitar exponer claves sensibles en el bundle del cliente.
+    // El frontend debe acceder a variables con import.meta.env.
+    define: {},
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        '@google/genai': path.resolve(__dirname, './node_modules/@google/genai'),
       },
     },
     plugins: [
@@ -29,28 +28,48 @@ export default defineConfig(({ mode }) => {
           theme_color: '#ffffff',
           background_color: '#ffffff',
           display: 'standalone',
-          scope: '/',
-          start_url: '/',
+          scope: '.',
+          start_url: '.',
           icons: [
             {
               src: 'pwa-192x192.png',
               sizes: '192x192',
               type: 'image/png',
+              purpose: 'any'
             },
             {
               src: 'pwa-512x512.png',
               sizes: '512x512',
               type: 'image/png',
+              purpose: 'any'
             },
             {
               src: 'pwa-512x512.png',
               sizes: '512x512',
               type: 'image/png',
-              purpose: 'any maskable',
-            },
+              purpose: 'maskable'
+            }
           ],
         },
       }),
     ],
+    server: isDev
+      ? {
+          host: true,
+          proxy: {
+            '/api': {
+              target: 'http://127.0.0.1:3001',
+              changeOrigin: true,
+            },
+          },
+        }
+      : {
+          host: true,
+        },
+    preview: {
+      host: true,
+      port: 4173, // Puedes especificar un puerto si quieres
+      historyApiFallback: true,
+    },
   };
 });

@@ -95,7 +95,7 @@ const DashboardPage: React.FC = () => {
                         {(summary?.weekly_appointments ?? []).map((cita: any) => (
                             <li key={cita.id} className="p-2 border-b flex justify-between items-center">
                                 <div>
-                                    <p className="font-medium">{new Date(cita.fecha_cita).toLocaleString('es-VE', { weekday: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' })}</p>
+                                    <p className="font-medium">{new Date(cita.fecha_cita).toLocaleString('es-VE', { timeZone: 'America/Caracas', weekday: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' })}</p>
                                     <p className="text-sm text-gray-500">{cita.pacientes?.nombres} {cita.pacientes?.apellidos}</p>
                                 </div>
                                 <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${cita.status === 'Confirmada' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{cita.status}</span>

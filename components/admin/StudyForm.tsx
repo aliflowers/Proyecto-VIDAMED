@@ -1,27 +1,48 @@
 import React, { useState, useEffect } from 'react';
+import CreatableSelect from 'react-select/creatable';
 import { Study } from '../../types';
+import FormFieldBuilder from './FormFieldBuilder';
+import { studyTemplates } from '../../src/data/studyTemplates';
+
+interface FormField {
+    name: string;
+    label: string;
+    unit: string;
+    reference: string;
+}
 
 interface StudyFormProps {
     study?: Study | null;
     onSave: (study: Omit<Study, 'id'> | Study, file?: File) => void;
     onCancel: () => void;
     isLoading: boolean;
+    existingStudyNames: string[];
 }
 
 const categories = [
     'Hematología',
-    'Química Sanguínea',
+    'Química Clínica y Metabolismo',
+    'Inmunología y Serología',
     'Hormonas',
-    'Inmunología',
-    'Microbiología',
-    'Pruebas COVID-19',
-    'Orina y Heces',
     'Marcadores Tumorales',
-    'Otros'
+    'Uroanálisis y Coproanálisis',
+    'Microbiología y Serología de Enfermedades Infecciosas',
+    'Otros Estudios Especializados'
 ];
 
-const StudyForm: React.FC<StudyFormProps> = ({ study, onSave, onCancel, isLoading }) => {
-    const [formData, setFormData] = useState({
+const StudyForm: React.FC<StudyFormProps> = ({ study, onSave, onCancel, isLoading, existingStudyNames }) => {
+    const [formError, setFormError] = useState<string | null>(null);
+    const [formData, setFormData] = useState<{
+        name: string;
+        category: string;
+        description: string;
+        preparation: string;
+        costo_usd: string;
+        costo_bs: string;
+        deliveryTime: string;
+        campos_formulario: FormField[];
+        background_url: string;
+    }>({
         name: '',
         category: categories[0],
         description: '',
@@ -29,7 +50,7 @@ const StudyForm: React.FC<StudyFormProps> = ({ study, onSave, onCancel, isLoadin
         costo_usd: '',
         costo_bs: '',
         deliveryTime: '',
-        campos_formulario: '[]',
+        campos_formulario: [],
         background_url: ''
     });
     const [backgroundFile, setBackgroundFile] = useState<File | null>(null);
@@ -44,7 +65,7 @@ const StudyForm: React.FC<StudyFormProps> = ({ study, onSave, onCancel, isLoadin
                 costo_usd: String(study.price),
                 costo_bs: String(study.costo_bs || ''),
                 deliveryTime: study.deliveryTime,
-                campos_formulario: JSON.stringify(study.campos_formulario || [], null, 2),
+                campos_formulario: study.campos_formulario || [],
                 background_url: study.background_url || ''
             });
         }
@@ -55,27 +76,60 @@ const StudyForm: React.FC<StudyFormProps> = ({ study, onSave, onCancel, isLoadin
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    const handleStudyTemplateChange = (selectedOption: any) => {
+        setFormError(null); // Reset error on change
+        let studyName = '';
+        if (selectedOption) {
+            studyName = selectedOption.label;
+            // Check for duplicates only when creating a new study
+            if (!study && existingStudyNames.includes(studyName)) {
+                setFormError('Este estudio ya existe en la base de datos.');
+            }
+
+            const template = studyTemplates.find(t => t.value === selectedOption.value);
+            if (template) {
+                setFormData(prev => ({
+                    ...prev,
+                    name: template.label,
+                    category: template.category,
+                    description: template.description,
+                    preparation: template.preparation,
+                    campos_formulario: template.campos_formulario || [],
+                }));
+            } else { // Opción creada manualmente
+                setFormData(prev => ({ ...prev, name: studyName }));
+            }
+        } else { // Limpiar si se deselecciona
+            setFormData(prev => ({
+                ...prev,
+                name: '',
+                category: categories[0],
+                description: '',
+                preparation: '',
+                campos_formulario: [],
+            }));
+        }
+    };
+
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             setBackgroundFile(e.target.files[0]);
         }
     };
 
+    const handleFormFieldsChange = (fields: FormField[]) => {
+        setFormData(prev => ({ ...prev, campos_formulario: fields }));
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        try {
-            const campos_formulario = JSON.parse(formData.campos_formulario);
-            const studyToSave = {
-                ...study,
-                ...formData,
-                price: parseFloat(formData.costo_usd) || 0,
-                costo_bs: parseFloat(formData.costo_bs) || 0, // Este valor será recalculado en la página principal
-                campos_formulario,
-            };
-            onSave(studyToSave, backgroundFile || undefined);
-        } catch (error) {
-            alert('Error: El JSON de los campos del formulario no es válido.');
-        }
+        const studyToSave = {
+            ...study,
+            ...formData,
+            price: parseFloat(formData.costo_usd) || 0,
+            costo_bs: parseFloat(formData.costo_bs) || 0,
+        };
+        onSave(studyToSave, backgroundFile || undefined);
     };
 
     return (
@@ -83,7 +137,23 @@ const StudyForm: React.FC<StudyFormProps> = ({ study, onSave, onCancel, isLoadin
             <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-2xl my-auto">
                 <h2 className="text-2xl font-bold mb-6">{study ? 'Editar Estudio' : 'Crear Nuevo Estudio'}</h2>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <input name="name" value={formData.name} onChange={handleChange} placeholder="Nombre del Estudio" required className="w-full p-2 border rounded" />
+                    <CreatableSelect
+                        isClearable
+                        options={studyTemplates}
+                        onChange={handleStudyTemplateChange}
+                        placeholder="Seleccione o escriba para crear un estudio..."
+                        className="w-full"
+                        styles={{
+                            control: (base) => ({
+                                ...base,
+                                padding: '0.25rem',
+                                borderRadius: '0.375rem',
+                                borderColor: '#D1D5DB',
+                            }),
+                        }}
+                        value={studyTemplates.find(opt => opt.label === formData.name) || (formData.name ? { label: formData.name, value: formData.name.toLowerCase().replace(/\s+/g, '-') } : null)}
+                    />
+                    {formError && <p className="text-red-500 text-sm mt-1">{formError}</p>}
                     <select name="category" value={formData.category} onChange={handleChange} required className="w-full p-2 border rounded">
                         {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                     </select>
@@ -100,17 +170,9 @@ const StudyForm: React.FC<StudyFormProps> = ({ study, onSave, onCancel, isLoadin
                         </div>
                     </div>
                     <input name="deliveryTime" value={formData.deliveryTime} onChange={handleChange} placeholder="Tiempo de Entrega" required className="w-full p-2 border rounded" />
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Campos del Formulario (JSON)</label>
-                        <textarea
-                            name="campos_formulario"
-                            value={formData.campos_formulario}
-                            onChange={handleChange}
-                            placeholder='[{"name": "hemoglobina", "label": "Hemoglobina", "unit": "g/dL"}, ...]'
-                            required
-                            className="w-full p-2 border rounded font-mono text-sm"
-                            rows={5}
-                        />
+                    <div className="pt-4 border-t">
+                        <h3 className="text-lg font-semibold mb-2">Parámetros del Estudio</h3>
+                        <FormFieldBuilder fields={formData.campos_formulario} onChange={handleFormFieldsChange} />
                     </div>
                     <div className="pt-4 border-t">
                         <h3 className="text-lg font-semibold mb-2">Imagen de Fondo de la Tarjeta</h3>
@@ -120,7 +182,7 @@ const StudyForm: React.FC<StudyFormProps> = ({ study, onSave, onCancel, isLoadin
                     </div>
                     <div className="flex justify-end space-x-4 mt-6">
                         <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancelar</button>
-                        <button type="submit" disabled={isLoading} className="px-4 py-2 bg-primary text-white rounded hover:bg-primary-dark disabled:bg-gray-400">
+                        <button type="submit" disabled={isLoading || !!formError} className="px-4 py-2 bg-primary text-white rounded hover:bg-primary-dark disabled:bg-gray-400">
                             {isLoading ? 'Guardando...' : 'Guardar'}
                         </button>
                     </div>

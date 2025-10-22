@@ -197,7 +197,7 @@ const AppointmentsAdminPage: React.FC = () => {
                             {filteredAppointments.map(app => (
                                 <tr key={app.id}>
                                     <td className="py-4 px-6 font-medium">{app.pacientes?.nombres} {app.pacientes?.apellidos}</td>
-                                    <td className="py-4 px-6">{new Date(app.fecha_cita).toLocaleString('es-ES')}</td>
+                                    <td className="py-4 px-6">{new Date(app.fecha_cita).toLocaleString('es-VE', { timeZone: 'America/Caracas' })}</td>
                                     <td className="py-4 px-6">{app.ubicacion}</td>
                                     <td className="py-4 px-6 text-center">
                                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${

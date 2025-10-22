@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, Phone, Mail, Clock } from 'lucide-react';
+import { MapPin, Mail, Clock } from 'lucide-react';
 
 const ContactPage: React.FC = () => {
     return (
@@ -52,10 +52,14 @@ const ContactPage: React.FC = () => {
                                     </div>
                                 </div>
                                 <div className="flex items-start">
-                                    <Phone className="h-6 w-6 text-secondary mt-1 flex-shrink-0" />
+                                    <a href="https://wa.me/582125551234" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp VidaMed">
+                                        <svg className="h-6 w-6 text-green-500 mt-1 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.472-.148-.672.149-.198.297-.77.966-.944 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.463-2.39-1.476-.883-.788-1.48-1.761-1.654-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.372-.025-.521-.074-.149-.672-1.62-.921-2.216-.242-.58-.487-.5-.672-.51-.173-.009-.372-.011-.571-.011-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.095 3.2 5.076 4.487.709.306 1.262.489 1.694.626.712.227 1.36.195 1.872.118.571-.085 1.758-.718 2.006-1.412.248-.694.248-1.289.173-1.412-.074-.123-.272-.198-.57-.347zM12.004 2C6.486 2 2 6.486 2 12.004c0 1.77.463 3.43 1.27 4.878L2 22l5.25-1.236c1.4.767 3.006 1.207 4.754 1.207 5.518 0 10.004-4.486 10.004-10.004C22.008 6.486 17.522 2 12.004 2zm0 18.219c-1.56 0-3.011-.456-4.229-1.24l-.303-.189-3.118.735.664-3.04-.197-.312a8.204 8.204 0 0 1-1.247-4.169c0-4.538 3.69-8.229 8.229-8.229s8.229 3.691 8.229 8.229-3.691 8.215-8.229 8.215z"/>
+                                        </svg>
+                                    </a>
                                     <div className="ml-4">
-                                        <h3 className="font-semibold text-dark">Teléfono</h3>
-                                        <p className="text-gray-600">+58 (212) 555-1234</p>
+                                        <h3 className="font-semibold text-dark">WhatsApp</h3>
+                                        <a href="https://wa.me/582125551234" target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-primary">+58 (212) 555-1234</a>
                                     </div>
                                 </div>
                                 <div className="flex items-start">

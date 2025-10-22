@@ -101,7 +101,7 @@ const PostPage: React.FC = () => {
                   />
               )}
 
-              <div className="prose lg:prose-xl max-w-none whitespace-pre-wrap">
+              <div className="prose lg:prose-xl max-w-none">
                   <ReactMarkdown rehypePlugins={[rehypeRaw]}>
                       {post.content || ''}
                   </ReactMarkdown>

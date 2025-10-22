@@ -1,64 +1,85 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Message } from '../types';
-import { createChat } from '../src/services/geminiService';
-import type { Chat } from '@google/genai';
 
+// La estructura de un historial de chat que espera la API de Gemini
+interface ChatHistoryPart {
+  text: string;
+}
+
+interface ChatHistory {
+  role: 'user' | 'model';
+  parts: ChatHistoryPart[];
+}
 
 export const useChat = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isChatEnabled, setIsChatEnabled] = useState(false);
-  const chatRef = useRef<Chat | null>(null);
+  const [isChatEnabled, setIsChatEnabled] = useState(true);
+
+  const initialBotMessage: Message = { id: 'initial', text: '¡Hola! Soy VidaBot, tu asistente virtual. Pregúntame sobre nuestros estudios, precios o agenda una cita.', sender: 'bot' };
 
   useEffect(() => {
-    // Initialize the chat session when the hook is first used
-    const chatInstance = createChat();
-    chatRef.current = chatInstance;
-
-    if (chatInstance) {
-      setIsChatEnabled(true);
-      setMessages([
-          { id: 'initial', text: '¡Hola! Soy VidaBot, tu asistente virtual. ¿Cómo puedo ayudarte hoy con nuestros servicios de laboratorio?', sender: 'bot' }
-      ]);
-    } else {
-      setIsChatEnabled(false);
-      setMessages([
-          { id: 'initial-error', text: 'El chat con IA no está disponible en este momento. Por favor, contacta al laboratorio directamente para tus consultas.', sender: 'bot' }
-      ]);
-    }
+    setMessages([initialBotMessage]);
   }, []);
 
   const sendMessage = useCallback(async (text: string) => {
-    if (!text.trim() || !chatRef.current) return;
+    if (!text.trim()) return;
 
     const userMessage: Message = { id: Date.now().toString(), text, sender: 'user' };
-    setMessages(prev => [...prev, userMessage]);
+    const currentMessages = [...messages, userMessage];
+    setMessages(currentMessages);
     setIsLoading(true);
 
     try {
-      const stream = await chatRef.current.sendMessageStream({ message: text });
-      
-      let botResponse = '';
-      const botMessageId = (Date.now() + 1).toString();
-      
-      // Add a placeholder for the bot message
-      setMessages(prev => [...prev, { id: botMessageId, text: '', sender: 'bot' }]);
+      // --- CORRECCIÓN CLAVE ---
+      // Filtramos el mensaje inicial del bot antes de enviarlo al backend.
+      const historyToBeSent = currentMessages
+        .filter(msg => msg.id !== 'initial') // Excluye el saludo inicial
+        .map(msg => ({
+          role: msg.sender === 'user' ? 'user' : 'model',
+          parts: [{ text: msg.text }],
+        } as ChatHistory));
 
-      for await (const chunk of stream) {
-        botResponse += chunk.text;
-        setMessages(prev => prev.map(msg => 
-            msg.id === botMessageId ? { ...msg, text: botResponse } : msg
-        ));
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ history: historyToBeSent }),
+      });
+
+      let serverMessage = '';
+      if (!response.ok) {
+        try {
+          const errJson = await response.json();
+          serverMessage = (errJson && (errJson.error || errJson.message))
+            ? (errJson.error || errJson.message)
+            : JSON.stringify(errJson);
+        } catch {
+          try {
+            serverMessage = await response.text();
+          } catch {}
+        }
+        throw new Error(serverMessage || 'Error en la respuesta del servidor');
       }
 
-    } catch (error) {
-      console.error("Error sending message:", error);
-      const errorMessage: Message = { id: 'error-' + Date.now(), text: 'Lo siento, ocurrió un error al procesar tu solicitud. Por favor, intenta de nuevo.', sender: 'bot' };
+      const data = await response.json();
+      const replyText = (data && (data.response || data.message))
+        ? (data.response || data.message)
+        : 'No se recibió respuesta del servidor.';
+      
+      const botResponse: Message = { id: Date.now().toString(), text: replyText, sender: 'bot' };
+      setMessages(prev => [...prev, botResponse]);
+
+    } catch (error: any) {
+      console.error("Error al enviar mensaje al backend:", error);
+      const detail = typeof error?.message === 'string' ? error.message : 'Ocurrió un error al procesar tu solicitud.';
+      const errorMessage: Message = { id: 'error-' + Date.now(), text: `Lo siento, no se pudo completar tu solicitud. Detalle: ${detail}`, sender: 'bot' };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [messages]);
 
   return { messages, isLoading, sendMessage, isChatEnabled };
 };

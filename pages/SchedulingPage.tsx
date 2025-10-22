@@ -136,7 +136,7 @@ const SchedulingPage: React.FC = () => {
 
             const { error: appointmentError } = await supabase.from('citas').insert({
                 paciente_id: patientResponse.data.id,
-                fecha_cita: `${format(formData.date!, 'yyyy-MM-dd')}T${time24}`,
+                fecha_cita: `${format(formData.date!, 'yyyy-MM-dd')}T${time24}:00-04:00`,
                 estudios_solicitados: formData.selectedStudies.map(s => s.label),
                 ubicacion: formData.location
             });

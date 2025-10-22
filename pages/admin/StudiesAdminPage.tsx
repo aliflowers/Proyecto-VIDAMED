@@ -19,6 +19,7 @@ const StudiesAdminPage: React.FC = () => {
     const [sortAsc, setSortAsc] = useState(true);
     const [tasaBcvGlobal, setTasaBcvGlobal] = useState(0);
     const [tasaInput, setTasaInput] = useState('');
+    const [existingStudyNames, setExistingStudyNames] = useState<string[]>([]);
 
     const fetchStudiesAndCategories = useCallback(async () => {
         setIsLoading(true);
@@ -44,6 +45,14 @@ const StudiesAdminPage: React.FC = () => {
             console.error('Error fetching categories:', categoriesError);
         } else {
             setCategories(categoriesData || []);
+        }
+
+        // Fetch all study names for validation
+        const { data: namesData, error: namesError } = await supabase.from('estudios').select('nombre');
+        if (namesError) {
+            console.error('Error fetching study names:', namesError);
+        } else {
+            setExistingStudyNames(namesData.map(s => s.nombre));
         }
 
         // Fetch studies
@@ -314,6 +323,7 @@ const StudiesAdminPage: React.FC = () => {
                     onSave={handleSave}
                     onCancel={() => { setIsModalOpen(false); setEditingStudy(null); }}
                     isLoading={isLoading}
+                    existingStudyNames={existingStudyNames}
                 />
             )}
         </div>

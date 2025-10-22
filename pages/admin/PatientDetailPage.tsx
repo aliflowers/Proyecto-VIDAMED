@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { supabase } from '../../src/services/supabaseClient';
-import { Loader, ArrowLeft, User, Mail, Phone, Fingerprint, Upload, FileText, Home, Eye, Trash2 } from 'lucide-react';
+import { supabase, supabasePublic, supabaseAnonKey } from '../../src/services/supabaseClient';
+import { Loader, ArrowLeft, User, Mail, Phone, Fingerprint, Upload, FileText, Home, Eye, Trash2, BrainCircuit } from 'lucide-react';
 import { Study, Patient } from '../../types';
 import ManualResultForm from '../../components/admin/ManualResultForm';
 import ResultViewer from '../../components/admin/ResultViewer';
 import FileUploadModal from '../../components/admin/FileUploadModal';
+import InterpretationModal from '../../components/admin/InterpretationModal';
 
 interface PatientDetails extends Patient {
     citas: any[];
@@ -23,6 +24,10 @@ const PatientDetailPage: React.FC = () => {
     const [uploading, setUploading] = useState(false);
     const [manualEntryStudy, setManualEntryStudy] = useState<Study | null>(null);
     const [viewingResult, setViewingResult] = useState<any>(null);
+    const [interpretationModalOpen, setInterpretationModalOpen] = useState(false);
+    const [currentInterpretation, setCurrentInterpretation] = useState<any>(null);
+    const [interpretationLoading, setInterpretationLoading] = useState(false);
+
 
     useEffect(() => {
         fetchPatientDetails();
@@ -80,8 +85,15 @@ const PatientDetailPage: React.FC = () => {
             return;
         }
         const { data: { publicUrl } } = supabase.storage.from('resultados').getPublicUrl(fileName);
+        const estudioId = parseInt(study.id, 10);
+        if (isNaN(estudioId)) {
+            alert('Error: ID de estudio inválido.');
+            setUploading(false);
+            return;
+        }
         const { error: dbError } = await supabase.from('resultados_pacientes').insert({
             paciente_id: patient.id,
+            estudio_id: estudioId,
             resultado_data: { url: publicUrl, nombre_estudio: study.name, tipo: 'archivo' }
         });
         if (dbError) {
@@ -98,8 +110,15 @@ const PatientDetailPage: React.FC = () => {
     const handleSaveManualResult = async (results: any) => {
         if (!patient || !manualEntryStudy) return;
         setUploading(true);
+        const estudioId = parseInt(manualEntryStudy.id, 10);
+        if (isNaN(estudioId)) {
+            alert('Error: ID de estudio inválido.');
+            setUploading(false);
+            return;
+        }
         const { error } = await supabase.from('resultados_pacientes').insert({
             paciente_id: patient.id,
+            estudio_id: estudioId,
             resultado_data: {
                 nombre_estudio: manualEntryStudy.name,
                 tipo: 'manual',
@@ -140,6 +159,74 @@ const PatientDetailPage: React.FC = () => {
                 fetchPatientDetails();
             }
         }
+    };
+
+    const handleGenerateInterpretation = async (result: any) => {
+        setCurrentInterpretation(result);
+        setInterpretationLoading(true);
+
+        if (result.analisis_ia) {
+            setInterpretationModalOpen(true);
+            setInterpretationLoading(false);
+            return;
+        }
+
+        try {
+            // Usamos una URL relativa para que funcione en desarrollo y producción
+            const apiUrl = '/api/interpretar';
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ result_id: result.id }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Error en el servidor proxy.');
+            }
+
+            const { interpretation } = await response.json();
+
+            // Guardamos la interpretación en la base de datos
+            const { error: updateError } = await supabase
+                .from('resultados_pacientes')
+                .update({
+                    analisis_ia: interpretation,
+                    analisis_estado: 'pendiente',
+                })
+                .eq('id', result.id);
+
+            if (updateError) throw updateError;
+
+            await fetchPatientDetails();
+            setInterpretationModalOpen(true);
+
+        } catch (error: any) {
+            console.error('Error al generar la interpretación:', error);
+            alert(`Error: ${error.message}`);
+        } finally {
+            setInterpretationLoading(false);
+        }
+    };
+
+    const handleUpdateInterpretationStatus = async (resultId: number, status: 'aprobado' | 'rechazado', editedText?: string) => {
+        setInterpretationLoading(true);
+        const { error } = await supabase
+            .from('resultados_pacientes')
+            .update({
+                analisis_estado: status,
+                analisis_editado: editedText,
+            })
+            .eq('id', resultId);
+
+        if (error) {
+            alert(`Error al actualizar el estado: ${error.message}`);
+        } else {
+            alert(`El análisis ha sido marcado como ${status}.`);
+            await fetchPatientDetails();
+            setInterpretationModalOpen(false);
+        }
+        setInterpretationLoading(false);
     };
 
     if (isLoading) return <div className="flex justify-center items-center h-full"><Loader className="animate-spin text-primary" size={48} /></div>;
@@ -207,9 +294,19 @@ const PatientDetailPage: React.FC = () => {
                                         <button onClick={() => {
                                             const studyForRes = studies.find(s => s.name === res.resultado_data.nombre_estudio);
                                             setViewingResult({ ...res, study_details: studyForRes });
-                                        }} className="text-blue-600 hover:underline"><Eye size={18} /></button>
+                                        }} className="text-blue-600 hover:underline" title="Ver Resultado"><Eye size={18} /></button>
                                     }
-                                    <button onClick={() => handleDeleteResult(res.id)} className="text-red-600 hover:text-red-900"><Trash2 size={18} /></button>
+                                    {res.resultado_data?.tipo === 'manual' && (
+                                    <button 
+                                        onClick={() => handleGenerateInterpretation(res)} 
+                                        className="text-purple-600 hover:underline" 
+                                        title="Generar/Ver Conclusión IA"
+                                        disabled={interpretationLoading && currentInterpretation?.id === res.id}
+                                    >
+                                        {interpretationLoading && currentInterpretation?.id === res.id ? <Loader className="animate-spin" size={18} /> : <BrainCircuit size={18} />}
+                                    </button>
+                                    )}
+                                    <button onClick={() => handleDeleteResult(res.id)} className="text-red-600 hover:text-red-900" title="Eliminar Resultado"><Trash2 size={18} /></button>
                                 </div>
                             </li>
                         ))}
@@ -249,8 +346,19 @@ const PatientDetailPage: React.FC = () => {
                     onClose={() => setViewingResult(null)}
                 />
             )}
+
+            {interpretationModalOpen && currentInterpretation && (
+                <InterpretationModal
+                    result={patient?.resultados_pacientes.find(r => r.id === currentInterpretation.id)}
+                    onClose={() => setInterpretationModalOpen(false)}
+                    onUpdateStatus={handleUpdateInterpretationStatus}
+                    isLoading={interpretationLoading}
+                />
+            )}
         </div>
     );
 };
+
+// TODO: Crear el componente InterpretationModal y su lógica de aprobación/edición.
 
 export default PatientDetailPage;
