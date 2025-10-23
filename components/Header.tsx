@@ -43,6 +43,12 @@ const Header: React.FC = () => {
               Portal Pacientes
             </NavLink>
             <NavLink
+              to="/login"
+              className="px-4 py-2 text-sm font-medium text-white bg-secondary rounded-full hover:bg-secondary-dark transition-colors"
+            >
+              Acceso Administrativo
+            </NavLink>
+            <NavLink
               to="/agendar"
               className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-full hover:bg-primary-dark transition-colors"
             >
@@ -77,6 +83,13 @@ const Header: React.FC = () => {
                 className="w-full text-center px-6 py-2.5 text-md font-medium text-primary border border-primary rounded-full hover:bg-primary/5 transition-colors"
               >
                 Portal Pacientes
+              </NavLink>
+              <NavLink
+                to="/login"
+                onClick={() => setIsOpen(false)}
+                className="w-full text-center px-6 py-2.5 text-md font-medium text-white bg-secondary rounded-full hover:bg-secondary-dark transition-colors"
+              >
+                Acceso Administrativo
               </NavLink>
               <NavLink
                 to="/agendar"

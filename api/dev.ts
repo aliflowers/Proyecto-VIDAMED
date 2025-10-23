@@ -7,7 +7,7 @@ import cors from 'cors';
 import chatHandler from './chat.ts';
 import tokenHandler from './voice/token.ts';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { DEFAULT_GEMINI_MODEL } from './config.js';
+import { DEFAULT_GEMINI_MODEL } from './config.ts';
 
 // Load root .env (one level up from /api)
 // Load envs from root .env and also api/.env (api/.env will NOT override existing keys)

@@ -36,7 +36,7 @@ export interface BlogPost {
 
 export interface Testimonial {
     id: number;
-    text: string;
+    texto: string;
     author: string;
     city: string;
     is_approved?: boolean;

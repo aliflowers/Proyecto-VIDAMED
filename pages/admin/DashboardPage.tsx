@@ -20,7 +20,7 @@ const DashboardPage: React.FC = () => {
                     supabase.rpc('get_top_studies_last_7_days'),
                     supabase.rpc('get_daily_appointment_activity_last_7_days'),
                     supabase.from('citas').select('*, pacientes(nombres, apellidos)').gte('fecha_cita', new Date().toISOString()).limit(5),
-                    supabase.from('pacientes').select('*').gte('created_at', new Date(new Date().setDate(new Date().getDate() - 7)).toISOString()).limit(5)
+                    supabase.from('pacientes').select('*').gte('fecha_creacion', new Date(new Date().setDate(new Date().getDate() - 7)).toISOString()).limit(5)
                 ]);
 
                 if (topStudiesRes.error) console.error('Error fetching top studies:', topStudiesRes.error);

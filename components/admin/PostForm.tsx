@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
 import { BlogPost } from '../../types';
 import { Sparkles } from 'lucide-react';
 import BlogAiGeneratorModal from './BlogAiGeneratorModal';
+import showdown from 'showdown';
 
 interface PostFormProps {
     post?: BlogPost | null;
@@ -47,6 +50,10 @@ const PostForm: React.FC<PostFormProps> = ({ post, onSave, onCancel, isLoading }
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    const handleContentChange = (value: string) => {
+        setFormData(prev => ({ ...prev, content: value }));
+    };
+
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             setFile(e.target.files[0]);
@@ -69,10 +76,13 @@ const PostForm: React.FC<PostFormProps> = ({ post, onSave, onCancel, isLoading }
 
             const parsedResult = await response.json();
 
+            const converter = new showdown.Converter();
+            const htmlContent = converter.makeHtml(parsedResult.contenido_html || '');
+
             setFormData(prev => ({
                 ...prev,
                 title: parsedResult.titulo_articulo || '',
-                content: parsedResult.contenido_html || '',
+                content: htmlContent,
                 summary: parsedResult.resumen || '',
                 meta_title: parsedResult.meta_titulo || '',
                 meta_description: parsedResult.meta_descripcion || '',
@@ -116,18 +126,41 @@ const PostForm: React.FC<PostFormProps> = ({ post, onSave, onCancel, isLoading }
                     )}
                 </header>
                 <form onSubmit={handleSubmit} className="flex-grow overflow-y-auto p-8 space-y-6">
-                    <input name="title" value={formData.title} onChange={handleChange} placeholder="Título" required className="w-full p-2 border rounded" />
-                    <input name="category" value={formData.category} onChange={handleChange} placeholder="Categoría" required className="w-full p-2 border rounded" />
-                    <textarea name="summary" value={formData.summary} onChange={handleChange} placeholder="Resumen (texto corto para la tarjeta)" required className="w-full p-2 border rounded" rows={3} />
-                    <textarea name="content" value={formData.content} onChange={handleChange} placeholder="Contenido completo del artículo" required className="w-full p-2 border rounded" rows={10} />
-                    <p className="text-xs text-gray-500">Puedes usar Markdown para formatear el texto. Ej: `# Título`, `**negrita**`, `*cursiva*`.</p>
-                    <input name="author" value={formData.author} onChange={handleChange} placeholder="Autor" required className="w-full p-2 border rounded" />
+                    <div>
+                        <label htmlFor="title" className="block text-sm font-medium text-gray-700">Título</label>
+                        <input id="title" name="title" value={formData.title} onChange={handleChange} required className="w-full p-2 border rounded mt-1" />
+                    </div>
+                    <div>
+                        <label htmlFor="category" className="block text-sm font-medium text-gray-700">Categoría</label>
+                        <input id="category" name="category" value={formData.category} onChange={handleChange} required className="w-full p-2 border rounded mt-1" />
+                    </div>
+                    <div>
+                        <label htmlFor="summary" className="block text-sm font-medium text-gray-700">Resumen (texto corto para la tarjeta)</label>
+                        <textarea id="summary" name="summary" value={formData.summary} onChange={handleChange} required className="w-full p-2 border rounded mt-1" rows={3} />
+                    </div>
+                    <div>
+                        <label htmlFor="content" className="block text-sm font-medium text-gray-700">Contenido completo del artículo</label>
+                        <ReactQuill theme="snow" value={formData.content} onChange={handleContentChange} className="mt-1 bg-white" />
+                    </div>
+                    <div>
+                        <label htmlFor="author" className="block text-sm font-medium text-gray-700">Autor</label>
+                        <input id="author" name="author" value={formData.author} onChange={handleChange} required className="w-full p-2 border rounded mt-1" />
+                    </div>
                     
                     <div className="pt-4 border-t">
                         <h3 className="text-lg font-semibold mb-2">Datos SEO</h3>
-                        <input name="meta_title" value={formData.meta_title} onChange={handleChange} placeholder="Meta Título (para Google)" className="w-full p-2 border rounded mb-4" />
-                        <textarea name="meta_description" value={formData.meta_description} onChange={handleChange} placeholder="Meta Descripción (para Google)" className="w-full p-2 border rounded mb-4" rows={2} />
-                        <input name="keywords" value={formData.keywords} onChange={handleChange} placeholder="Palabras Clave (separadas por coma)" className="w-full p-2 border rounded" />
+                        <div>
+                            <label htmlFor="meta_title" className="block text-sm font-medium text-gray-700">Meta Título (para Google)</label>
+                            <input id="meta_title" name="meta_title" value={formData.meta_title} onChange={handleChange} className="w-full p-2 border rounded mt-1" />
+                        </div>
+                        <div className="mt-4">
+                            <label htmlFor="meta_description" className="block text-sm font-medium text-gray-700">Meta Descripción (para Google)</label>
+                            <textarea id="meta_description" name="meta_description" value={formData.meta_description} onChange={handleChange} className="w-full p-2 border rounded mt-1" rows={2} />
+                        </div>
+                        <div className="mt-4">
+                            <label htmlFor="keywords" className="block text-sm font-medium text-gray-700">Palabras Clave (separadas por coma)</label>
+                            <input id="keywords" name="keywords" value={formData.keywords} onChange={handleChange} className="w-full p-2 border rounded mt-1" />
+                        </div>
                     </div>
 
                     <div>
