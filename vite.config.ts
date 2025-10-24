@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => {
     define: {},
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(__dirname, './src'),
         '@google/genai': path.resolve(__dirname, './node_modules/@google/genai'),
       },
     },
@@ -50,6 +50,9 @@ export default defineConfig(({ mode }) => {
               purpose: 'maskable'
             }
           ],
+        },
+        workbox: {
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB
         },
       }),
     ],
