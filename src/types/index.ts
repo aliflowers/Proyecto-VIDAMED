@@ -49,6 +49,41 @@ export interface InventoryItem {
   id: number;
   nombre: string;
   descripcion: string;
+  cantidad_stock: number;          // Cantidad actual de cajas en stock
+  unidad_medida: string;
+  stock_minimo: number;
+  proveedor?: string;
+  fecha_ultima_compra?: string;
+  costo_ultima_compra_bs?: number;
+  costo_ultima_compra_usd?: number;
+  notas?: string;
+  imagen_url?: string;
+  created_at?: string;
+
+  // Nuevos campos para gestión avanzada de stock
+  cantidad_ingresar?: number;       // Temporal: cajas nuevas a ingresar
+  unidades_por_caja: number;        // Unidades individuales por caja
+  unidades_totales: number;         // Cálculo automático de unidades disponibles
+  ultima_actualizacion_stock?: string;
+
+  // Sistema de identificación SKU/ID
+  sku?: string;                     // Código único generado automáticamente
+}
+
+// Helper types para operaciones de stock
+export interface StockOperation {
+  tipo: 'ingreso' | 'salida' | 'ajuste';
+  material_id: number;
+  cajas_operadas: number;
+  unidades_por_caja?: number;
+  observaciones?: string;
+  fecha: string;
+}
+
+export interface InventoryFormData {
+  // Campos básicos
+  nombre: string;
+  descripcion: string;
   cantidad_stock: number;
   unidad_medida: string;
   stock_minimo: number;
@@ -58,6 +93,11 @@ export interface InventoryItem {
   costo_ultima_compra_usd?: number;
   notas?: string;
   imagen_url?: string;
+
+  // Nuevos campos de gestión avanzada
+  cantidad_ingresar?: number;       // Nuevo ingreso de cajas
+  unidades_por_caja: number;        // Unidades por caja
+  unidades_totales?: number;        // Calculado automáticamente
 }
 
 export interface Appointment {
