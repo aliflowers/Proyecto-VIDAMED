@@ -28,6 +28,7 @@ import PatientDetailPage from '@/pages/admin/PatientDetailPage';
 import StatisticsPage from '@/pages/admin/StatisticsPage';
 import SiteConfigPage from '@/pages/admin/SiteConfigPage';
 import InventoryPage from '@/pages/admin/InventoryPage';
+import ResultsPage from '@/pages/admin/ResultsPage';
 
 // Componente para renderizar el layout principal
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -80,9 +81,9 @@ const App: React.FC = () => {
                         <Route path="statistics" element={<StatisticsPage />} />
                         <Route path="config" element={<SiteConfigPage />} />
                         <Route path="inventory" element={<InventoryPage />} />
-                        {/* Aquí se añadirán las otras rutas del panel de admin */}
+                        <Route path="results" element={<ResultsPage />} />
                     </Route>
-                    </Route>
+                </Route>
 
                     {/* Not Found */}
                     <Route path="*" element={<NotFoundPage />} />

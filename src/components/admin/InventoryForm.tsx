@@ -3,7 +3,7 @@ import { supabase } from '@/services/supabaseClient';
 import { toast } from 'react-toastify';
 import ImageUpload from './ImageUpload';
 
-import { InventoryItem, StockOperation } from '@/types';
+import { InventoryItem } from '@/types';
 
 interface InventoryFormProps {
   item: InventoryItem | null;
@@ -27,7 +27,7 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ item, onClose }) => {
     unidades_totales: 0,
   });
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [, setIsUploadingImage] = useState(false);
   const [purchaseDate, setPurchaseDate] = useState('');
 
   useEffect(() => {

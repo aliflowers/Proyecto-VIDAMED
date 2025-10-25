@@ -5,18 +5,18 @@ import { Upload, X } from 'lucide-react';
 interface FileUploadModalProps {
     file: File;
     studies: SchedulingStudy[];
-    onUpload: (file: File, study: SchedulingStudy) => void;
+  onNeedPatientSelection: (file: File, study: SchedulingStudy) => void;
     onCancel: () => void;
     isLoading: boolean;
 }
 
-const FileUploadModal: React.FC<FileUploadModalProps> = ({ file, studies, onUpload, onCancel, isLoading }) => {
+const FileUploadModal: React.FC<FileUploadModalProps> = ({ file, studies, onNeedPatientSelection, onCancel, isLoading }) => {
     const [selectedStudyId, setSelectedStudyId] = useState<string>('');
 
     const handleSubmit = () => {
         const selectedStudy = studies.find(s => s.id === selectedStudyId);
         if (selectedStudy) {
-            onUpload(file, selectedStudy);
+            onNeedPatientSelection(file, selectedStudy);
         } else {
             alert('Por favor, seleccione un estudio.');
         }

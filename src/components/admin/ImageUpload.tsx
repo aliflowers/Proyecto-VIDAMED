@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import { FaTimes, FaImage } from 'react-icons/fa';
-import { supabase } from '@/services/supabaseClient';
 
 interface ImageUploadProps {
   currentImageUrl?: string;
@@ -12,11 +11,10 @@ interface ImageUploadProps {
 const ImageUpload: React.FC<ImageUploadProps> = ({
   currentImageUrl,
   onImageChange,
-  bucket = 'resultados',
   className = ''
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [uploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentImageUrl || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { supabase } from '@/services/supabaseClient';
-import { LayoutDashboard, FlaskConical, Newspaper, MessageSquare, Calendar, Users, BarChart2, Settings, LogOut, Package, Menu, X } from 'lucide-react';
+import { LayoutDashboard, FlaskConical, Newspaper, MessageSquare, Calendar, Users, BarChart2, Settings, LogOut, Package, Menu, FileText } from 'lucide-react';
 import Logo from '@/components/Logo';
 import { StatisticsProvider } from '@/context/StatisticsContext';
 
@@ -22,6 +22,7 @@ const AdminLayout: React.FC = () => {
         { to: "/admin/appointments", icon: Calendar, label: "Citas" },
         { to: "/admin/patients", icon: Users, label: "Pacientes" },
         { to: "/admin/inventory", icon: Package, label: "Inventario" },
+        { to: "/admin/results", icon: FileText, label: "Resultados" },
         { to: "/admin/statistics", icon: BarChart2, label: "Estadísticas" },
         { to: "/admin/config", icon: Settings, label: "Configuración" },
     ];
