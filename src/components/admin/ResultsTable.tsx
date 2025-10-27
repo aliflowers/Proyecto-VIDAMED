@@ -22,6 +22,7 @@ interface ResultsTableProps {
   onDeleteResult: (resultId: number) => void;
   onGenerateInterpretation: (result: GlobalResult) => void;
   isLoading?: boolean;
+  generatingInterpretationId?: number | null;
 }
 
 const ResultsTable: React.FC<ResultsTableProps> = ({

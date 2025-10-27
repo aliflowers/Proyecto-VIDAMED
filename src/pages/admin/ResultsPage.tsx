@@ -23,6 +23,9 @@ interface GlobalResult {
   paciente_nombres: string;
   paciente_apellidos: string;
   paciente_cedula: string;
+  paciente_email?: string;
+  paciente_telefono?: string;
+  paciente_direccion?: string;
   nombre_estudio: string;
 }
 
@@ -102,7 +105,10 @@ const ResultsPage: React.FC = () => {
           pacientes(
             nombres,
             apellidos,
-            cedula_identidad
+            cedula_identidad,
+            email,
+            telefono,
+            direccion
           ),
           estudios(
             nombre
@@ -132,6 +138,9 @@ const ResultsPage: React.FC = () => {
         paciente_nombres: result.pacientes?.nombres || 'N/A',
         paciente_apellidos: result.pacientes?.apellidos || 'N/A',
         paciente_cedula: result.pacientes?.cedula_identidad || 'N/A',
+        paciente_email: result.pacientes?.email || '',
+        paciente_telefono: result.pacientes?.telefono || '',
+        paciente_direccion: result.pacientes?.direccion || '',
         nombre_estudio: result.estudios?.nombre || result.resultado_data?.nombre_estudio || 'N/A'
       }));
       setAllResults(transformedData);
@@ -343,7 +352,16 @@ const ResultsPage: React.FC = () => {
 
   // 🤖 Análisis IA
   const handleGenerateInterpretation = async (result: GlobalResult) => {
-    // Castear GlobalResult a ResultadoPaciente compatible
+    // Si ya tiene análisis IA, solo mostrar el modal sin llamar a la API
+    if (result.analisis_ia) {
+      console.log('📋 Mostrando análisis IA existente');
+      setCurrentInterpretation(result as ResultadoPaciente);
+      setInterpretationModalOpen(true);
+      return;
+    }
+
+    // Si no tiene análisis, generar uno nuevo
+    console.log('🤖 Generando nuevo análisis IA para resultado:', result.id);
     setCurrentInterpretation(result as ResultadoPaciente);
     setInterpretationLoading(true);
 
@@ -357,27 +375,38 @@ const ResultsPage: React.FC = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Error en el servidor proxy.');
+        throw new Error(errorData.error || 'Error generando análisis médico.');
       }
 
-      const { interpretation } = await response.json();
+      const { interpretation, success } = await response.json();
 
+      if (!success || !interpretation) {
+        throw new Error('No se pudo generar un análisis médico válido.');
+      }
+
+      // ✅ CORREGIDO: Guardar como 'completado' en lugar de 'pendiente'
       const { error: updateError } = await supabase
         .from('resultados_pacientes')
         .update({
           analisis_ia: interpretation,
-          analisis_estado: 'pendiente',
+          analisis_estado: 'completado',
         })
         .eq('id', result.id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Error guardando análisis en BD:', updateError);
+        throw updateError;
+      }
 
-      await fetchAllResults();
+      console.log('✅ Análisis IA guardado y mostrado exitosamente');
+      toast.success('Análisis médico generado exitosamente');
+
+      await fetchAllResults(); // Refresh para actualizar el estado de la tabla
       setInterpretationModalOpen(true);
 
     } catch (error: any) {
-      console.error('Error IA:', error);
-      toast.error(`Error generando análisis: ${error.message}`);
+      console.error('❌ Error generando análisis IA:', error);
+      toast.error(`Error: ${error.message}`);
     } finally {
       setInterpretationLoading(false);
     }
@@ -550,6 +579,7 @@ const ResultsPage: React.FC = () => {
         onDeleteResult={handleDeleteResult}
         onGenerateInterpretation={handleGenerateInterpretation}
         isLoading={loading}
+        generatingInterpretationId={interpretationLoading ? currentInterpretation?.id : null}
       />
 
       {/* 🔄 Modals */}
@@ -607,9 +637,9 @@ const ResultsPage: React.FC = () => {
             nombres: viewingResult.paciente_nombres,
             apellidos: viewingResult.paciente_apellidos,
             cedula_identidad: viewingResult.paciente_cedula,
-            email: '',
-            telefono: '',
-            direccion: ''
+            email: viewingResult.paciente_email || '',
+            telefono: viewingResult.paciente_telefono || '',
+            direccion: viewingResult.paciente_direccion || ''
           }}
           result={viewingResult as ResultadoPaciente}
           onClose={() => setViewingResult(null)}

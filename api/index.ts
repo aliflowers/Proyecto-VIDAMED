@@ -284,6 +284,110 @@ Instrucciones estrictas:
       }
     });
 
+    // --- ANÁLISIS DE RESULTADOS MÉDICOS CON IA ---
+    app.post('/api/interpretar', async (req: Request, res: Response) => {
+      try {
+        const { result_id } = req.body;
+
+        if (!result_id) {
+          return res.status(400).json({ error: 'El campo result_id es requerido.' });
+        }
+
+        // 1. Obtener el resultado del paciente con JOIN a estudio
+        const { data: resultData, error: resultError } = await supabaseAdmin
+          .from('resultados_pacientes')
+          .select(`
+            *,
+            pacientes!inner(nombres, apellidos, cedula_identidad, email, telefono),
+            estudios!inner(nombre, campos_formulario, categoria, descripcion)
+          `)
+          .eq('id', result_id)
+          .single();
+
+        if (resultError) {
+          console.error('Error fetching result:', resultError);
+          return res.status(404).json({ error: 'Resultado médico no encontrado.' });
+        }
+
+        const study = resultData.estudios;
+        const patient = resultData.pacientes;
+        const resultValues = resultData.resultado_data?.valores || {};
+
+        // 2. Preparar contexto para Gemini IA
+        let interpretationContext = `Paciente: ${patient.nombres} ${patient.apellidos}
+Cédula: ${patient.cedula_identidad}
+Estudio: ${resultData.estudios.nombre}
+Categoría: ${resultData.estudios.categoria || 'N/A'}
+
+VALORES DE RESULTADO:\n`;
+
+        // Agregar valores del estudio
+        if (study.campos_formulario && study.campos_formulario.length > 0) {
+          study.campos_formulario.forEach((field: any) => {
+            const value = resultValues[field.name] || 'No determinado';
+            interpretationContext += `${field.label || field.name}: ${value}\n`;
+          });
+        } else {
+          // Si no hay campos definidos, mostrar valores manuales
+          Object.entries(resultValues).forEach(([key, value]) => {
+            interpretationContext += `${key}: ${value}\n`;
+          });
+        }
+
+        // 3. Prompt especializado para médicos de laboratorio
+        const medicalAnalysisPrompt = `
+Eres un analista clínico médico especializado en hematología, química sanguínea y exámenes de laboratorio en Venezuela. Tu tarea es interpretar RESULTADOS REALES de exámenes de laboratorio.
+
+CONTEXTO DEL PACIENTE Y RESULTADO:
+${interpretationContext}
+
+INSTRUCCIONES PARA EL ANÁLISIS:
+1. **IDENTIFICA LOS VALORES ANORMALES**: Compara con rangos de referencia normales para adultos en Venezuela.
+2. **JUSTIFICA HALLAZGOS**: Explica por qué cada valor está elevado/bajo/normal.
+3. **CORRELACIÓN CLÍNICA**: Relaciona los hallazgos con posibles condiciones médicas.
+4. **RECOMENDACIONES**: Sugiere próximos pasos (repetir estudio, consultar especialista, etc.)
+5. **USUARIO META**: Médicos y pacientes con lenguaje claro pero técnico apropiado.
+
+IMPORTANTE:
+- Si todos los valores son normales, indica "RESULTADO NORMAL" claramente.
+- Si hay alteraciones patológicas, clasifica en "ALTERACIÓN LEVE", "MODERADA", o "GRAVE".
+- Incluye referencias a unidades de medida y metodología cuando sea relevante.
+- Formato profesional con secciones claras.
+
+Responde como un analista clínico venezolano capacitado.`;
+
+        // 4. Generar análisis con Gemini
+        const analysisModel = genAI.getGenerativeModel({ model: DEFAULT_GEMINI_MODEL });
+        const analysisResult = await analysisModel.generateContent(medicalAnalysisPrompt);
+        const interpretationText = analysisResult.response.text().trim();
+
+        // 5. Validar que no esté vacío
+        if (!interpretationText || interpretationText.length < 10) {
+          return res.status(500).json({
+            error: 'No se pudo generar un análisis médico válido.',
+            interpretation: 'Error: Análisis médico no disponible temporalmente.'
+          });
+        }
+
+        console.log(`[IA] Análisis generado para resultado ${result_id} (${interpretationText.length} caracteres)`);
+
+        // 6. Retornar el análisis médico
+        return res.status(200).json({
+          success: true,
+          interpretation: interpretationText,
+          result_id: result_id,
+          generated_at: new Date().toISOString()
+        });
+
+      } catch (error: any) {
+        console.error('Error en /api/interpretar:', error);
+        return res.status(500).json({
+          error: 'Error procesando el análisis médico.',
+          details: error.message
+        });
+      }
+    });
+
     app.listen(port, () => {
       console.log(`Servidor escuchando en el puerto ${port}`);
       console.log(`[IA] Modelo Gemini activo: ${DEFAULT_GEMINI_MODEL}`);
