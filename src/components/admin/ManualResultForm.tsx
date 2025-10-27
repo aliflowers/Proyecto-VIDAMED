@@ -33,35 +33,27 @@ const ManualResultForm: React.FC<ManualResultFormProps> = ({ study, onSave, onCa
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        console.log('🎯 MANUAL RESULT FORM - handleSubmit called with data:', resultsData);
-        console.log('🎯 MANUAL RESULT FORM - onSave function:', typeof onSave);
-        console.log('🎯 MANUAL RESULT FORM - onSave is function?', typeof onSave === 'function');
+        console.log('🎯 MANUAL RESULT FORM - handleSubmit triggered with:', resultsData);
 
-        // Determinar si hay campos en el estudio
         const hasFormFields = study.campos_formulario && study.campos_formulario.length > 0;
-        console.log('📝 MANUAL RESULT FORM - Study has form fields?', hasFormFields);
+        console.log('📝 Study has form fields?:', hasFormFields);
 
-        // Si no hay campos configurados, enviar al menos información básica para registrar el resultado
+        // Prepare data to save
         let dataToSave = resultsData;
         if (!hasFormFields) {
             dataToSave = {
-                nota_importante: 'Este estudio no tiene campos específicos configurados. El resultado se registró exitosamente con la información del paciente, estudio y materiales utilizados.',
+                nota_importante: 'Este estudio no tiene campos específicos configurados.',
                 fecha_registro_sin_campos: new Date().toISOString(),
-                ...resultsData // Por si acaso hay algo manualmente adicionado
+                ...resultsData
             };
-            console.log('📝 MANUAL RESULT FORM - No fields configured, sending basic data:', dataToSave);
         }
 
+        // Execute onSave callback
         if (typeof onSave === 'function') {
-            console.log('🎯 MANUAL RESULT FORM - Executing onSave...');
-            try {
-                onSave(dataToSave);
-                console.log('✅ MANUAL RESULT FORM - onSave executed successfully');
-            } catch (error) {
-                console.error('❌ MANUAL RESULT FORM - Error executing onSave:', error);
-            }
+            console.log('✅ Executing onSave callback...');
+            onSave(dataToSave);
         } else {
-            console.error('❌ MANUAL RESULT FORM - onSave is not a function!', onSave);
+            console.error('❌ onSave is not a function:', onSave);
         }
     };
 

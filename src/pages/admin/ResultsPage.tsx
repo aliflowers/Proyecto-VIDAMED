@@ -198,7 +198,7 @@ const ResultsPage: React.FC = () => {
 
     // Convertir materiales SelectedMaterial al formato esperado (preservar cantidades)
     const convertedMaterials = materials.map(mat => ({
-      material_id: mat.id,
+      id: mat.id, // ✅ CORRECCIÓN: Usar 'id' en lugar de 'material_id'
       cantidad_usada: mat.cantidad_usada, // ✅ Cantidad específica del modal unificado
       nombre: mat.nombre,
       sku: mat.sku
@@ -234,11 +234,28 @@ const ResultsPage: React.FC = () => {
     setUploading(true);
     try {
       // 🔥 DESCONTAR MATERIALES DEL INVENTARIO
+      console.log('🔥 DEDUCTING MATERIALS - selectedMaterials:', selectedMaterials);
+
       // Crear array de materiales a descontar con la estructura correcta para la función RPC
-      const materialsToDeduct = selectedMaterials.map(material => ({
-        id: material.id.toString(), // Asegurar que sea string para evitar problemas de tipo
-        cantidad_usada: material.cantidad_usada.toString() // Convertir a string también
-      }));
+      const materialsToDeduct = selectedMaterials.map(material => {
+        console.log('🔥 Processing material:', material);
+        console.log('🔥 Material id:', material.id, 'type:', typeof material.id);
+
+        // 🛠️ CORRECCIÓN: Asegurar que id existe, si no usar material_id alternativo
+        const safeId = material.id || material.material_id;
+        if (!safeId) {
+          console.error('❌ ERROR: Material has no id or material_id:', material);
+          alert('ERROR: Un material no tiene identificador válido. Revisa la selección de materiales.');
+          throw new Error('Material missing id');
+        }
+
+        return {
+          id: safeId.toString(),
+          cantidad_usada: material.cantidad_usada.toString()
+        };
+      });
+
+      console.log('✅ Final materialsToDeduct:', materialsToDeduct);
 
       // Llamar al procedimiento almacenado para descontar stock - convertir a JSONB
       const { error: deductError } = await supabase.rpc('deduct_inventory_materials', {
@@ -277,13 +294,22 @@ const ResultsPage: React.FC = () => {
 
       await supabase.rpc('increment_study_count', { study_ids: [parseInt(manualEntryStudy.id, 10)] });
 
-      toast.success(`Resultado manual guardado para ${selectedPatient.nombres} ${selectedPatient.apellidos} y materiales descontados exitosamente.`);
+      console.log('✅ RESULTADO GUARDADO EXITOSAMENTE:', {
+        paciente: `${selectedPatient.nombres} ${selectedPatient.apellidos}`,
+        estudio: manualEntryStudy.name,
+        materiales: selectedMaterials.length
+      });
+
+      toast.success(`Resultado guardado para ${selectedPatient.nombres} ${selectedPatient.apellidos}`);
+
+      // Limpiar estados para cerrar modal
       setManualEntryStudy(null);
       setSelectedMaterials([]);
-      setSelectedPatient(null); // Limpiar paciente después del guardado
-      fetchAllResults();
+      setSelectedPatient(null);
+      fetchAllResults(); // Refresh tabla con nuevo resultado
     } catch (error: any) {
-      toast.error(error.message);
+      console.error('❌ Error guardando resultado:', error);
+      toast.error(`Error: ${error.message}`);
     } finally {
       setUploading(false);
     }
@@ -539,17 +565,36 @@ const ResultsPage: React.FC = () => {
 
       {manualEntryStudy && (
         <>
-          {console.log('🔄 RENDERING ManualResultForm with:', {
-            manualEntryStudy: !!manualEntryStudy,
-            studyName: manualEntryStudy?.name,
-            camposFormulario: manualEntryStudy?.campos_formulario,
-            onSaveFunction: typeof handleSaveManualResult,
-            onSaveIsFunction: typeof handleSaveManualResult === 'function'
-          })}
+          {(() => {
+            console.log('🔄 RESULTSPAGE - RENDERING ManualResultForm with:', {
+              manualEntryStudy: !!manualEntryStudy,
+              studyName: manualEntryStudy?.name,
+              studyId: manualEntryStudy?.id,
+              camposFormulario: manualEntryStudy?.campos_formulario?.length || 0,
+              onSaveFunction: typeof handleSaveManualResult,
+              onSaveIsFunction: typeof handleSaveManualResult === 'function',
+              selectedPatient: !!selectedPatient,
+              selectedPatientId: selectedPatient?.id,
+              selectedMaterialsLength: selectedMaterials.length,
+              uploading: uploading
+            });
+            return null;
+          })()}
           <ManualResultForm
             study={manualEntryStudy}
-            onSave={handleSaveManualResult}
-            onCancel={() => setManualEntryStudy(null)}
+            onSave={(results) => {
+              console.log('⭐ RESULTSPAGE - onSave callback triggered with:', results);
+              console.log('⭐ RESULTSPAGE - Current states:', {
+                selectedPatient,
+                selectedMaterials,
+                manualEntryStudy
+              });
+              return handleSaveManualResult(results);
+            }}
+            onCancel={() => {
+              console.log('❌ RESULTSPAGE - onCancel called, closing modal');
+              setManualEntryStudy(null);
+            }}
             isLoading={uploading}
           />
         </>

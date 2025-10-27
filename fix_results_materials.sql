@@ -49,8 +49,7 @@ BEGIN
 
         -- Descontar del inventario
         UPDATE inventario
-        SET cantidad_stock = cantidad_stock - (material_record->>'cantidad_usada')::INTEGER,
-            fecha_ultima_actualizacion = NOW()
+        SET cantidad_stock = cantidad_stock - (material_record->>'cantidad_usada')::INTEGER
         WHERE id = (material_record->>'id')::INTEGER;
 
         RAISE NOTICE 'Descontado % unidades del material ID %', (material_record->>'cantidad_usada'), (material_record->>'id');
