@@ -266,16 +266,25 @@ const ResultsPage: React.FC = () => {
 
       console.log('✅ Final materialsToDeduct:', materialsToDeduct);
 
-      // Llamar al procedimiento almacenado para descontar stock - convertir a JSONB
-      const { error: deductError } = await supabase.rpc('deduct_inventory_materials', {
-        materials: materialsToDeduct // Supabase automáticamente lo convierte a JSONB
+      // Llamar al procedimiento almacenado para descontar stock
+      console.log('💰 DESCONTANDO MATERIALES DEL INVENTARIO:');
+      console.log('📋 materialsToDeduct:', JSON.stringify(materialsToDeduct, null, 2));
+
+      const { error: deductError, data: deductData } = await supabase.rpc('deduct_inventory_materials', {
+        materials: materialsToDeduct
       });
 
+      console.log('✅ deduct_inventory_materials - Data:', deductData);
+      console.log('❌ deduct_inventory_materials - Error:', deductError);
+
       if (deductError) {
-        console.error('Error descontando materiales:', deductError);
+        console.error('❌ Error descontando materiales:', deductError);
+        console.error('❌ Detalles del error:', JSON.stringify(deductError, null, 2));
         alert('Error al descontar materiales del inventario.');
         throw deductError;
       }
+
+      console.log('✅ MATERIALES DESCONTADOS EXITOSAMENTE:', deductData);
 
       // ✅ GUARDAR RESULTADO EN BASE DE DATOS
       const dataToInsert = {

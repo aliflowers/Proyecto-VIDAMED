@@ -47,12 +47,13 @@ BEGIN
                           current_stock;
         END IF;
 
-        -- Descontar del inventario
+        -- Descontar del inventario - CORREGIDO: Descontar de unidades_totales, no de cantidad_stock
         UPDATE inventario
-        SET cantidad_stock = cantidad_stock - (material_record->>'cantidad_usada')::INTEGER
+        SET unidades_totales = unidades_totales - (material_record->>'cantidad_usada')::INTEGER,
+            ultima_actualizacion_stock = NOW() -- Marcar actualización para que el trigger inteligente funcione
         WHERE id = (material_record->>'id')::INTEGER;
 
-        RAISE NOTICE 'Descontado % unidades del material ID %', (material_record->>'cantidad_usada'), (material_record->>'id');
+        RAISE NOTICE 'Descontado % unidades del material ID % (unidades_totales)', (material_record->>'cantidad_usada'), (material_record->>'id');
     END LOOP;
 
     RETURN TRUE;

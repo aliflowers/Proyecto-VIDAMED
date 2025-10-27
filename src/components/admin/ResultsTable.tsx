@@ -30,7 +30,8 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   onViewResult,
   onDeleteResult,
   onGenerateInterpretation,
-  isLoading
+  isLoading,
+  generatingInterpretationId
 }) => {
   const [sortBy, setSortBy] = useState<string>('fecha');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -116,11 +117,12 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
         </div>
       </div>
 
-      {/* 📋 Tabla Responsive */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
+      {/* 📋 Tabla con encabezado sticky */}
+      <div className="relative">
+        <div className="max-h-[500px] overflow-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50 sticky top-0 z-10">
+              <tr>
               <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('fecha')}>
                 <div className="flex items-center">
                   Fecha
@@ -231,16 +233,20 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                       ✓ Completado
                     </span>
-                  ) : result.analisis_estado === 'generando' ? (
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                      ⚡ Generando...
+                  ) : generatingInterpretationId === result.id ? (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-blue-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Generando...
                     </span>
                   ) : (
                     <button
                       onClick={() => onGenerateInterpretation(result)}
-                      className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors"
+                      className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 transition-all duration-200 shadow-sm hover:shadow-md"
                     >
-                      <BrainCircuit className="mr-1 h-3 w-3" />
+                      <BrainCircuit className="mr-1 h-3 w-3 animate-pulse" />
                       Generar IA
                     </button>
                   )}
@@ -295,6 +301,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* 📊 Footer con estadísticas detalladas */}

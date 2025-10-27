@@ -91,9 +91,9 @@ const PatientsAdminPage: React.FC = () => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             </div>
 
-            <div className="bg-white shadow-md rounded-lg overflow-x-auto">
+            <div className="bg-white shadow-md rounded-lg max-h-[600px] overflow-auto">
                 <table className="min-w-full">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-gray-50 sticky top-0 z-10">
                         <tr>
                             <th className="py-3 px-6 text-left">Nombre Completo</th>
                             <th className="py-3 px-6 text-left">Cédula</th>

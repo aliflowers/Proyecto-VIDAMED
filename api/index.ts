@@ -321,14 +321,15 @@ Categoría: ${resultData.estudios.categoria || 'N/A'}
 
 VALORES DE RESULTADO:\n`;
 
-        // Agregar valores del estudio
+        // Agregar valores del estudio CON UNIDADES
         if (study.campos_formulario && study.campos_formulario.length > 0) {
           study.campos_formulario.forEach((field: any) => {
             const value = resultValues[field.name] || 'No determinado';
-            interpretationContext += `${field.label || field.name}: ${value}\n`;
+            const unit = field.unit ? ` ${field.unit}` : '';
+            interpretationContext += `${field.label || field.name}: ${value}${unit}\n`;
           });
         } else {
-          // Si no hay campos definidos, mostrar valores manuales
+          // Si no hay campos definidos, mostrar valores manuales (sin unidades disponibles)
           Object.entries(resultValues).forEach(([key, value]) => {
             interpretationContext += `${key}: ${value}\n`;
           });
