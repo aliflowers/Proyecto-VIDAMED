@@ -243,7 +243,10 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                     </span>
                   ) : (
                     <button
-                      onClick={() => onGenerateInterpretation(result)}
+                      onClick={() => {
+                        console.log('🖱️ Click en "Generar IA" en ResultsTable para resultado:', result);
+                        onGenerateInterpretation(result);
+                      }}
                       className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 transition-all duration-200 shadow-sm hover:shadow-md"
                     >
                       <BrainCircuit className="mr-1 h-3 w-3 animate-pulse" />

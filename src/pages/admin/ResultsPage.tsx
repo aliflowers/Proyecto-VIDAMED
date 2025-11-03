@@ -86,7 +86,12 @@ const ResultsPage: React.FC = () => {
         costo_bs: item.costo_bs,
         tasa_bcv: item.tasa_bcv,
         deliveryTime: item.tiempo_entrega,
-        campos_formulario: item.campos_formulario,
+        campos_formulario: Array.isArray(item.campos_formulario) ? item.campos_formulario.map((campo: any) => ({
+          name: campo.name || campo.nombre,
+          label: campo.etiqueta || campo.label || campo.name || campo.nombre,
+          unit: campo.unit || campo.unidad,
+          reference: campo.reference || campo.valor_referencial,
+        })) : [],
         veces_realizado: item.veces_realizado,
         background_url: item.background_url
       }));
@@ -361,6 +366,8 @@ const ResultsPage: React.FC = () => {
 
   // 🤖 Análisis IA
   const handleGenerateInterpretation = async (result: GlobalResult) => {
+    console.log('▶️ Iniciando handleGenerateInterpretation en ResultsPage para resultado:', result);
+
     // Si ya tiene análisis IA, solo mostrar el modal sin llamar a la API
     if (result.analisis_ia) {
       console.log('📋 Mostrando análisis IA existente');
@@ -376,18 +383,36 @@ const ResultsPage: React.FC = () => {
 
     try {
       const apiUrl = '/api/interpretar';
+      console.log(`📡 Realizando fetch a ${apiUrl} con result_id: ${result.id}`);
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ result_id: result.id }),
       });
 
+      console.log('📬 Respuesta recibida del servidor:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+      });
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error generando análisis médico.');
+        const errorText = await response.text();
+        console.error('❌ Error en la respuesta del servidor (texto plano):', errorText);
+        try {
+          const errorData = JSON.parse(errorText);
+          console.error('❌ Error en la respuesta del servidor (JSON parseado):', errorData);
+          throw new Error(errorData.error || 'Error generando análisis médico.');
+        } catch (e) {
+          // Si el parseo falla, es porque la respuesta no es un JSON válido (probablemente HTML)
+          throw new Error(`El servidor respondió con un error ${response.status}. La respuesta no es un JSON válido.`);
+        }
       }
 
-      const { interpretation, success } = await response.json();
+      const responseData = await response.json();
+      console.log('✅ Respuesta JSON parseada exitosamente:', responseData);
+
+      const { interpretation, success } = responseData;
 
       if (!success || !interpretation) {
         throw new Error('No se pudo generar un análisis médico válido.');
