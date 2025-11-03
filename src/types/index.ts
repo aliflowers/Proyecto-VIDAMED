@@ -5,6 +5,13 @@ export interface Message {
   sender: 'user' | 'bot';
 }
 
+export interface FormField {
+  name: string;
+  label: string;
+  unit: string;
+  reference: string;
+}
+
 export interface Study {
   id: string;
   name: string;
@@ -15,7 +22,7 @@ export interface Study {
   costo_bs?: number;
   tasa_bcv?: number;
   deliveryTime: string;
-  campos_formulario?: any[]; // Puede ser un array de objetos
+  campos_formulario?: FormField[];
   veces_realizado?: number;
   background_url?: string;
   materials?: { id: number; quantity: number }[];

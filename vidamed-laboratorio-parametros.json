@@ -1,0 +1,1875 @@
+{
+  "laboratorio": "VIDAMED - Laboratorio Clínico",
+  "direccion": "Calle López Aveledo Urb. Calicanto Quinta La Coromoto Nº 6 Maracay, Edo Aragua",
+  "registro": "Registro Colegio de Bioanálisis Estado Aragua N° 0392",
+  "telefono": "0414.051.28.31",
+  "instagram": "@LABVIDAMED",
+  "fecha_actualizacion": "2025-11-02",
+  "version": "2.0_COMPLETO",
+  "total_examenes": 303,
+  "categorias": {
+    "examenes_principales": 288,
+    "bacteriologia": 8,
+    "perfiles": 7
+  },
+  "examenes": [
+    {
+      "id": 1,
+      "nombre": "17-CETOSTEROIDE",
+      "etiqueta": "17_cetosteroide",
+      "parametros": [{"nombre": "17-Cetosteroides", "unidad": "mg/24h", "valor_referencial": "Hombres: 8-25 mg/24h, Mujeres: 6-15 mg/24h"}]
+    },
+    {
+      "id": 2,
+      "nombre": "17 OH PROGESTERONA",
+      "etiqueta": "17_oh_progesterona",
+      "parametros": [{"nombre": "17-OH Progesterona", "unidad": "ng/mL", "valor_referencial": "Adultos: <2.0 ng/mL"}]
+    },
+    {
+      "id": 3,
+      "nombre": "(5-HIAA) ACIDO 5 HIDROXIINDOLACETICO",
+      "etiqueta": "5_hiaa",
+      "parametros": [{"nombre": "Ácido 5-HIAA", "unidad": "mg/24h", "valor_referencial": "2-9 mg/24h"}]
+    },
+    {
+      "id": 4,
+      "nombre": "25 OH VITAMINA D",
+      "etiqueta": "vitamina_d_25",
+      "parametros": [{"nombre": "25-OH Vitamina D", "unidad": "ng/mL", "valor_referencial": "Suficiente: 30-100 ng/mL"}]
+    },
+    {
+      "id": 5,
+      "nombre": "ACTH",
+      "etiqueta": "acth",
+      "parametros": [{"nombre": "ACTH", "unidad": "pg/mL", "valor_referencial": "10-60 pg/mL"}]
+    },
+    {
+      "id": 6,
+      "nombre": "ACIDO LACTICO (LACTATO)",
+      "etiqueta": "lactato",
+      "parametros": [{"nombre": "Lactato", "unidad": "mmol/L", "valor_referencial": "0.5-2.2 mmol/L"}]
+    },
+    {
+      "id": 7,
+      "nombre": "ACIDO VANILMANDELICO",
+      "etiqueta": "acido_vanilmandelico",
+      "parametros": [{"nombre": "Ácido Vanilmandélico", "unidad": "mg/24h", "valor_referencial": "2-7 mg/24h"}]
+    },
+    {
+      "id": 8,
+      "nombre": "ACIDO VALPROICO",
+      "etiqueta": "acido_valproico",
+      "parametros": [{"nombre": "Ácido Valproico", "unidad": "μg/mL", "valor_referencial": "Terapéutico: 50-100 μg/mL"}]
+    },
+    {
+      "id": 9,
+      "nombre": "ADA (ADENOSINA DEAMINASA)",
+      "etiqueta": "ada",
+      "parametros": [{"nombre": "ADA", "unidad": "U/L", "valor_referencial": "Líquido pleural: >30 U/L (sugestivo TB)"}]
+    },
+    {
+      "id": 10,
+      "nombre": "ALFA 1 ANTITRIPSINA",
+      "etiqueta": "alfa1_antitripsina",
+      "parametros": [{"nombre": "Alfa-1 Antitripsina", "unidad": "mg/dL", "valor_referencial": "90-200 mg/dL"}]
+    },
+    {
+      "id": 11,
+      "nombre": "ASPERGILLUS IgG",
+      "etiqueta": "aspergillus_igg",
+      "parametros": [{"nombre": "Aspergillus IgG", "unidad": "UA/mL", "valor_referencial": "<0.35 UA/mL"}]
+    },
+    {
+      "id": 12,
+      "nombre": "ANTIGENO VIRAL PARA SINDROME RESPIRATORIO AGUDO SEVERO SARS-CoV-2",
+      "etiqueta": "antigen_covid19",
+      "parametros": [{"nombre": "Antígeno SARS-CoV-2", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 13,
+      "nombre": "ANTIGENOS PARA VIRUS Y BACTERIAS RESPIRATORIAS",
+      "etiqueta": "panel_respiratorio_4",
+      "parametros": [{"nombre": "COVID-19", "unidad": "", "valor_referencial": "Negativo"}, {"nombre": "Influenza A", "unidad": "", "valor_referencial": "Negativo"}, {"nombre": "Influenza B", "unidad": "", "valor_referencial": "Negativo"}, {"nombre": "RSV", "unidad": "", "valor_referencial": "Negativo"}, {"nombre": "Mycoplasma", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 14,
+      "nombre": "ANTI-MCV (La Vimentina Citrulinada Mutada)",
+      "etiqueta": "anti_mcv",
+      "parametros": [{"nombre": "Anti-MCV", "unidad": "U/mL", "valor_referencial": "<20 U/mL"}]
+    },
+    {
+      "id": 15,
+      "nombre": "ANTIGENO VIRAL PARA SINDROME RESPIRATORIO AGUDO SEVERO SARS-CoV-2 EN SALIVA",
+      "etiqueta": "antigen_covid19_saliva",
+      "parametros": [{"nombre": "Antígeno SARS-CoV-2 Saliva", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 16,
+      "nombre": "ANTICUERPOS NEUTRALIZANTES CONTRA COVID-19",
+      "etiqueta": "anticuerpos_neutralizantes_covid",
+      "parametros": [{"nombre": "Anticuerpos Neutralizantes", "unidad": "%", "valor_referencial": ">50% (Protectivo)"}]
+    },
+    {
+      "id": 17,
+      "nombre": "ALDOSTERONA",
+      "etiqueta": "aldosterona",
+      "parametros": [{"nombre": "Aldosterona", "unidad": "ng/dL", "valor_referencial": "Suero: 4-31 ng/dL"}]
+    },
+    {
+      "id": 18,
+      "nombre": "ANAPLASMA",
+      "etiqueta": "anaplasma",
+      "parametros": [{"nombre": "Anaplasma", "unidad": "", "valor_referencial": "Ausente"}]
+    },
+    {
+      "id": 19,
+      "nombre": "ANION GAP",
+      "etiqueta": "anion_gap",
+      "parametros": [{"nombre": "Anion Gap", "unidad": "mEq/L", "valor_referencial": "8-16 mEq/L"}]
+    },
+    {
+      "id": 20,
+      "nombre": "ANCA C (ANTI PR3)",
+      "etiqueta": "anca_c",
+      "parametros": [{"nombre": "ANCA c (Anti-PR3)", "unidad": "U/mL", "valor_referencial": "<20 U/mL"}]
+    },
+    {
+      "id": 21,
+      "nombre": "ANCA P (ANTI-MPO)",
+      "etiqueta": "anca_p",
+      "parametros": [{"nombre": "ANCA p (Anti-MPO)", "unidad": "U/mL", "valor_referencial": "<20 U/mL"}]
+    },
+    {
+      "id": 22,
+      "nombre": "ANTIGENO DEL VIRUS SINCITIAL RESPIRATORIO (RSV)",
+      "etiqueta": "rsv_antigen",
+      "parametros": [{"nombre": "RSV Antígeno", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 23,
+      "nombre": "ANTICUERPOS ANTI NUCLEARES ANA PATRON (HEP2)",
+      "etiqueta": "ana_hep2",
+      "parametros": [{"nombre": "ANA Patrón", "unidad": "Título", "valor_referencial": "<1:80 (Negativo)"}]
+    },
+    {
+      "id": 24,
+      "nombre": "ANTICUERPOS ANTI-ENDOMISIALES (EMA) IgA",
+      "etiqueta": "ema_iga",
+      "parametros": [{"nombre": "EMA IgA", "unidad": "Título", "valor_referencial": "<1:5 (Negativo)"}]
+    },
+    {
+      "id": 25,
+      "nombre": "ANTICUERPOS ANTI-ENDOMISIALES (EMA) IgG",
+      "etiqueta": "ema_igg",
+      "parametros": [{"nombre": "EMA IgG", "unidad": "Título", "valor_referencial": "<1:5 (Negativo)"}]
+    },
+    {
+      "id": 26,
+      "nombre": "ANTICUERPOS ANTI-MITOCONDRIALES (AMA)",
+      "etiqueta": "ama",
+      "parametros": [{"nombre": "AMA", "unidad": "Título", "valor_referencial": "<1:40 (Negativo)"}]
+    },
+    {
+      "id": 27,
+      "nombre": "ANTICUERPO SARS-CoV 2 IgM",
+      "etiqueta": "covid_igm",
+      "parametros": [{"nombre": "SARS-CoV-2 IgM", "unidad": "Índice", "valor_referencial": "<1.4 (Negativo)"}]
+    },
+    {
+      "id": 28,
+      "nombre": "ANTICUERPO SARS-CoV 2 IgA",
+      "etiqueta": "covid_iga",
+      "parametros": [{"nombre": "SARS-CoV-2 IgA", "unidad": "Índice", "valor_referencial": "<1.4 (Negativo)"}]
+    },
+    {
+      "id": 29,
+      "nombre": "ANTICUERPO SARS-CoV 2 IgG",
+      "etiqueta": "covid_igg",
+      "parametros": [{"nombre": "SARS-CoV-2 IgG", "unidad": "AU/mL", "valor_referencial": "<50 AU/mL (Negativo)"}]
+    },
+    {
+      "id": 30,
+      "nombre": "ANDROSTENEDIONA",
+      "etiqueta": "androstenediona",
+      "parametros": [{"nombre": "Androstenediona", "unidad": "ng/mL", "valor_referencial": "Mujeres: 0.3-3.3 ng/mL, Hombres: 0.6-2.7 ng/mL"}]
+    },
+    {
+      "id": 31,
+      "nombre": "ANTIGENOS FEBRILES (REACCION DE WIDAL)",
+      "etiqueta": "widal",
+      "parametros": [{"nombre": "Salmonella O", "unidad": "Título", "valor_referencial": "<1:80"}, {"nombre": "Salmonella H", "unidad": "Título", "valor_referencial": "<1:80"}, {"nombre": "Paratyphi A", "unidad": "Título", "valor_referencial": "<1:80"}, {"nombre": "Paratyphi B", "unidad": "Título", "valor_referencial": "<1:80"}]
+    },
+    {
+      "id": 32,
+      "nombre": "A.S.T.O",
+      "etiqueta": "asto",
+      "parametros": [{"nombre": "ASTO", "unidad": "UI/mL", "valor_referencial": "Adultos: <200 UI/mL, Niños: <150 UI/mL"}]
+    },
+    {
+      "id": 33,
+      "nombre": "ACIDO URICO",
+      "etiqueta": "acido_urico",
+      "parametros": [{"nombre": "Ácido Úrico", "unidad": "mg/dL", "valor_referencial": "Hombres: 3.5-7.2 mg/dL, Mujeres: 2.5-6.0 mg/dL"}]
+    },
+    {
+      "id": 34,
+      "nombre": "ALBUMINA EN SUERO",
+      "etiqueta": "albumina",
+      "parametros": [{"nombre": "Albúmina", "unidad": "g/dL", "valor_referencial": "3.5-5.0 g/dL"}]
+    },
+    {
+      "id": 35,
+      "nombre": "ALFA-FETOPROTEÍNA (AFP)",
+      "etiqueta": "afp",
+      "parametros": [{"nombre": "AFP", "unidad": "ng/mL", "valor_referencial": "<10 ng/mL"}]
+    },
+    {
+      "id": 36,
+      "nombre": "AMILASA",
+      "etiqueta": "amilasa",
+      "parametros": [{"nombre": "Amilasa", "unidad": "U/L", "valor_referencial": "30-110 U/L"}]
+    },
+    {
+      "id": 37,
+      "nombre": "AMONIO",
+      "etiqueta": "amonio",
+      "parametros": [{"nombre": "Amonio", "unidad": "μmol/L", "valor_referencial": "11-32 μmol/L"}]
+    },
+    {
+      "id": 38,
+      "nombre": "ANA SCREEN IgG",
+      "etiqueta": "ana_screen",
+      "parametros": [{"nombre": "ANA Screen", "unidad": "Índice", "valor_referencial": "<1.0 (Negativo)"}]
+    },
+    {
+      "id": 39,
+      "nombre": "ANA WESTERN BLOT 14 ANTIGENOS",
+      "etiqueta": "ana_western_blot",
+      "parametros": [{"nombre": "SS-A52", "unidad": "", "valor_referencial": "Negativo"}, {"nombre": "JO-1", "unidad": "", "valor_referencial": "Negativo"}, {"nombre": "SM", "unidad": "", "valor_referencial": "Negativo"}, {"nombre": "CENP-B", "unidad": "", "valor_referencial": "Negativo"}, {"nombre": "Histona", "unidad": "", "valor_referencial": "Negativo"}, {"nombre": "SCL-70", "unidad": "", "valor_referencial": "Negativo"}, {"nombre": "U1-SNRNP", "unidad": "", "valor_referencial": "Negativo"}, {"nombre": "SS-A60", "unidad": "", "valor_referencial": "Negativo"}, {"nombre": "MI-2", "unidad": "", "valor_referencial": "Negativo"}, {"nombre": "KU", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 40,
+      "nombre": "ANTI JO-1",
+      "etiqueta": "anti_jo1",
+      "parametros": [{"nombre": "Anti Jo-1", "unidad": "U/mL", "valor_referencial": "<25 U/mL"}]
+    },
+    {
+      "id": 41,
+      "nombre": "ANTI-BETA 2 GLYCOPROTEINA IgG",
+      "etiqueta": "anti_beta2_igg",
+      "parametros": [{"nombre": "Anti-β2 Glicoproteína IgG", "unidad": "GPL", "valor_referencial": "<20 GPL"}]
+    },
+    {
+      "id": 42,
+      "nombre": "ANTI-BETA 2 MICROGLOBULINA",
+      "etiqueta": "anti_beta2_micro",
+      "parametros": [{"nombre": "Beta-2 Microglobulina", "unidad": "mg/L", "valor_referencial": "0.8-2.2 mg/L"}]
+    },
+    {
+      "id": 43,
+      "nombre": "ANTI-CCP",
+      "etiqueta": "anti_ccp",
+      "parametros": [{"nombre": "Anti-CCP", "unidad": "U/mL", "valor_referencial": "<20 U/mL"}]
+    },
+    {
+      "id": 44,
+      "nombre": "ANTI-SM",
+      "etiqueta": "anti_sm",
+      "parametros": [{"nombre": "Anti-Sm", "unidad": "U/mL", "valor_referencial": "<25 U/mL"}]
+    },
+    {
+      "id": 45,
+      "nombre": "ANTI-SSA (RO)",
+      "etiqueta": "anti_ssa",
+      "parametros": [{"nombre": "Anti-SSA/Ro", "unidad": "U/mL", "valor_referencial": "<25 U/mL"}]
+    },
+    {
+      "id": 46,
+      "nombre": "ANTI-SSB (LA)",
+      "etiqueta": "anti_ssb",
+      "parametros": [{"nombre": "Anti-SSB/La", "unidad": "U/mL", "valor_referencial": "<25 U/mL"}]
+    },
+    {
+      "id": 47,
+      "nombre": "ANTI-BETA 2 GLYCOPROTEINA IgM",
+      "etiqueta": "anti_beta2_igm",
+      "parametros": [{"nombre": "Anti-β2 Glicoproteína IgM", "unidad": "MPL", "valor_referencial": "<20 MPL"}]
+    },
+    {
+      "id": 48,
+      "nombre": "ANTI-CARDIOLIPINA IgM",
+      "etiqueta": "anticardiolipina_igm",
+      "parametros": [{"nombre": "Anticardiolipina IgM", "unidad": "MPL", "valor_referencial": "<20 MPL"}]
+    },
+    {
+      "id": 49,
+      "nombre": "ANTI-CARDIOLIPINA IgG",
+      "etiqueta": "anticardiolipina_igg",
+      "parametros": [{"nombre": "Anticardiolipina IgG", "unidad": "GPL", "valor_referencial": "<20 GPL"}]
+    },
+    {
+      "id": 50,
+      "nombre": "ANTI-FOSFOLIPIDOS IgM",
+      "etiqueta": "antifosfolipidos_igm",
+      "parametros": [{"nombre": "Antifosfolípidos IgM", "unidad": "MPL", "valor_referencial": "<20 MPL"}]
+    },
+    {
+      "id": 51,
+      "nombre": "ANTI-FOSFOLIPIDOS IgG",
+      "etiqueta": "antifosfolipidos_igg",
+      "parametros": [{"nombre": "Antifosfolípidos IgG", "unidad": "GPL", "valor_referencial": "<20 GPL"}]
+    },
+    {
+      "id": 52,
+      "nombre": "ANTICOAGULANTE LUPICO",
+      "etiqueta": "anticoagulante_lupico",
+      "parametros": [{"nombre": "Anticoagulante Lúpico", "unidad": "Ratio", "valor_referencial": "<1.2 (Negativo)"}]
+    },
+    {
+      "id": 53,
+      "nombre": "ANTICUERPO CONTRA EL ANTIGENO DE SUPERFICIE DE LA HEPATITIS E (HBeAb)",
+      "etiqueta": "hbeab",
+      "parametros": [{"nombre": "Anti-HBe", "unidad": "S/CO", "valor_referencial": "<1.0 (Negativo)"}]
+    },
+    {
+      "id": 54,
+      "nombre": "ANTI-DS DNA IgG",
+      "etiqueta": "anti_dsdna",
+      "parametros": [{"nombre": "Anti-dsDNA", "unidad": "UI/mL", "valor_referencial": "<30 UI/mL"}]
+    },
+    {
+      "id": 55,
+      "nombre": "ANTIGENO CARCINOEMBRIONARIO (C.E.A)",
+      "etiqueta": "cea",
+      "parametros": [{"nombre": "CEA", "unidad": "ng/mL", "valor_referencial": "No fumadores: <5 ng/mL, Fumadores: <10 ng/mL"}]
+    },
+    {
+      "id": 56,
+      "nombre": "ANTIGENO DE SUPERFICIE",
+      "etiqueta": "hbsag_rapido",
+      "parametros": [{"nombre": "HBsAg", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 57,
+      "nombre": "ANTIGENO DE SUPERFICIE DE LA HEPATITIS E (HBeAg)",
+      "etiqueta": "hbeag",
+      "parametros": [{"nombre": "HBeAg", "unidad": "S/CO", "valor_referencial": "<1.0 (Negativo)"}]
+    },
+    {
+      "id": 58,
+      "nombre": "ANTI-GLIADINA DEAMINADA IgA GLIADINA SEGUNDA GENERACION",
+      "etiqueta": "antigliadina_iga",
+      "parametros": [{"nombre": "Anti-Gliadina Deaminada IgA", "unidad": "U/mL", "valor_referencial": "<20 U/mL"}]
+    },
+    {
+      "id": 59,
+      "nombre": "ANTI-GLIADINA DEAMINADA IgG GLIADINA SEGUNDA GENERACION",
+      "etiqueta": "antigliadina_igg",
+      "parametros": [{"nombre": "Anti-Gliadina Deaminada IgG", "unidad": "U/mL", "valor_referencial": "<20 U/mL"}]
+    },
+    {
+      "id": 60,
+      "nombre": "ANTI-SCL-70",
+      "etiqueta": "anti_scl70",
+      "parametros": [{"nombre": "Anti-Scl-70", "unidad": "U/mL", "valor_referencial": "<25 U/mL"}]
+    },
+    {
+      "id": 61,
+      "nombre": "ANTI-LKM1",
+      "etiqueta": "anti_lkm1",
+      "parametros": [{"nombre": "Anti-LKM1", "unidad": "U/mL", "valor_referencial": "<25 U/mL"}]
+    },
+    {
+      "id": 62,
+      "nombre": "ANTI-TIROGLOBULINA (ANTI-TG)",
+      "etiqueta": "anti_tiroglobulina",
+      "parametros": [{"nombre": "Anti-Tiroglobulina", "unidad": "UI/mL", "valor_referencial": "<115 UI/mL"}]
+    },
+    {
+      "id": 63,
+      "nombre": "ANTI-TIROPEROXIDASA (ANTI-TPO)",
+      "etiqueta": "anti_tpo",
+      "parametros": [{"nombre": "Anti-TPO", "unidad": "UI/mL", "valor_referencial": "<34 UI/mL"}]
+    },
+    {
+      "id": 64,
+      "nombre": "ASCA IgA",
+      "etiqueta": "asca_iga",
+      "parametros": [{"nombre": "ASCA IgA", "unidad": "U/mL", "valor_referencial": "<25 U/mL"}]
+    },
+    {
+      "id": 65,
+      "nombre": "ASCA IgG",
+      "etiqueta": "asca_igg",
+      "parametros": [{"nombre": "ASCA IgG", "unidad": "U/mL", "valor_referencial": "<25 U/mL"}]
+    },
+    {
+      "id": 66,
+      "nombre": "AZUCARES REDUCTORES",
+      "etiqueta": "azucares_reductores",
+      "parametros": [{"nombre": "Azúcares Reductores", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 67,
+      "nombre": "Beta hCG (BhCG)",
+      "etiqueta": "beta_hcg",
+      "parametros": [{"nombre": "Beta hCG", "unidad": "mIU/mL", "valor_referencial": "No embarazada: <5 mIU/mL"}]
+    },
+    {
+      "id": 68,
+      "nombre": "BILIRRUBINA TOTAL Y FRACCIONADA",
+      "etiqueta": "bilirrubina",
+      "parametros": [{"nombre": "Bilirrubina Total", "unidad": "mg/dL", "valor_referencial": "0.3-1.2 mg/dL"}, {"nombre": "Bilirrubina Directa", "unidad": "mg/dL", "valor_referencial": "0.1-0.4 mg/dL"}, {"nombre": "Bilirrubina Indirecta", "unidad": "mg/dL", "valor_referencial": "0.2-0.8 mg/dL"}]
+    },
+    {
+      "id": 69,
+      "nombre": "BORDETELLA IgM",
+      "etiqueta": "bordetella_igm",
+      "parametros": [{"nombre": "Bordetella IgM", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 70,
+      "nombre": "BUN (UREA)",
+      "etiqueta": "urea",
+      "parametros": [{"nombre": "Urea", "unidad": "mg/dL", "valor_referencial": "7-25 mg/dL"}]
+    },
+    {
+      "id": 71,
+      "nombre": "CITOGRAMA EN MOCO NASAL",
+      "etiqueta": "citograma_nasal",
+      "parametros": [{"nombre": "Citograma Nasal", "unidad": "", "valor_referencial": "Células epiteliales normales"}]
+    },
+    {
+      "id": 72,
+      "nombre": "COOMBS DIRECTO",
+      "etiqueta": "coombs_directo",
+      "parametros": [{"nombre": "Coombs Directo", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 73,
+      "nombre": "COOMBS INDIRECTO",
+      "etiqueta": "coombs_indirecto",
+      "parametros": [{"nombre": "Coombs Indirecto", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 74,
+      "nombre": "CURVA DE FRAGILIDAD OSMOTICA",
+      "etiqueta": "fragilidad_osmotica",
+      "parametros": [{"nombre": "Fragilidad Osmótica", "unidad": "%", "valor_referencial": "Inicio: 0.45-0.35%, Completa: 0.35-0.30%"}]
+    },
+    {
+      "id": 75,
+      "nombre": "CATECOLAMINAS EN ORINA (DOPAMINA, ADRENALINA, NORADRENALINA)",
+      "etiqueta": "catecolaminas",
+      "parametros": [{"nombre": "Dopamina", "unidad": "μg/24h", "valor_referencial": "65-400 μg/24h"}, {"nombre": "Adrenalina", "unidad": "μg/24h", "valor_referencial": "0-20 μg/24h"}, {"nombre": "Noradrenalina", "unidad": "μg/24h", "valor_referencial": "15-80 μg/24h"}]
+    },
+    {
+      "id": 76,
+      "nombre": "CALCITONINA",
+      "etiqueta": "calcitonina",
+      "parametros": [{"nombre": "Calcitonina", "unidad": "pg/mL", "valor_referencial": "Hombres: <11.5 pg/mL, Mujeres: <4.6 pg/mL"}]
+    },
+    {
+      "id": 77,
+      "nombre": "CA 125",
+      "etiqueta": "ca_125",
+      "parametros": [{"nombre": "CA 125", "unidad": "U/mL", "valor_referencial": "<35 U/mL"}]
+    },
+    {
+      "id": 78,
+      "nombre": "CA 15-3",
+      "etiqueta": "ca_15_3",
+      "parametros": [{"nombre": "CA 15-3", "unidad": "U/mL", "valor_referencial": "<30 U/mL"}]
+    },
+    {
+      "id": 79,
+      "nombre": "CA 72-4",
+      "etiqueta": "ca_72_4",
+      "parametros": [{"nombre": "CA 72-4", "unidad": "U/mL", "valor_referencial": "<6.9 U/mL"}]
+    },
+    {
+      "id": 80,
+      "nombre": "CA 19-9",
+      "etiqueta": "ca_19_9",
+      "parametros": [{"nombre": "CA 19-9", "unidad": "U/mL", "valor_referencial": "<40 U/mL"}]
+    },
+    {
+      "id": 81,
+      "nombre": "CALPROTECTINA",
+      "etiqueta": "calprotectina",
+      "parametros": [{"nombre": "Calprotectina", "unidad": "μg/g", "valor_referencial": "<50 μg/g"}]
+    },
+    {
+      "id": 82,
+      "nombre": "CADENAS LIGERAS KAPPA Y LAMBDA",
+      "etiqueta": "cadenas_ligeras",
+      "parametros": [{"nombre": "Cadenas Ligeras Kappa", "unidad": "mg/L", "valor_referencial": "3.3-19.4 mg/L"}, {"nombre": "Cadenas Ligeras Lambda", "unidad": "mg/L", "valor_referencial": "5.7-26.3 mg/L"}]
+    },
+    {
+      "id": 83,
+      "nombre": "CALCIO",
+      "etiqueta": "calcio",
+      "parametros": [{"nombre": "Calcio", "unidad": "mg/dL", "valor_referencial": "8.5-10.2 mg/dL"}]
+    },
+    {
+      "id": 84,
+      "nombre": "CALCIO IONICO",
+      "etiqueta": "calcio_ionico",
+      "parametros": [{"nombre": "Calcio Iónico", "unidad": "mg/dL", "valor_referencial": "4.5-5.6 mg/dL"}]
+    },
+    {
+      "id": 85,
+      "nombre": "CALCULOS URINARIOS Y CRISTALES URINARIOS (CALCIO, MAGNESIO, OXALATO, AMONIO, FOSFATO, CISTINA, ACIDO URICO)",
+      "etiqueta": "calculos_urinarios",
+      "parametros": [{"nombre": "Análisis de Cálculo", "unidad": "", "valor_referencial": "Composición química identificada"}]
+    },
+    {
+      "id": 86,
+      "nombre": "CARBAMAZEPINA",
+      "etiqueta": "carbamazepina",
+      "parametros": [{"nombre": "Carbamazepina", "unidad": "μg/mL", "valor_referencial": "Terapéutico: 4-12 μg/mL"}]
+    },
+    {
+      "id": 87,
+      "nombre": "CELULAS NK Y NKT",
+      "etiqueta": "celulas_nk",
+      "parametros": [{"nombre": "Células NK", "unidad": "células/μL", "valor_referencial": "90-600 células/μL"}]
+    },
+    {
+      "id": 88,
+      "nombre": "CD3+CD4+CD8 (DETECCION CELULAR)",
+      "etiqueta": "cd3_cd4_cd8",
+      "parametros": [{"nombre": "CD3+", "unidad": "%", "valor_referencial": "55-83%"}, {"nombre": "CD4+", "unidad": "células/μL", "valor_referencial": "500-1600 células/μL"}, {"nombre": "CD8+", "unidad": "células/μL", "valor_referencial": "200-1200 células/μL"}]
+    },
+    {
+      "id": 89,
+      "nombre": "CELULAS LE",
+      "etiqueta": "celulas_le",
+      "parametros": [{"nombre": "Células LE", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 90,
+      "nombre": "CISTATINA C",
+      "etiqueta": "cistatina_c",
+      "parametros": [{"nombre": "Cistatina C", "unidad": "mg/L", "valor_referencial": "0.5-0.96 mg/L"}]
+    },
+    {
+      "id": 91,
+      "nombre": "CH 50",
+      "etiqueta": "ch50",
+      "parametros": [{"nombre": "CH50", "unidad": "U/mL", "valor_referencial": "150-250 U/mL"}]
+    },
+    {
+      "id": 92,
+      "nombre": "CHAGAS",
+      "etiqueta": "chagas",
+      "parametros": [{"nombre": "Chagas", "unidad": "Índice", "valor_referencial": "<1.0 (No reactivo)"}]
+    },
+    {
+      "id": 93,
+      "nombre": "Chlamydia Pneumoniae IgG",
+      "etiqueta": "chlamydia_pneumoniae_igg",
+      "parametros": [{"nombre": "C. Pneumoniae IgG", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 94,
+      "nombre": "Chlamydia Pneumoniae IgM",
+      "etiqueta": "chlamydia_pneumoniae_igm",
+      "parametros": [{"nombre": "C. Pneumoniae IgM", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 95,
+      "nombre": "Chlamydia Trachomatis IgA",
+      "etiqueta": "chlamydia_trachomatis_iga",
+      "parametros": [{"nombre": "C. Trachomatis IgA", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 96,
+      "nombre": "Chlamydia Trachomatis IgG",
+      "etiqueta": "chlamydia_trachomatis_igg",
+      "parametros": [{"nombre": "C. Trachomatis IgG", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 97,
+      "nombre": "Chlamydia Trachomatis IgM",
+      "etiqueta": "chlamydia_trachomatis_igm",
+      "parametros": [{"nombre": "C. Trachomatis IgM", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 98,
+      "nombre": "CITOQUIMICOS DE LIQUIDOS: (CEFALORRAQUIDEO, PLEURAL, SINOVIAL, PERICARDICO, ASITICO, PERITONEAL)",
+      "etiqueta": "citoquimicos_liquidos",
+      "parametros": [{"nombre": "Análisis Citoquímico", "unidad": "", "valor_referencial": "Según tipo de líquido"}]
+    },
+    {
+      "id": 99,
+      "nombre": "CITRATO EN ORINA",
+      "etiqueta": "citrato_orina",
+      "parametros": [{"nombre": "Citrato", "unidad": "mg/24h", "valor_referencial": "320-1240 mg/24h"}]
+    },
+    {
+      "id": 100,
+      "nombre": "CTX-1 (Telopeptido C del Colageno tipo I)",
+      "etiqueta": "ctx1",
+      "parametros": [{"nombre": "CTX-1", "unidad": "ng/mL", "valor_referencial": "Mujeres premenopaúsicas: <0.573 ng/mL"}]
+    },
+    {
+      "id": 101,
+      "nombre": "CK",
+      "etiqueta": "ck",
+      "parametros": [{"nombre": "Creatina Kinasa", "unidad": "U/L", "valor_referencial": "Hombres: 38-174 U/L, Mujeres: 26-140 U/L"}]
+    },
+    {
+      "id": 102,
+      "nombre": "CK-MB",
+      "etiqueta": "ck_mb",
+      "parametros": [{"nombre": "CK-MB", "unidad": "ng/mL", "valor_referencial": "<6.3 ng/mL"}]
+    },
+    {
+      "id": 103,
+      "nombre": "CLORO (CL)",
+      "etiqueta": "cloro",
+      "parametros": [{"nombre": "Cloro", "unidad": "mEq/L", "valor_referencial": "96-106 mEq/L"}]
+    },
+    {
+      "id": 104,
+      "nombre": "CMV IgG (Cytomegalovirus)",
+      "etiqueta": "cmv_igg",
+      "parametros": [{"nombre": "CMV IgG", "unidad": "UA/mL", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 105,
+      "nombre": "CMV IgM (Cytomegalovirus)",
+      "etiqueta": "cmv_igm",
+      "parametros": [{"nombre": "CMV IgM", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 106,
+      "nombre": "COBRE (Cu)",
+      "etiqueta": "cobre",
+      "parametros": [{"nombre": "Cobre", "unidad": "μg/dL", "valor_referencial": "70-140 μg/dL"}]
+    },
+    {
+      "id": 107,
+      "nombre": "COCAINA EN ORINA",
+      "etiqueta": "cocaina_orina",
+      "parametros": [{"nombre": "Cocaína", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 108,
+      "nombre": "COLESTEROL TOTAL",
+      "etiqueta": "colesterol_total",
+      "parametros": [{"nombre": "Colesterol Total", "unidad": "mg/dL", "valor_referencial": "<200 mg/dL"}]
+    },
+    {
+      "id": 109,
+      "nombre": "COLINESTERASA",
+      "etiqueta": "colinesterasa",
+      "parametros": [{"nombre": "Colinesterasa", "unidad": "U/L", "valor_referencial": "5320-12920 U/L"}]
+    },
+    {
+      "id": 110,
+      "nombre": "COMPLEMENTO C3",
+      "etiqueta": "c3",
+      "parametros": [{"nombre": "Complemento C3", "unidad": "mg/dL", "valor_referencial": "90-180 mg/dL"}]
+    },
+    {
+      "id": 111,
+      "nombre": "COMPLEMENTO C4",
+      "etiqueta": "c4",
+      "parametros": [{"nombre": "Complemento C4", "unidad": "mg/dL", "valor_referencial": "10-40 mg/dL"}]
+    },
+    {
+      "id": 112,
+      "nombre": "CONTAJE DE RETICULOCITOS",
+      "etiqueta": "reticulocitos",
+      "parametros": [{"nombre": "Reticulocitos", "unidad": "%", "valor_referencial": "0.5-2.5%"}]
+    },
+    {
+      "id": 113,
+      "nombre": "CORE IgM",
+      "etiqueta": "core_igm",
+      "parametros": [{"nombre": "Anti-HBc IgM", "unidad": "S/CO", "valor_referencial": "<1.0 (Negativo)"}]
+    },
+    {
+      "id": 114,
+      "nombre": "CORE IgM + IgG (ANTICUERPOS TOTALES)",
+      "etiqueta": "core_total",
+      "parametros": [{"nombre": "Anti-HBc Total", "unidad": "S/CO", "valor_referencial": "<1.0 (Negativo)"}]
+    },
+    {
+      "id": 115,
+      "nombre": "CORTISOL",
+      "etiqueta": "cortisol",
+      "parametros": [{"nombre": "Cortisol", "unidad": "μg/dL", "valor_referencial": "AM: 5-25 μg/dL, PM: 3-12 μg/dL"}]
+    },
+    {
+      "id": 116,
+      "nombre": "CREATININA",
+      "etiqueta": "creatinina",
+      "parametros": [{"nombre": "Creatinina", "unidad": "mg/dL", "valor_referencial": "Hombres: 0.7-1.3 mg/dL, Mujeres: 0.6-1.2 mg/dL"}]
+    },
+    {
+      "id": 117,
+      "nombre": "CROMOGRANINA A",
+      "etiqueta": "cromogranina_a",
+      "parametros": [{"nombre": "Cromogranina A", "unidad": "ng/mL", "valor_referencial": "<93 ng/mL"}]
+    },
+    {
+      "id": 118,
+      "nombre": "DIGOXINA",
+      "etiqueta": "digoxina",
+      "parametros": [{"nombre": "Digoxina", "unidad": "ng/mL", "valor_referencial": "Terapéutico: 0.8-2.0 ng/mL"}]
+    },
+    {
+      "id": 119,
+      "nombre": "DENGUE IgM-IgG",
+      "etiqueta": "dengue",
+      "parametros": [{"nombre": "Dengue IgM", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}, {"nombre": "Dengue IgG", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 120,
+      "nombre": "DENGUE IgM",
+      "etiqueta": "dengue_igm",
+      "parametros": [{"nombre": "Dengue IgM", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 121,
+      "nombre": "DENGUE IgG",
+      "etiqueta": "dengue_igg",
+      "parametros": [{"nombre": "Dengue IgG", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 122,
+      "nombre": "DEPURACION DE CREATININA",
+      "etiqueta": "depuracion_creatinina",
+      "parametros": [{"nombre": "Depuración de Creatinina", "unidad": "mL/min/1.73m²", "valor_referencial": ">90 mL/min/1.73m²"}]
+    },
+    {
+      "id": 123,
+      "nombre": "DEPURACION DE UREA",
+      "etiqueta": "depuracion_urea",
+      "parametros": [{"nombre": "Depuración de Urea", "unidad": "mL/min", "valor_referencial": "64-99 mL/min"}]
+    },
+    {
+      "id": 124,
+      "nombre": "DIHIDROTESTOSTERONA (DHT)",
+      "etiqueta": "dht",
+      "parametros": [{"nombre": "Dihidrotestosterona", "unidad": "ng/dL", "valor_referencial": "Hombres: 30-85 ng/dL"}]
+    },
+    {
+      "id": 125,
+      "nombre": "DISBIOSIS INTESTINAL (Examen de Heces+ Helicobacter Pylori en Heces + Calprotectina+ IgA Secretora+ Zonulina)",
+      "etiqueta": "disbiosis_intestinal",
+      "parametros": [{"nombre": "Panel Disbiosis", "unidad": "", "valor_referencial": "Según parámetros individuales"}]
+    },
+    {
+      "id": 126,
+      "nombre": "DIMERO D",
+      "etiqueta": "dimero_d",
+      "parametros": [{"nombre": "Dímero D", "unidad": "ng/mL", "valor_referencial": "<500 ng/mL"}]
+    },
+    {
+      "id": 127,
+      "nombre": "DHEA-S",
+      "etiqueta": "dhea_s",
+      "parametros": [{"nombre": "DHEA-S", "unidad": "μg/dL", "valor_referencial": "Mujeres: 35-430 μg/dL, Hombres: 80-560 μg/dL"}]
+    },
+    {
+      "id": 128,
+      "nombre": "ESTRIOL LIBRE",
+      "etiqueta": "estriol_libre",
+      "parametros": [{"nombre": "Estriol Libre", "unidad": "ng/mL", "valor_referencial": "Según edad gestacional"}]
+    },
+    {
+      "id": 129,
+      "nombre": "ESTROGENOS TOTALES",
+      "etiqueta": "estrogenos_totales",
+      "parametros": [{"nombre": "Estrógenos Totales", "unidad": "pg/mL", "valor_referencial": "Fase folicular: 60-200 pg/mL"}]
+    },
+    {
+      "id": 130,
+      "nombre": "ENOLASA ESPECIFICA NEURONAL (NSE)",
+      "etiqueta": "nse",
+      "parametros": [{"nombre": "NSE", "unidad": "ng/mL", "valor_referencial": "<16.3 ng/mL"}]
+    },
+    {
+      "id": 131,
+      "nombre": "EBV IgG (EPSTEIN BAR)",
+      "etiqueta": "ebv_igg",
+      "parametros": [{"nombre": "EBV IgG", "unidad": "UA/mL", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 132,
+      "nombre": "EBV IgM (EPSTEIN BAR)",
+      "etiqueta": "ebv_igm",
+      "parametros": [{"nombre": "EBV IgM", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 133,
+      "nombre": "ESPERMATOGRAMA",
+      "etiqueta": "espermatograma",
+      "parametros": [{"nombre": "Concentración", "unidad": "millones/mL", "valor_referencial": ">15 millones/mL"}, {"nombre": "Movilidad", "unidad": "%", "valor_referencial": ">40%"}, {"nombre": "Morfología", "unidad": "%", "valor_referencial": ">4% formas normales"}]
+    },
+    {
+      "id": 134,
+      "nombre": "ERLICHIA",
+      "etiqueta": "erlichia",
+      "parametros": [{"nombre": "Erlichia", "unidad": "", "valor_referencial": "Ausente"}]
+    },
+    {
+      "id": 135,
+      "nombre": "ESTRADIOL",
+      "etiqueta": "estradiol",
+      "parametros": [{"nombre": "Estradiol", "unidad": "pg/mL", "valor_referencial": "Fase folicular: 30-120 pg/mL"}]
+    },
+    {
+      "id": 136,
+      "nombre": "EXAMEN DE HECES",
+      "etiqueta": "examen_heces",
+      "parametros": [{"nombre": "Consistencia", "unidad": "", "valor_referencial": "Formadas"}, {"nombre": "Color", "unidad": "", "valor_referencial": "Marrón"}, {"nombre": "Parásitos", "unidad": "", "valor_referencial": "Ausentes"}, {"nombre": "Leucocitos", "unidad": "x campo", "valor_referencial": "<10 x campo"}]
+    },
+    {
+      "id": 137,
+      "nombre": "EXAMEN DE ORINA",
+      "etiqueta": "examen_orina",
+      "parametros": [{"nombre": "Densidad", "unidad": "", "valor_referencial": "1.003-1.030"}, {"nombre": "pH", "unidad": "", "valor_referencial": "5.0-8.0"}, {"nombre": "Proteínas", "unidad": "mg/dL", "valor_referencial": "Negativo"}, {"nombre": "Glucosa", "unidad": "mg/dL", "valor_referencial": "Negativo"}, {"nombre": "Leucocitos", "unidad": "x campo", "valor_referencial": "<10 x campo"}, {"nombre": "Eritrocitos", "unidad": "x campo", "valor_referencial": "<5 x campo"}]
+    },
+    {
+      "id": 138,
+      "nombre": "FACTOR REUMATOIDE",
+      "etiqueta": "factor_reumatoide",
+      "parametros": [{"nombre": "Factor Reumatoide", "unidad": "UI/mL", "valor_referencial": "<14 UI/mL"}]
+    },
+    {
+      "id": 139,
+      "nombre": "FACTOR REUMATOIDE IgM",
+      "etiqueta": "factor_reumatoide_igm",
+      "parametros": [{"nombre": "Factor Reumatoide IgM", "unidad": "UI/mL", "valor_referencial": "<20 UI/mL"}]
+    },
+    {
+      "id": 140,
+      "nombre": "FERRITINA",
+      "etiqueta": "ferritina",
+      "parametros": [{"nombre": "Ferritina", "unidad": "ng/mL", "valor_referencial": "Hombres: 12-300 ng/mL, Mujeres: 12-150 ng/mL"}]
+    },
+    {
+      "id": 141,
+      "nombre": "FENOBARBITAL",
+      "etiqueta": "fenobarbital",
+      "parametros": [{"nombre": "Fenobarbital", "unidad": "μg/mL", "valor_referencial": "Terapéutico: 15-40 μg/mL"}]
+    },
+    {
+      "id": 142,
+      "nombre": "FENITOINA",
+      "etiqueta": "fenitoina",
+      "parametros": [{"nombre": "Fenitoína", "unidad": "μg/mL", "valor_referencial": "Terapéutico: 10-20 μg/mL"}]
+    },
+    {
+      "id": 143,
+      "nombre": "FIBRINOGENO",
+      "etiqueta": "fibrinogeno",
+      "parametros": [{"nombre": "Fibrinógeno", "unidad": "mg/dL", "valor_referencial": "200-400 mg/dL"}]
+    },
+    {
+      "id": 144,
+      "nombre": "FOSFATASA ALCALINA (ALP)",
+      "etiqueta": "fosfatasa_alcalina",
+      "parametros": [{"nombre": "Fosfatasa Alcalina", "unidad": "U/L", "valor_referencial": "44-147 U/L"}]
+    },
+    {
+      "id": 145,
+      "nombre": "FOSFATASA ACIDA PROSTATICA",
+      "etiqueta": "fosfatasa_acida",
+      "parametros": [{"nombre": "Fosfatasa Ácida Prostática", "unidad": "ng/mL", "valor_referencial": "<3.0 ng/mL"}]
+    },
+    {
+      "id": 146,
+      "nombre": "FOSFORO",
+      "etiqueta": "fosforo",
+      "parametros": [{"nombre": "Fósforo", "unidad": "mg/dL", "valor_referencial": "2.5-4.5 mg/dL"}]
+    },
+    {
+      "id": 147,
+      "nombre": "FSH",
+      "etiqueta": "fsh",
+      "parametros": [{"nombre": "FSH", "unidad": "mIU/mL", "valor_referencial": "Mujeres fase folicular: 3-10 mIU/mL, Hombres: 1.5-12.4 mIU/mL"}]
+    },
+    {
+      "id": 148,
+      "nombre": "FOLATO",
+      "etiqueta": "folato",
+      "parametros": [{"nombre": "Folato", "unidad": "ng/mL", "valor_referencial": "2.7-17.0 ng/mL"}]
+    },
+    {
+      "id": 149,
+      "nombre": "FTA-ABS",
+      "etiqueta": "fta_abs",
+      "parametros": [{"nombre": "FTA-ABS", "unidad": "", "valor_referencial": "No reactivo"}]
+    },
+    {
+      "id": 150,
+      "nombre": "GGT (Gamma Glutamil Transferasa)",
+      "etiqueta": "ggt",
+      "parametros": [{"nombre": "GGT", "unidad": "U/L", "valor_referencial": "5-80 U/L"}]
+    },
+    {
+      "id": 151,
+      "nombre": "GABA ácido gamma-aminobutírico (γ-aminobutírico)",
+      "etiqueta": "gaba",
+      "parametros": [{"nombre": "GABA", "unidad": "μmol/L", "valor_referencial": "0.5-3.0 μmol/L"}]
+    },
+    {
+      "id": 152,
+      "nombre": "GALACTOMANANO (ASPERGILUS)",
+      "etiqueta": "galactomanano",
+      "parametros": [{"nombre": "Galactomanano", "unidad": "Índice", "valor_referencial": "<0.5 (Negativo)"}]
+    },
+    {
+      "id": 153,
+      "nombre": "GASTRINA (GAS)",
+      "etiqueta": "gastrina",
+      "parametros": [{"nombre": "Gastrina", "unidad": "pg/mL", "valor_referencial": "<100 pg/mL"}]
+    },
+    {
+      "id": 154,
+      "nombre": "GLICEMIA",
+      "etiqueta": "glucosa",
+      "parametros": [{"nombre": "Glucosa", "unidad": "mg/dL", "valor_referencial": "70-100 mg/dL"}]
+    },
+    {
+      "id": 155,
+      "nombre": "GRUPO SANGUÍNEO",
+      "etiqueta": "grupo_sanguineo",
+      "parametros": [{"nombre": "Grupo ABO", "unidad": "", "valor_referencial": "A, B, AB, O"}, {"nombre": "Factor Rh", "unidad": "", "valor_referencial": "Positivo/Negativo"}]
+    },
+    {
+      "id": 156,
+      "nombre": "H.I.V I y II",
+      "etiqueta": "hiv",
+      "parametros": [{"nombre": "HIV 1+2", "unidad": "S/CO", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 157,
+      "nombre": "H.I.V 4TA GENERACION DETECCIÓN ANTIGENO P24",
+      "etiqueta": "hiv_4gen",
+      "parametros": [{"nombre": "HIV Ag/Ab", "unidad": "S/CO", "valor_referencial": "<1.0 (Negativo)"}]
+    },
+    {
+      "id": 158,
+      "nombre": "HCG CUANTIFICADA (Gonadotrofina Coriónica Humana)",
+      "etiqueta": "hcg_cuantificada",
+      "parametros": [{"nombre": "hCG Cuantitativa", "unidad": "mIU/mL", "valor_referencial": "No embarazada: <5 mIU/mL"}]
+    },
+    {
+      "id": 159,
+      "nombre": "HDL COLESTEROL",
+      "etiqueta": "hdl_colesterol",
+      "parametros": [{"nombre": "HDL Colesterol", "unidad": "mg/dL", "valor_referencial": "Hombres: >40 mg/dL, Mujeres: >50 mg/dL"}]
+    },
+    {
+      "id": 160,
+      "nombre": "HELICOBACTER PYLORI IgA",
+      "etiqueta": "helicobacter_iga",
+      "parametros": [{"nombre": "H. Pylori IgA", "unidad": "UA/mL", "valor_referencial": "<20 UA/mL (Negativo)"}]
+    },
+    {
+      "id": 161,
+      "nombre": "HELICOBACTER PYLORI IgG",
+      "etiqueta": "helicobacter_igg",
+      "parametros": [{"nombre": "H. Pylori IgG", "unidad": "UA/mL", "valor_referencial": "<20 UA/mL (Negativo)"}]
+    },
+    {
+      "id": 162,
+      "nombre": "HELICOBACTER PYLORI IgM",
+      "etiqueta": "helicobacter_igm",
+      "parametros": [{"nombre": "H. Pylori IgM", "unidad": "UA/mL", "valor_referencial": "<20 UA/mL (Negativo)"}]
+    },
+    {
+      "id": 163,
+      "nombre": "HELICOBACTER PYLORI EN HECES",
+      "etiqueta": "helicobacter_heces",
+      "parametros": [{"nombre": "H. Pylori Antígeno", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 164,
+      "nombre": "HEMATOLOGIA COMPLETA CON PLAQUETAS",
+      "etiqueta": "hemograma_completo",
+      "parametros": [{"nombre": "Hemoglobina", "unidad": "g/dL", "valor_referencial": "Hombres: 13.5-17.5 g/dL, Mujeres: 12-16 g/dL"}, {"nombre": "Hematocrito", "unidad": "%", "valor_referencial": "Hombres: 41-53%, Mujeres: 36-46%"}, {"nombre": "Eritrocitos", "unidad": "mill/μL", "valor_referencial": "Hombres: 4.5-5.9, Mujeres: 4.1-5.1"}, {"nombre": "Leucocitos", "unidad": "/μL", "valor_referencial": "4,000-11,000/μL"}, {"nombre": "Plaquetas", "unidad": "/μL", "valor_referencial": "150,000-450,000/μL"}, {"nombre": "VCM", "unidad": "fL", "valor_referencial": "80-100 fL"}, {"nombre": "HCM", "unidad": "pg", "valor_referencial": "27-33 pg"}, {"nombre": "CHCM", "unidad": "g/dL", "valor_referencial": "32-36 g/dL"}, {"nombre": "Neutrófilos", "unidad": "%", "valor_referencial": "55-70%"}, {"nombre": "Linfocitos", "unidad": "%", "valor_referencial": "20-40%"}, {"nombre": "Monocitos", "unidad": "%", "valor_referencial": "2-8%"}, {"nombre": "Eosinófilos", "unidad": "%", "valor_referencial": "1-4%"}, {"nombre": "Basófilos", "unidad": "%", "valor_referencial": "0-1%"}]
+    },
+    {
+      "id": 165,
+      "nombre": "HEMOGLOBINA GLICOSILADA FRACCION (HbA1c)",
+      "etiqueta": "hba1c",
+      "parametros": [{"nombre": "HbA1c", "unidad": "%", "valor_referencial": "<5.7% (Normal), 5.7-6.4% (Prediabetes), ≥6.5% (Diabetes)"}]
+    },
+    {
+      "id": 166,
+      "nombre": "HEPATITIS A IgM",
+      "etiqueta": "hepatitis_a_igm",
+      "parametros": [{"nombre": "Hepatitis A IgM", "unidad": "S/CO", "valor_referencial": "<0.8 (Negativo)"}]
+    },
+    {
+      "id": 167,
+      "nombre": "HEPATITIS A IgG",
+      "etiqueta": "hepatitis_a_igg",
+      "parametros": [{"nombre": "Hepatitis A IgG", "unidad": "mIU/mL", "valor_referencial": "<20 (Negativo)"}]
+    },
+    {
+      "id": 168,
+      "nombre": "HEPATITIS B sAg (Antigeno de Superficie)",
+      "etiqueta": "hepatitis_b_sag",
+      "parametros": [{"nombre": "HBsAg", "unidad": "S/CO", "valor_referencial": "<1.0 (Negativo)"}]
+    },
+    {
+      "id": 169,
+      "nombre": "HEPATITIS C (HCV)",
+      "etiqueta": "hepatitis_c",
+      "parametros": [{"nombre": "Anti-HCV", "unidad": "S/CO", "valor_referencial": "<1.0 (Negativo)"}]
+    },
+    {
+      "id": 170,
+      "nombre": "HEPATITIS C (HCV)",
+      "etiqueta": "hepatitis_c_elisa",
+      "parametros": [{"nombre": "Anti-HCV", "unidad": "S/CO", "valor_referencial": "<1.0 (Negativo)"}]
+    },
+    {
+      "id": 171,
+      "nombre": "HERPES I IgG",
+      "etiqueta": "herpes_1_igg",
+      "parametros": [{"nombre": "Herpes I IgG", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 172,
+      "nombre": "HERPES I IgM",
+      "etiqueta": "herpes_1_igm",
+      "parametros": [{"nombre": "Herpes I IgM", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 173,
+      "nombre": "HERPES SIMPLE II IgG",
+      "etiqueta": "herpes_2_igg",
+      "parametros": [{"nombre": "Herpes II IgG", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 174,
+      "nombre": "HERPES SIMPLE II IgM",
+      "etiqueta": "herpes_2_igm",
+      "parametros": [{"nombre": "Herpes II IgM", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 175,
+      "nombre": "HE4 (MARCADOR TUMORAL)",
+      "etiqueta": "he4",
+      "parametros": [{"nombre": "HE4", "unidad": "pmol/L", "valor_referencial": "Premenopaúsica: <70 pmol/L, Postmenopaúsica: <140 pmol/L"}]
+    },
+    {
+      "id": 176,
+      "nombre": "HIERRO (FE)",
+      "etiqueta": "hierro",
+      "parametros": [{"nombre": "Hierro", "unidad": "μg/dL", "valor_referencial": "60-170 μg/dL"}]
+    },
+    {
+      "id": 177,
+      "nombre": "HISTAMINA",
+      "etiqueta": "histamina",
+      "parametros": [{"nombre": "Histamina", "unidad": "ng/mL", "valor_referencial": "<1.0 ng/mL"}]
+    },
+    {
+      "id": 178,
+      "nombre": "HORMONA ANTI-MULLERIANA",
+      "etiqueta": "amh",
+      "parametros": [{"nombre": "AMH", "unidad": "ng/mL", "valor_referencial": "1.0-8.0 ng/mL"}]
+    },
+    {
+      "id": 179,
+      "nombre": "HORMONA DE CRECIMIENTO (HGH)",
+      "etiqueta": "hgh",
+      "parametros": [{"nombre": "Hormona de Crecimiento", "unidad": "ng/mL", "valor_referencial": "<10 ng/mL"}]
+    },
+    {
+      "id": 180,
+      "nombre": "HTLV I/II",
+      "etiqueta": "htlv",
+      "parametros": [{"nombre": "HTLV I/II", "unidad": "S/CO", "valor_referencial": "<1.0 (Negativo)"}]
+    },
+    {
+      "id": 181,
+      "nombre": "IgA (SERICA)",
+      "etiqueta": "iga_serica",
+      "parametros": [{"nombre": "IgA", "unidad": "mg/dL", "valor_referencial": "70-400 mg/dL"}]
+    },
+    {
+      "id": 182,
+      "nombre": "IgA SECRETORA",
+      "etiqueta": "iga_secretora",
+      "parametros": [{"nombre": "IgA Secretora", "unidad": "mg/dL", "valor_referencial": "5-25 mg/dL"}]
+    },
+    {
+      "id": 183,
+      "nombre": "IgE TOTAL",
+      "etiqueta": "ige_total",
+      "parametros": [{"nombre": "IgE Total", "unidad": "UI/mL", "valor_referencial": "<100 UI/mL"}]
+    },
+    {
+      "id": 184,
+      "nombre": "IGE ESPECIFICA (LECHE HUEVO-HARINA DE TRIGO-SOYA-CHOCOLATE) ENTRE OTROS CONSULTAR LISTA DE ALERGENOS",
+      "etiqueta": "ige_especifica",
+      "parametros": [{"nombre": "IgE Específica", "unidad": "kUA/L", "valor_referencial": "<0.35 kUA/L (Negativo)"}]
+    },
+    {
+      "id": 185,
+      "nombre": "IGG ESPECIFICA (LECHE-HUEVO-HARINA DE TRIGO-SOYA-CHOCOLATE) ENTRE OTROS CONSULTAR LISTA DE ALERGENOS",
+      "etiqueta": "igg_especifica",
+      "parametros": [{"nombre": "IgG Específica", "unidad": "mg/L", "valor_referencial": "Según alergeno"}]
+    },
+    {
+      "id": 186,
+      "nombre": "IGF-1 (SOMATOMEDINA C)",
+      "etiqueta": "igf1",
+      "parametros": [{"nombre": "IGF-1", "unidad": "ng/mL", "valor_referencial": "Según edad: 115-400 ng/mL"}]
+    },
+    {
+      "id": 187,
+      "nombre": "IgG (SERICA)",
+      "etiqueta": "igg_serica",
+      "parametros": [{"nombre": "IgG", "unidad": "mg/dL", "valor_referencial": "700-1600 mg/dL"}]
+    },
+    {
+      "id": 188,
+      "nombre": "IgM (SERICA)",
+      "etiqueta": "igm_serica",
+      "parametros": [{"nombre": "IgM", "unidad": "mg/dL", "valor_referencial": "40-230 mg/dL"}]
+    },
+    {
+      "id": 189,
+      "nombre": "IGRA (ENSAYO DE LIBERACIÓN DE INTERFERON GAMMA PARA TUBERCULOSIS)",
+      "etiqueta": "igra",
+      "parametros": [{"nombre": "IGRA", "unidad": "UI/mL", "valor_referencial": "<0.35 UI/mL (Negativo)"}]
+    },
+    {
+      "id": 190,
+      "nombre": "INDICE CALCIO/CREATININA",
+      "etiqueta": "indice_calcio_creatinina",
+      "parametros": [{"nombre": "Índice Ca/Cr", "unidad": "mg/mg", "valor_referencial": "<0.20 mg/mg"}]
+    },
+    {
+      "id": 191,
+      "nombre": "INDICE ACIDO URICO/CREATININA",
+      "etiqueta": "indice_urico_creatinina",
+      "parametros": [{"nombre": "Índice AU/Cr", "unidad": "mg/mg", "valor_referencial": "<0.60 mg/mg"}]
+    },
+    {
+      "id": 192,
+      "nombre": "INDICE FOSFORO/CREATININA",
+      "etiqueta": "indice_fosforo_creatinina",
+      "parametros": [{"nombre": "Índice P/Cr", "unidad": "mg/mg", "valor_referencial": "<0.80 mg/mg"}]
+    },
+    {
+      "id": 193,
+      "nombre": "INDICE MICROALBUMINA/CREATININA",
+      "etiqueta": "indice_microalbumina",
+      "parametros": [{"nombre": "Índice MA/Cr", "unidad": "mg/g", "valor_referencial": "<30 mg/g"}]
+    },
+    {
+      "id": 194,
+      "nombre": "INDICE HOMA",
+      "etiqueta": "indice_homa",
+      "parametros": [{"nombre": "HOMA-IR", "unidad": "", "valor_referencial": "<2.5"}]
+    },
+    {
+      "id": 195,
+      "nombre": "INTERLEUKINA 6",
+      "etiqueta": "il6",
+      "parametros": [{"nombre": "IL-6", "unidad": "pg/mL", "valor_referencial": "<7.0 pg/mL"}]
+    },
+    {
+      "id": 196,
+      "nombre": "INSULINA",
+      "etiqueta": "insulina",
+      "parametros": [{"nombre": "Insulina", "unidad": "μU/mL", "valor_referencial": "2.6-24.9 μU/mL"}]
+    },
+    {
+      "id": 197,
+      "nombre": "INHIBIDOR C1",
+      "etiqueta": "inhibidor_c1",
+      "parametros": [{"nombre": "Inhibidor C1", "unidad": "mg/dL", "valor_referencial": "21-39 mg/dL"}]
+    },
+    {
+      "id": 198,
+      "nombre": "INFLUENZA A+B",
+      "etiqueta": "influenza_ab",
+      "parametros": [{"nombre": "Influenza A", "unidad": "", "valor_referencial": "Negativo"}, {"nombre": "Influenza B", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 199,
+      "nombre": "INVESTIGACION DE CELULAS DREPANOCÍTICAS",
+      "etiqueta": "celulas_drepanocíticas",
+      "parametros": [{"nombre": "Test Drepanocitos", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 200,
+      "nombre": "LACTATO",
+      "etiqueta": "lactato_enzimatico",
+      "parametros": [{"nombre": "Lactato", "unidad": "mmol/L", "valor_referencial": "0.5-2.2 mmol/L"}]
+    },
+    {
+      "id": 201,
+      "nombre": "LDH (Lactico Deshidrogenasa)",
+      "etiqueta": "ldh",
+      "parametros": [{"nombre": "LDH", "unidad": "U/L", "valor_referencial": "140-280 U/L"}]
+    },
+    {
+      "id": 202,
+      "nombre": "LDL COLESTEROL",
+      "etiqueta": "ldl_colesterol",
+      "parametros": [{"nombre": "LDL Colesterol", "unidad": "mg/dL", "valor_referencial": "<100 mg/dL"}]
+    },
+    {
+      "id": 203,
+      "nombre": "LEPTOSPIRA IgM-IgG",
+      "etiqueta": "leptospira",
+      "parametros": [{"nombre": "Leptospira IgM", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}, {"nombre": "Leptospira IgG", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 204,
+      "nombre": "LH",
+      "etiqueta": "lh",
+      "parametros": [{"nombre": "LH", "unidad": "mIU/mL", "valor_referencial": "Mujeres: 2-10 mIU/mL, Hombres: 1.8-9 mIU/mL"}]
+    },
+    {
+      "id": 205,
+      "nombre": "LIPASA",
+      "etiqueta": "lipasa",
+      "parametros": [{"nombre": "Lipasa", "unidad": "U/L", "valor_referencial": "10-60 U/L"}]
+    },
+    {
+      "id": 206,
+      "nombre": "MAGNESIO (Mg)",
+      "etiqueta": "magnesio",
+      "parametros": [{"nombre": "Magnesio", "unidad": "mg/dL", "valor_referencial": "1.7-2.2 mg/dL"}]
+    },
+    {
+      "id": 207,
+      "nombre": "MALARIA",
+      "etiqueta": "malaria",
+      "parametros": [{"nombre": "Malaria", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 208,
+      "nombre": "METANEFRINA",
+      "etiqueta": "metanefrina",
+      "parametros": [{"nombre": "Metanefrina", "unidad": "μg/24h", "valor_referencial": "<400 μg/24h"}, {"nombre": "Normetanefrina", "unidad": "μg/24h", "valor_referencial": "<900 μg/24h"}]
+    },
+    {
+      "id": 209,
+      "nombre": "MICROALBUMINURIA",
+      "etiqueta": "microalbuminuria",
+      "parametros": [{"nombre": "Microalbúmina", "unidad": "mg/L", "valor_referencial": "<30 mg/L"}]
+    },
+    {
+      "id": 210,
+      "nombre": "MARIHUANA (THC)",
+      "etiqueta": "thc",
+      "parametros": [{"nombre": "THC", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 211,
+      "nombre": "MYOGLOBINA",
+      "etiqueta": "myoglobina",
+      "parametros": [{"nombre": "Mioglobina", "unidad": "ng/mL", "valor_referencial": "<107 ng/mL"}]
+    },
+    {
+      "id": 212,
+      "nombre": "Mycoplasma Pneumoniae IgG",
+      "etiqueta": "mycoplasma_igg",
+      "parametros": [{"nombre": "M. Pneumoniae IgG", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 213,
+      "nombre": "Mycoplasma Pneumoniae IgM",
+      "etiqueta": "mycoplasma_igm",
+      "parametros": [{"nombre": "M. Pneumoniae IgM", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 214,
+      "nombre": "RENINA",
+      "etiqueta": "renina",
+      "parametros": [{"nombre": "Renina", "unidad": "ng/mL/h", "valor_referencial": "0.6-4.3 ng/mL/h"}]
+    },
+    {
+      "id": 215,
+      "nombre": "OXALATO EN ORINA",
+      "etiqueta": "oxalato",
+      "parametros": [{"nombre": "Oxalato", "unidad": "mg/24h", "valor_referencial": "<40 mg/24h"}]
+    },
+    {
+      "id": 216,
+      "nombre": "OSMOLARIDAD URINARIA",
+      "etiqueta": "osmolaridad",
+      "parametros": [{"nombre": "Osmolaridad", "unidad": "mOsm/kg", "valor_referencial": "300-900 mOsm/kg"}]
+    },
+    {
+      "id": 217,
+      "nombre": "PANEL DE ALIMENTOS VENEZUELA 20 ALERGENOS",
+      "etiqueta": "panel_alimentos",
+      "parametros": [{"nombre": "Panel Alimentos", "unidad": "kUA/L", "valor_referencial": "<0.35 kUA/L por alérgeno"}]
+    },
+    {
+      "id": 218,
+      "nombre": "PANEL RESPIRATORIO 20 ALERGENOS VENEZOLANO",
+      "etiqueta": "panel_respiratorio",
+      "parametros": [{"nombre": "Panel Respiratorio", "unidad": "kUA/L", "valor_referencial": "<0.35 kUA/L por alérgeno"}]
+    },
+    {
+      "id": 219,
+      "nombre": "PANEL DE ALERGIAS ATOPIC 20 ALERGENOS MIXTOS INHALANTES Y ALIMENTOS",
+      "etiqueta": "panel_atopic",
+      "parametros": [{"nombre": "Panel Atopic", "unidad": "kUA/L", "valor_referencial": "<0.35 kUA/L por alérgeno"}]
+    },
+    {
+      "id": 220,
+      "nombre": "PANEL DE ALERGIAS PEDIATRICO 10 ALERGENOS",
+      "etiqueta": "panel_pediatrico",
+      "parametros": [{"nombre": "Panel Pediátrico", "unidad": "kUA/L", "valor_referencial": "<0.35 kUA/L por alérgeno"}]
+    },
+    {
+      "id": 221,
+      "nombre": "PANEL DE ALERGIAS A MEDICAMENTOS",
+      "etiqueta": "panel_medicamentos",
+      "parametros": [{"nombre": "Panel Medicamentos", "unidad": "kUA/L", "valor_referencial": "<0.35 kUA/L por alérgeno"}]
+    },
+    {
+      "id": 222,
+      "nombre": "PAPP-A",
+      "etiqueta": "papp_a",
+      "parametros": [{"nombre": "PAPP-A", "unidad": "mIU/L", "valor_referencial": "Según edad gestacional"}]
+    },
+    {
+      "id": 223,
+      "nombre": "PEPTIDO C",
+      "etiqueta": "peptido_c",
+      "parametros": [{"nombre": "Péptido C", "unidad": "ng/mL", "valor_referencial": "1.1-4.4 ng/mL"}]
+    },
+    {
+      "id": 224,
+      "nombre": "PEPSINOGENO I (PGI)",
+      "etiqueta": "pepsinogeno_i",
+      "parametros": [{"nombre": "Pepsinógeno I", "unidad": "ng/mL", "valor_referencial": "28-100 ng/mL"}]
+    },
+    {
+      "id": 225,
+      "nombre": "PEPSINOGENO II (PGI)",
+      "etiqueta": "pepsinogeno_ii",
+      "parametros": [{"nombre": "Pepsinógeno II", "unidad": "ng/mL", "valor_referencial": "3-20 ng/mL"}]
+    },
+    {
+      "id": 226,
+      "nombre": "PERFIL CELIACO 6 ANTIGENOS",
+      "etiqueta": "perfil_celiaco",
+      "parametros": [{"nombre": "Perfil Celíaco", "unidad": "", "valor_referencial": "Negativo para todos los antígenos"}]
+    },
+    {
+      "id": 227,
+      "nombre": "PERFIL HEPATITIS AUTOINMUNE 10 ANTIGENOS",
+      "etiqueta": "perfil_hepatitis_autoinmune",
+      "parametros": [{"nombre": "Perfil Hepatitis Autoinmune", "unidad": "", "valor_referencial": "Negativo para todos los antígenos"}]
+    },
+    {
+      "id": 228,
+      "nombre": "PERFIL AUTOINMUNE",
+      "etiqueta": "perfil_autoinmune",
+      "parametros": [{"nombre": "Perfil Autoinmune", "unidad": "", "valor_referencial": "Negativo para todos los antígenos"}]
+    },
+    {
+      "id": 229,
+      "nombre": "PLOMO EN SANGRE",
+      "etiqueta": "plomo",
+      "parametros": [{"nombre": "Plomo", "unidad": "μg/dL", "valor_referencial": "<10 μg/dL"}]
+    },
+    {
+      "id": 230,
+      "nombre": "POTASIO (K)",
+      "etiqueta": "potasio",
+      "parametros": [{"nombre": "Potasio", "unidad": "mEq/L", "valor_referencial": "3.5-5.0 mEq/L"}]
+    },
+    {
+      "id": 231,
+      "nombre": "PROCALCITONINA",
+      "etiqueta": "procalcitonina",
+      "parametros": [{"nombre": "Procalcitonina", "unidad": "ng/mL", "valor_referencial": "<0.25 ng/mL"}]
+    },
+    {
+      "id": 232,
+      "nombre": "PROGESTERONA",
+      "etiqueta": "progesterona",
+      "parametros": [{"nombre": "Progesterona", "unidad": "ng/mL", "valor_referencial": "Fase lútea: 5-20 ng/mL"}]
+    },
+    {
+      "id": 233,
+      "nombre": "PROLACTINA (PRL)",
+      "etiqueta": "prolactina",
+      "parametros": [{"nombre": "Prolactina", "unidad": "ng/mL", "valor_referencial": "Mujeres: 0-20 ng/mL, Hombres: 2.5-17 ng/mL"}]
+    },
+    {
+      "id": 234,
+      "nombre": "PROTEINA C REACTIVA (PCR)",
+      "etiqueta": "pcr",
+      "parametros": [{"nombre": "PCR", "unidad": "mg/L", "valor_referencial": "<3.0 mg/L"}]
+    },
+    {
+      "id": 235,
+      "nombre": "PCR ULTRASENSIBLE",
+      "etiqueta": "pcr_ultrasensible",
+      "parametros": [{"nombre": "PCR Ultrasensible", "unidad": "mg/L", "valor_referencial": "<1.0 mg/L"}]
+    },
+    {
+      "id": 236,
+      "nombre": "PROTEINAS TOTALES",
+      "etiqueta": "proteinas_totales",
+      "parametros": [{"nombre": "Proteínas Totales", "unidad": "g/dL", "valor_referencial": "6.0-8.3 g/dL"}]
+    },
+    {
+      "id": 237,
+      "nombre": "PROTEINURIA",
+      "etiqueta": "proteinuria",
+      "parametros": [{"nombre": "Proteinuria", "unidad": "mg/24h", "valor_referencial": "<150 mg/24h"}]
+    },
+    {
+      "id": 238,
+      "nombre": "PRUEBA DE EMBARAZO EN SANGRE (HCG)",
+      "etiqueta": "embarazo_rapido",
+      "parametros": [{"nombre": "hCG Cualitativa", "unidad": "", "valor_referencial": "Negativo (No embarazada)"}]
+    },
+    {
+      "id": 239,
+      "nombre": "PSA LIBRE (Antígeno Prostático Libre)",
+      "etiqueta": "psa_libre",
+      "parametros": [{"nombre": "PSA Libre", "unidad": "ng/mL", "valor_referencial": "Relación PSA libre/total: >25%"}]
+    },
+    {
+      "id": 240,
+      "nombre": "PSA TOTAL (Antígeno Prostático Total)",
+      "etiqueta": "psa_total",
+      "parametros": [{"nombre": "PSA Total", "unidad": "ng/mL", "valor_referencial": "<4 ng/mL"}]
+    },
+    {
+      "id": 241,
+      "nombre": "PT (Tiempo de Protrombina)",
+      "etiqueta": "tiempo_protrombina",
+      "parametros": [{"nombre": "Tiempo de Protrombina", "unidad": "segundos", "valor_referencial": "11-15 segundos"}, {"nombre": "INR", "unidad": "", "valor_referencial": "0.8-1.2"}]
+    },
+    {
+      "id": 242,
+      "nombre": "PTT (Tiempo Parcial de Tromboplastina)",
+      "etiqueta": "tiempo_ptt",
+      "parametros": [{"nombre": "PTT", "unidad": "segundos", "valor_referencial": "25-35 segundos"}]
+    },
+    {
+      "id": 243,
+      "nombre": "PARVOVIRUS B19 IgM",
+      "etiqueta": "parvovirus_igm",
+      "parametros": [{"nombre": "Parvovirus B19 IgM", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 244,
+      "nombre": "PARVOVIRUS B19 IgG",
+      "etiqueta": "parvovirus_igg",
+      "parametros": [{"nombre": "Parvovirus B19 IgG", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 245,
+      "nombre": "PARATOHORMONA (PTH) INTACTA FRACCION 84",
+      "etiqueta": "pth",
+      "parametros": [{"nombre": "PTH", "unidad": "pg/mL", "valor_referencial": "15-65 pg/mL"}]
+    },
+    {
+      "id": 246,
+      "nombre": "PAROTIDITIS IgM (MUMPS) IgM",
+      "etiqueta": "mumps_igm",
+      "parametros": [{"nombre": "Parotiditis IgM", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 247,
+      "nombre": "PAROTIDITIS IgG (MUMPS) IgG",
+      "etiqueta": "mumps_igg",
+      "parametros": [{"nombre": "Parotiditis IgG", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 248,
+      "nombre": "RECUENTO DE EOSINOFILOS",
+      "etiqueta": "eosinofilos",
+      "parametros": [{"nombre": "Eosinófilos", "unidad": "células/μL", "valor_referencial": "50-500 células/μL"}]
+    },
+    {
+      "id": 249,
+      "nombre": "RUBEOLA IgG",
+      "etiqueta": "rubeola_igg",
+      "parametros": [{"nombre": "Rubéola IgG", "unidad": "UI/mL", "valor_referencial": "<10 (Negativo), >10 (Inmune)"}]
+    },
+    {
+      "id": 250,
+      "nombre": "RUBEOLA IgM",
+      "etiqueta": "rubeola_igm",
+      "parametros": [{"nombre": "Rubéola IgM", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 251,
+      "nombre": "ROTAVIRUS",
+      "etiqueta": "rotavirus",
+      "parametros": [{"nombre": "Rotavirus", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 252,
+      "nombre": "SARAMPION (MEASLES) IgM",
+      "etiqueta": "sarampion_igm",
+      "parametros": [{"nombre": "Sarampión IgM", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 253,
+      "nombre": "SARAMPION (MEASLES) IgG",
+      "etiqueta": "sarampion_igg",
+      "parametros": [{"nombre": "Sarampión IgG", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 254,
+      "nombre": "SANGRE OCULTA EN HECES",
+      "etiqueta": "sangre_oculta",
+      "parametros": [{"nombre": "Sangre Oculta", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 255,
+      "nombre": "SANGRE OCULTA EN HECES + TRANSFERRINA",
+      "etiqueta": "sangre_oculta_transferrina",
+      "parametros": [{"nombre": "Sangre Oculta + Transferrina", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 256,
+      "nombre": "SEROLOGIA PARA HONGOS",
+      "etiqueta": "serologia_hongos",
+      "parametros": [{"nombre": "Serología Hongos", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 257,
+      "nombre": "SEROTONINA",
+      "etiqueta": "serotonina",
+      "parametros": [{"nombre": "Serotonina", "unidad": "ng/mL", "valor_referencial": "50-200 ng/mL"}]
+    },
+    {
+      "id": 258,
+      "nombre": "SINDROME RESPIRATORIO AGUDO SEVERO SARS-CoV-2 (IgM/IgG)",
+      "etiqueta": "covid_rapido",
+      "parametros": [{"nombre": "SARS-CoV-2 IgM/IgG", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 259,
+      "nombre": "SHBG (Globulina Fijadora de Hormonas Sexuales)",
+      "etiqueta": "shbg",
+      "parametros": [{"nombre": "SHBG", "unidad": "nmol/L", "valor_referencial": "Hombres: 18-54 nmol/L, Mujeres: 32-128 nmol/L"}]
+    },
+    {
+      "id": 260,
+      "nombre": "SIFILIS (ANTICUERPOS ANTI-TREPONEMA IgM+IgG)",
+      "etiqueta": "sifilis",
+      "parametros": [{"nombre": "Anti-Treponema", "unidad": "S/CO", "valor_referencial": "<1.0 (Negativo)"}]
+    },
+    {
+      "id": 261,
+      "nombre": "SODIO (NA)",
+      "etiqueta": "sodio",
+      "parametros": [{"nombre": "Sodio", "unidad": "mEq/L", "valor_referencial": "135-145 mEq/L"}]
+    },
+    {
+      "id": 262,
+      "nombre": "SUDAN III",
+      "etiqueta": "sudan_iii",
+      "parametros": [{"nombre": "Sudan III", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 263,
+      "nombre": "T3 LIBRE",
+      "etiqueta": "t3_libre",
+      "parametros": [{"nombre": "T3 Libre", "unidad": "pg/mL", "valor_referencial": "2.3-4.2 pg/mL"}]
+    },
+    {
+      "id": 264,
+      "nombre": "T3 TOTAL",
+      "etiqueta": "t3_total",
+      "parametros": [{"nombre": "T3 Total", "unidad": "ng/dL", "valor_referencial": "80-200 ng/dL"}]
+    },
+    {
+      "id": 265,
+      "nombre": "T4 LIBRE",
+      "etiqueta": "t4_libre",
+      "parametros": [{"nombre": "T4 Libre", "unidad": "ng/dL", "valor_referencial": "0.8-1.8 ng/dL"}]
+    },
+    {
+      "id": 266,
+      "nombre": "T4 TOTAL",
+      "etiqueta": "t4_total",
+      "parametros": [{"nombre": "T4 Total", "unidad": "μg/dL", "valor_referencial": "4.5-12.0 μg/dL"}]
+    },
+    {
+      "id": 267,
+      "nombre": "TESTOSTERONA LIBRE",
+      "etiqueta": "testosterona_libre",
+      "parametros": [{"nombre": "Testosterona Libre", "unidad": "pg/mL", "valor_referencial": "9-30 pg/mL"}]
+    },
+    {
+      "id": 268,
+      "nombre": "TESTOSTERONA TOTAL",
+      "etiqueta": "testosterona_total",
+      "parametros": [{"nombre": "Testosterona Total", "unidad": "ng/dL", "valor_referencial": "270-1070 ng/dL"}]
+    },
+    {
+      "id": 269,
+      "nombre": "TIROGLOBULINA",
+      "etiqueta": "tiroglobulina",
+      "parametros": [{"nombre": "Tiroglobulina", "unidad": "ng/mL", "valor_referencial": "<55 ng/mL"}]
+    },
+    {
+      "id": 270,
+      "nombre": "TGO (Transaminasa Glutámico Oxaloacética)",
+      "etiqueta": "tgo_ast",
+      "parametros": [{"nombre": "AST (TGO)", "unidad": "U/L", "valor_referencial": "10-34 U/L"}]
+    },
+    {
+      "id": 271,
+      "nombre": "TGP (Transaminasa Glutámico Pirúvica)",
+      "etiqueta": "tgp_alt",
+      "parametros": [{"nombre": "ALT (TGP)", "unidad": "U/L", "valor_referencial": "Hombres: <45 U/L, Mujeres: <35 U/L"}]
+    },
+    {
+      "id": 272,
+      "nombre": "TOXOPLASMA IgG",
+      "etiqueta": "toxoplasma_igg",
+      "parametros": [{"nombre": "Toxoplasma IgG", "unidad": "UI/mL", "valor_referencial": "<1.6 (Negativo)"}]
+    },
+    {
+      "id": 273,
+      "nombre": "TOXOPLASMA AVIDEZ",
+      "etiqueta": "toxoplasma_avidez",
+      "parametros": [{"nombre": "Toxoplasma Avidez", "unidad": "%", "valor_referencial": ">60% (Alta avidez)"}]
+    },
+    {
+      "id": 274,
+      "nombre": "TOXOPLASMA IgM",
+      "etiqueta": "toxoplasma_igm",
+      "parametros": [{"nombre": "Toxoplasma IgM", "unidad": "Índice", "valor_referencial": "<0.5 (Negativo)"}]
+    },
+    {
+      "id": 275,
+      "nombre": "TRANSFERRINA",
+      "etiqueta": "transferrina",
+      "parametros": [{"nombre": "Transferrina", "unidad": "mg/dL", "valor_referencial": "200-400 mg/dL"}]
+    },
+    {
+      "id": 276,
+      "nombre": "TRANSGLUTAMINASA IgA",
+      "etiqueta": "transglutaminasa_iga",
+      "parametros": [{"nombre": "Transglutaminasa IgA", "unidad": "U/mL", "valor_referencial": "<20 U/mL"}]
+    },
+    {
+      "id": 277,
+      "nombre": "TRANSGLUTAMINASA IgG",
+      "etiqueta": "transglutaminasa_igg",
+      "parametros": [{"nombre": "Transglutaminasa IgG", "unidad": "U/mL", "valor_referencial": "<20 U/mL"}]
+    },
+    {
+      "id": 278,
+      "nombre": "TRIGLICÉRIDOS",
+      "etiqueta": "trigliceridos",
+      "parametros": [{"nombre": "Triglicéridos", "unidad": "mg/dL", "valor_referencial": "<150 mg/dL"}]
+    },
+    {
+      "id": 280,
+      "nombre": "TROPONINA CUANTIFICADA",
+      "etiqueta": "troponina",
+      "parametros": [{"nombre": "Troponina I", "unidad": "ng/mL", "valor_referencial": "<0.04 ng/mL"}]
+    },
+    {
+      "id": 281,
+      "nombre": "TSH",
+      "etiqueta": "tsh",
+      "parametros": [{"nombre": "TSH", "unidad": "mIU/L", "valor_referencial": "0.4-4.0 mIU/L"}]
+    },
+    {
+      "id": 282,
+      "nombre": "TSH ULTRASENSIBLE (4TA GENERACION)",
+      "etiqueta": "tsh_ultrasensible",
+      "parametros": [{"nombre": "TSH Ultrasensible", "unidad": "mIU/L", "valor_referencial": "0.4-4.0 mIU/L"}]
+    },
+    {
+      "id": 283,
+      "nombre": "V.D.R.L.",
+      "etiqueta": "vdrl",
+      "parametros": [{"nombre": "VDRL", "unidad": "", "valor_referencial": "No reactivo"}]
+    },
+    {
+      "id": 284,
+      "nombre": "V.S.G (VELOCIDAD DE SEDIMENTACIÓN GLOBULAR)",
+      "etiqueta": "vsg",
+      "parametros": [{"nombre": "VSG", "unidad": "mm/h", "valor_referencial": "Hombres: <15 mm/h, Mujeres: <20 mm/h"}]
+    },
+    {
+      "id": 285,
+      "nombre": "VITAMINA B12",
+      "etiqueta": "vitamina_b12",
+      "parametros": [{"nombre": "Vitamina B12", "unidad": "pg/mL", "valor_referencial": "200-900 pg/mL"}]
+    },
+    {
+      "id": 286,
+      "nombre": "VIRUS SINCITIAL RESPIRATORIO IgM (RSV)",
+      "etiqueta": "rsv_igm",
+      "parametros": [{"nombre": "RSV IgM", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 287,
+      "nombre": "VIRUS SINCITIAL RESPIRATORIO IgG (RSV)",
+      "etiqueta": "rsv_igg",
+      "parametros": [{"nombre": "RSV IgG", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}]
+    },
+    {
+      "id": 288,
+      "nombre": "VLDL COLESTEROL",
+      "etiqueta": "vldl_colesterol",
+      "parametros": [{"nombre": "VLDL Colesterol", "unidad": "mg/dL", "valor_referencial": "<30 mg/dL"}]
+    },
+    {
+      "id": 289,
+      "nombre": "ZINC (ZN)",
+      "etiqueta": "zinc",
+      "parametros": [{"nombre": "Zinc", "unidad": "μg/dL", "valor_referencial": "66-110 μg/dL"}]
+    },
+    {
+      "id": 308,
+      "nombre": "UROCULTIVO",
+      "etiqueta": "urocultivo",
+      "parametros": [{"nombre": "Recuento", "unidad": "UFC/mL", "valor_referencial": "<10,000 UFC/mL (Normal)"}, {"nombre": "Identificación", "unidad": "", "valor_referencial": "No se aíslan microorganismos patógenos"}, {"nombre": "Sensibilidad", "unidad": "", "valor_referencial": "Según antibiograma"}]
+    },
+    {
+      "id": 309,
+      "nombre": "EXUDADO FARÍNGEO",
+      "etiqueta": "exudado_faringeo",
+      "parametros": [{"nombre": "Flora Normal", "unidad": "", "valor_referencial": "Presente"}, {"nombre": "Streptococcus β-hemolítico", "unidad": "", "valor_referencial": "Ausente"}]
+    },
+    {
+      "id": 310,
+      "nombre": "CULTIVOS DE SECRECIONES (VARIAS)",
+      "etiqueta": "cultivo_secreciones",
+      "parametros": [{"nombre": "Identificación", "unidad": "", "valor_referencial": "No se aíslan microorganismos patógenos"}, {"nombre": "Sensibilidad", "unidad": "", "valor_referencial": "Según antibiograma"}]
+    },
+    {
+      "id": 311,
+      "nombre": "COPROCULTIVO",
+      "etiqueta": "coprocultivo",
+      "parametros": [{"nombre": "Salmonella", "unidad": "", "valor_referencial": "Ausente"}, {"nombre": "Shigella", "unidad": "", "valor_referencial": "Ausente"}, {"nombre": "Campylobacter", "unidad": "", "valor_referencial": "Ausente"}]
+    },
+    {
+      "id": 312,
+      "nombre": "HEMOCULTIVO",
+      "etiqueta": "hemocultivo",
+      "parametros": [{"nombre": "Crecimiento", "unidad": "", "valor_referencial": "Negativo"}, {"nombre": "Identificación", "unidad": "", "valor_referencial": "No se aíslan microorganismos"}]
+    },
+    {
+      "id": 313,
+      "nombre": "TINCIÓN DE GRAM",
+      "etiqueta": "tincion_gram",
+      "parametros": [{"nombre": "Gram Positivos", "unidad": "", "valor_referencial": "Según muestra"}, {"nombre": "Gram Negativos", "unidad": "", "valor_referencial": "Según muestra"}]
+    },
+    {
+      "id": 314,
+      "nombre": "TINCIÓN DE ZIEHL NEELSEN",
+      "etiqueta": "tincion_ziehl",
+      "parametros": [{"nombre": "BAAR", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": 315,
+      "nombre": "TINCIÓN DE KINYOUN",
+      "etiqueta": "tincion_kinyoun",
+      "parametros": [{"nombre": "BAAR", "unidad": "", "valor_referencial": "Negativo"}]
+    },
+    {
+      "id": "P1",
+      "nombre": "PERFIL HORMONAL FEMENINO",
+      "etiqueta": "perfil_hormonal_femenino",
+      "parametros": [{"nombre": "FSH", "unidad": "mIU/mL", "valor_referencial": "Fase folicular: 3-10 mIU/mL"}, {"nombre": "LH", "unidad": "mIU/mL", "valor_referencial": "2-10 mIU/mL"}, {"nombre": "Estradiol", "unidad": "pg/mL", "valor_referencial": "Fase folicular: 30-120 pg/mL"}, {"nombre": "Prolactina", "unidad": "ng/mL", "valor_referencial": "0-20 ng/mL"}, {"nombre": "Progesterona", "unidad": "ng/mL", "valor_referencial": "Fase lútea: 5-20 ng/mL"}]
+    },
+    {
+      "id": "P2",
+      "nombre": "PERFIL TIROIDEO",
+      "etiqueta": "perfil_tiroideo",
+      "parametros": [{"nombre": "TSH", "unidad": "mIU/L", "valor_referencial": "0.4-4.0 mIU/L"}, {"nombre": "T3 Libre", "unidad": "pg/mL", "valor_referencial": "2.3-4.2 pg/mL"}, {"nombre": "T4 Libre", "unidad": "ng/dL", "valor_referencial": "0.8-1.8 ng/dL"}]
+    },
+        {
+      "id": "P3",
+      "nombre": "PERFIL PRE OPERATORIO",
+      "etiqueta": "perfil_preoperatorio",
+      "parametros": [
+        {"nombre": "Hemograma", "unidad": "", "valor_referencial": "Ver hemograma completo"},
+        {"nombre": "Glucosa", "unidad": "mg/dL", "valor_referencial": "70-100 mg/dL"},
+        {"nombre": "Urea", "unidad": "mg/dL", "valor_referencial": "7-25 mg/dL"},
+        {"nombre": "Creatinina", "unidad": "mg/dL", "valor_referencial": "0.6-1.3 mg/dL"},
+        {"nombre": "HIV", "unidad": "", "valor_referencial": "Negativo"},
+        {"nombre": "VDRL", "unidad": "", "valor_referencial": "No reactivo"},
+        {"nombre": "TP", "unidad": "seg", "valor_referencial": "11-15 seg"},
+        {"nombre": "PTT", "unidad": "seg", "valor_referencial": "25-35 seg"},
+        {"nombre": "Grupo Sanguíneo", "unidad": "", "valor_referencial": "A, B, AB, O + Rh"}
+      ]
+    },
+    {
+      "id": "P4",
+      "nombre": "PERFIL LIPÍDICO",
+      "etiqueta": "perfil_lipidico",
+      "parametros": [
+        {"nombre": "Colesterol Total", "unidad": "mg/dL", "valor_referencial": "<200 mg/dL"},
+        {"nombre": "HDL Colesterol", "unidad": "mg/dL", "valor_referencial": "Hombres: >40 mg/dL, Mujeres: >50 mg/dL"},
+        {"nombre": "LDL Colesterol", "unidad": "mg/dL", "valor_referencial": "<100 mg/dL"},
+        {"nombre": "VLDL Colesterol", "unidad": "mg/dL", "valor_referencial": "<30 mg/dL"},
+        {"nombre": "Triglicéridos", "unidad": "mg/dL", "valor_referencial": "<150 mg/dL"}
+      ]
+    },
+    {
+      "id": "P5",
+      "nombre": "ELECTROLITOS",
+      "etiqueta": "electrolitos",
+      "parametros": [
+        {"nombre": "Sodio", "unidad": "mEq/L", "valor_referencial": "135-145 mEq/L"},
+        {"nombre": "Potasio", "unidad": "mEq/L", "valor_referencial": "3.5-5.0 mEq/L"},
+        {"nombre": "Cloro", "unidad": "mEq/L", "valor_referencial": "96-106 mEq/L"}
+      ]
+    },
+    {
+      "id": "P6",
+      "nombre": "GLICEMIA E INSULINA (BASAL Y POST PRANDIAL)",
+      "etiqueta": "glicemia_insulina",
+      "parametros": [
+        {"nombre": "Glucosa Basal", "unidad": "mg/dL", "valor_referencial": "70-100 mg/dL"},
+        {"nombre": "Glucosa Post-Prandial", "unidad": "mg/dL", "valor_referencial": "<140 mg/dL"},
+        {"nombre": "Insulina Basal", "unidad": "μU/mL", "valor_referencial": "2.6-24.9 μU/mL"},
+        {"nombre": "Insulina Post-Prandial", "unidad": "μU/mL", "valor_referencial": "Según protocolo"}
+      ]
+    },
+    {
+      "id": "P7",
+      "nombre": "T.O.R.C.H",
+      "etiqueta": "torch",
+      "parametros": [
+        {"nombre": "Toxoplasma IgG", "unidad": "UI/mL", "valor_referencial": "<1.6 (Negativo)"},
+        {"nombre": "Toxoplasma IgM", "unidad": "Índice", "valor_referencial": "<0.5 (Negativo)"},
+        {"nombre": "Rubéola IgG", "unidad": "UI/mL", "valor_referencial": ">10 (Inmune)"},
+        {"nombre": "Rubéola IgM", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"},
+        {"nombre": "CMV IgG", "unidad": "UA/mL", "valor_referencial": "<0.9 (Negativo)"},
+        {"nombre": "CMV IgM", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"},
+        {"nombre": "Herpes I IgG", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"},
+        {"nombre": "Herpes I IgM", "unidad": "Índice", "valor_referencial": "<0.9 (Negativo)"}
+      ]
+    }
+  ],
+  "notas": {
+    "valores_referencia": "Los valores de referencia pueden variar según la metodología del laboratorio, edad, sexo y condiciones específicas del paciente. Siempre consulte con un profesional de la salud para la interpretación correcta de los resultados.",
+    "actualizacion": "Valores basados en literatura médica actualizada y estándares internacionales de laboratorio clínico 2025",
+    "metodologias": "Los rangos pueden diferir según la técnica analítica utilizada (ELISA, Quimioluminiscencia, Colorimetría, etc.)",
+    "observaciones": "Este JSON contiene los 303 estudios completos del Laboratorio VIDAMED: 288 exámenes principales (IDs 1-289, omitiendo el 279), 8 estudios de bacteriología (IDs 308-315) y 7 perfiles especializados (IDs P1-P7)."
+  }
+}
