@@ -3,7 +3,7 @@ import { supabase } from '@/services/supabaseClient';
 import { toast } from 'react-toastify';
 import { Upload, Plus, Search, Info } from 'lucide-react';
 import ResultsTable from '@/components/admin/ResultsTable';
-import { SchedulingStudy, ResultadoPaciente } from '@/types';
+import { SchedulingStudy, ResultadoPaciente, ResultadoDataManual } from '@/types';
 import FileUploadModal from '@/components/admin/FileUploadModal';
 import ManualResultForm from '@/components/admin/ManualResultForm';
 import ResultViewer from '@/components/admin/ResultViewer';
@@ -292,20 +292,27 @@ const ResultsPage: React.FC = () => {
       console.log('✅ MATERIALES DESCONTADOS EXITOSAMENTE:', deductData);
 
       // ✅ GUARDAR RESULTADO EN BASE DE DATOS
+      // Aplanar posibles estructuras anidadas { valores: { ... } } recibidas por results
+      const plainResults = (results && typeof results === 'object' && 'valores' in results && typeof results.valores === 'object')
+        ? results.valores
+        : results;
+
+      const resultadoData: ResultadoDataManual = {
+        nombre_estudio: manualEntryStudy.name,
+        tipo: 'manual',
+        valores: plainResults, // `results` debe ser mapa plano de pruebas -> valor
+        materiales_utilizados: selectedMaterials.map(m => ({ id: m.id, nombre: m.nombre, cantidad_usada: m.cantidad_usada })),
+        paciente_id: Number(selectedPatient.id),
+        paciente_nombres: selectedPatient.nombres,
+        paciente_apellidos: selectedPatient.apellidos,
+        paciente_cedula: selectedPatient.cedula_identidad,
+        fecha_ingreso_manual: new Date().toISOString(),
+      };
+
       const dataToInsert = {
-        paciente_id: selectedPatient.id, // ✅ Paciente seleccionado
+        paciente_id: Number(selectedPatient.id),
         estudio_id: parseInt(manualEntryStudy.id, 10),
-        resultado_data: {
-          nombre_estudio: manualEntryStudy.name,
-          tipo: 'manual',
-          valores: results,
-          materiales_utilizados: selectedMaterials, // Nuevo: guardar materiales utilizados
-          paciente_id: selectedPatient.id,
-          paciente_nombres: selectedPatient.nombres,
-          paciente_apellidos: selectedPatient.apellidos,
-          paciente_cedula: selectedPatient.cedula_identidad,
-          fecha_ingreso_manual: new Date().toISOString()
-        }
+        resultado_data: resultadoData,
       };
 
       const { error: dbError } = await supabase.from('resultados_pacientes').insert([dataToInsert]);

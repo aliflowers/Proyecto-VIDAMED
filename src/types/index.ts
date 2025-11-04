@@ -39,18 +39,42 @@ export interface PatientPayload {
     direccion?: string;
 }
 
-export interface ResultadoPaciente {
-  id: number;
-  fecha_creacion: string;
-  resultado_data: { 
-    url?: string; 
-    nombre_estudio?: string;
-    tipo?: 'archivo' | 'manual';
-  };
-  analisis_ia?: string;
-  analisis_editado?: string;
-  analisis_estado?: 'pendiente' | 'aprobado' | 'rechazado';
+
+export interface ResultadoDataManual {
+    tipo: 'manual';
+    nombre_estudio: string;
+    valores: Record<string, string | number>;
+    materiales_utilizados?: any[];
+    paciente_id?: number;
+    paciente_nombres?: string;
+    paciente_apellidos?: string;
+    paciente_cedula?: string;
+    fecha_ingreso_manual?: string;
 }
+
+export interface ResultadoDataArchivo {
+    tipo: 'archivo';
+    nombre_estudio: string;
+    url: string;
+    paciente_id?: number;
+    paciente_nombres?: string;
+    paciente_apellidos?: string;
+    paciente_cedula?: string;
+    fecha_subida_global?: string;
+}
+
+export type ResultadoData = ResultadoDataManual | ResultadoDataArchivo;
+
+export interface ResultadoPaciente {
+    id: number;
+    paciente_id: number;
+    estudio_id: number;
+    resultado_data: ResultadoData | Record<string, any>; // Permite compatibilidad con datos antiguos no estructurados
+    fecha_creacion: string;
+    analisis_ia?: string;
+    analisis_estado?: 'pendiente' | 'completado' | 'aprobado' | 'rechazado';
+}
+
 
 export interface InventoryItem {
   id: number;

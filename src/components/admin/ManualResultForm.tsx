@@ -38,19 +38,12 @@ const ManualResultForm: React.FC<ManualResultFormProps> = ({ study, onSave, onCa
         const hasFormFields = study.campos_formulario && study.campos_formulario.length > 0;
         console.log('📝 Study has form fields?:', hasFormFields);
 
-        // Prepare data to save
-        let dataToSave = resultsData;
-        if (!hasFormFields) {
-            dataToSave = {
-                nota_importante: 'Este estudio no tiene campos específicos configurados.',
-                fecha_registro_sin_campos: new Date().toISOString(),
-                ...resultsData
-            };
-        }
+        // Prepare data to save - The parent component will handle the structure.
+        const dataToSave = resultsData;
 
         // Execute onSave callback
         if (typeof onSave === 'function') {
-            console.log('✅ Executing onSave callback...');
+            console.log('✅ Executing onSave callback with:', dataToSave);
             onSave(dataToSave);
         } else {
             console.error('❌ onSave is not a function:', onSave);

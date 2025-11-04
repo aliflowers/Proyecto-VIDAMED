@@ -4,7 +4,7 @@ import Logo from '@/components/Logo';
 import InterpretationViewerModal from '@/components/InterpretationViewerModal';
 import { supabase } from '@/services/supabaseClient';
 
-// Define interfaces locally
+import { ResultadoPaciente, ResultadoDataManual } from '@/types';
 interface Patient {
     id: number;
     nombres: string;
@@ -23,14 +23,60 @@ interface Study {
 
 interface ResultViewerProps {
     patient: Patient;
-    result: any;
+    result: ResultadoPaciente;
     onClose: () => void;
 }
+
+// Type guard para verificar si el resultado es manual
+const isManualResult = (data: any): data is ResultadoDataManual => {
+    return data && data.tipo === 'manual' && typeof data.valores === 'object';
+};
 
 const ResultViewer: React.FC<ResultViewerProps> = ({ patient, result, onClose }) => {
     const [isInterpretationOpen, setIsInterpretationOpen] = useState(false);
     const [studyDetails, setStudyDetails] = useState<Study | null>(null);
     const [loadingStudy, setLoadingStudy] = useState(true);
+
+    // Normaliza el arreglo de campos del estudio para garantizar keys consistentes
+    const normalizeCamposFormulario = (campos: any): { name: string; label: string; unit?: string; reference?: string }[] => {
+        let raw = campos;
+        if (!raw) return [];
+        if (typeof raw === 'string') {
+            try {
+                raw = JSON.parse(raw);
+            } catch {
+                return [];
+            }
+        }
+        if (!Array.isArray(raw)) return [];
+        return raw
+            .map((campo: any) => ({
+                name: campo?.name ?? campo?.nombre ?? '',
+                label: campo?.label ?? campo?.etiqueta ?? campo?.name ?? campo?.nombre ?? '',
+                unit: campo?.unit ?? campo?.unidad,
+                reference: campo?.reference ?? campo?.valor_referencial,
+            }))
+            .filter((f: any) => !!f.name);
+    };
+
+    // Obtiene una versión segura y normalizada de resultado_data para resultados manuales
+    const getManualData = (): ResultadoDataManual | null => {
+        const raw = typeof result.resultado_data === 'string'
+            ? (() => { try { return JSON.parse(result.resultado_data as any); } catch { return null; } })()
+            : result.resultado_data;
+        if (!raw) return null;
+        return isManualResult(raw) ? raw : null;
+    };
+
+    // Extrae un mapa plano de valores, aplanando posibles anidamientos { valores: { ... } }
+    const extractValores = (md: ResultadoDataManual | null): Record<string, any> => {
+        if (!md || typeof md.valores !== 'object' || md.valores === null) return {};
+        const v: any = md.valores;
+        if (v && typeof v === 'object' && 'valores' in v && typeof v.valores === 'object' && v.valores !== null) {
+            return v.valores as Record<string, any>;
+        }
+        return v as Record<string, any>;
+    };
 
     const handlePrint = () => {
         const printContents = document.getElementById('printable-result')?.innerHTML;
@@ -71,7 +117,7 @@ const ResultViewer: React.FC<ResultViewerProps> = ({ patient, result, onClose })
                     const formattedStudy: Study = {
                         id: data.id.toString(),
                         name: data.nombre,
-                        campos_formulario: data.campos_formulario
+                        campos_formulario: normalizeCamposFormulario(data.campos_formulario)
                     };
                     setStudyDetails(formattedStudy);
                 }
@@ -112,63 +158,68 @@ const ResultViewer: React.FC<ResultViewerProps> = ({ patient, result, onClose })
                             <p><strong>Email:</strong> {patient.email}</p>
                             <p><strong>Dirección:</strong> {patient.direccion}</p>
                         </div>
-                        <h2 className="text-xl font-bold text-primary text-center my-6">{result.resultado_data.nombre_estudio}</h2>
+                        <h2 className="text-xl font-bold text-primary text-center my-6">{studyDetails?.name || 'Detalles del Estudio'}</h2>
                         {loadingStudy ? (
                             <div className="text-center py-8">
                                 <p className="text-gray-500">Cargando detalles del estudio...</p>
                             </div>
-                        ) : !studyDetails?.campos_formulario || studyDetails.campos_formulario.length === 0 ? (
-                            <div className="text-center py-8 border rounded-lg">
-                                <p className="text-gray-500 mb-4">El estudio no tiene campos específicos configurados.</p>
-                                {result.resultado_data?.valores && Object.keys(result.resultado_data.valores).length > 0 ? (
-                                    <>
-                                        <p className="text-sm text-gray-600 mb-4">Mostrando valores manuales disponibles:</p>
-                                        <table className="w-full text-left text-sm">
-                                            <thead className="bg-gray-100">
-                                                <tr>
-                                                    <th className="p-3 font-semibold">Prueba</th>
-                                                    <th className="p-3 font-semibold">Resultado</th>
-                                                    <th className="p-3 font-semibold">Valores de Referencia</th>
-                                                    <th className="p-3 font-semibold">Unidades</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {Object.entries(result.resultado_data.valores).map(([key, value]: [string, any]) => (
-                                                    <tr key={key} className="border-b">
-                                                        <td className="p-3 capitalize">{key.replace(/_/g, ' ')}</td>
-                                                        <td className="p-3 font-bold">{value || '-'}</td>
-                                                        <td className="p-3 text-gray-600">N/A</td>
-                                                        <td className="p-3">N/A</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </>
-                                ) : (
-                                    <p className="text-gray-500">No hay resultados disponibles para mostrar.</p>
-                                )}
-                            </div>
-                        ) : (
+                        ) : (studyDetails?.campos_formulario && studyDetails.campos_formulario.length > 0) ? (
+                            // Renderizado para estudios con campos de formulario definidos
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-gray-100">
                                     <tr>
                                         <th className="p-3 font-semibold">Prueba</th>
                                         <th className="p-3 font-semibold">Resultado</th>
-                                        <th className="p-3 font-semibold">Valores de Referencia</th>
                                         <th className="p-3 font-semibold">Unidades</th>
+                                        <th className="p-3 font-semibold">Valores de Referencia</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {studyDetails.campos_formulario.map((field: any) => (
-                                        <tr key={field.name} className="border-b">
-                                            <td className="p-3">{field.label || field.name}</td>
-                                            <td className="p-3 font-bold">{result.resultado_data?.valores?.[field.name] || '-'}</td>
-                                            <td className="p-3 text-gray-600">{field.reference || 'N/A'}</td>
-                                            <td className="p-3">{field.unit || 'N/A'}</td>
-                                        </tr>
-                                    ))}
+                                   {studyDetails.campos_formulario.map((field: any, index: number) => {
+                                       const manualData = getManualData();
+                                       const valoresPlano = extractValores(manualData);
+                                       const displayed = valoresPlano?.[field.name];
+                                       return (
+                                           <tr key={`${field.name}-${index}`} className="border-b">
+                                                <td className="p-3">{field.label || field.name}</td>
+                                                <td className="p-3 font-bold">{displayed !== undefined && displayed !== null && displayed !== '' ? String(displayed) : '-'}</td>
+                                                <td className="p-3">{field.unit || 'N/A'}</td>
+                                                <td className="p-3 text-gray-600">{field.reference || 'N/A'}</td>
+                                            </tr>
+                                       );
+                                    })}
                                 </tbody>
                             </table>
+                        ) : (() => { const md = getManualData(); return !!(md && Object.keys(md.valores || {}).length > 0); })() ? (
+                            // Renderizado para resultados manuales sin campos de formulario definidos
+                            <>
+                                <p className="text-sm text-gray-600 mb-4 text-center">Este estudio no tiene campos predefinidos, mostrando los valores ingresados manualmente:</p>
+                                <table className="w-full text-left text-sm">
+                                    <thead className="bg-gray-100">
+                                        <tr>
+                                            <th className="p-3 font-semibold">Prueba</th>
+                                            <th className="p-3 font-semibold">Resultado</th>
+                                            <th className="p-3 font-semibold">Unidades</th>
+                                            <th className="p-3 font-semibold">Valores de Referencia</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {(() => { const md = getManualData(); const valoresPlano = extractValores(md); return Object.entries(valoresPlano || {}); })().map(([key, value]: [string, any]) => (
+                                            <tr key={key} className="border-b">
+                                                <td className="p-3 capitalize">{key.replace(/_/g, ' ')}</td>
+                                                <td className="p-3 font-bold">{String(value) || '-'}</td>
+                                                <td className="p-3">N/A</td>
+                                                <td className="p-3 text-gray-600">N/A</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </>
+                        ) : (
+                            // Fallback si no hay nada que mostrar
+                            <div className="text-center py-8 border rounded-lg">
+                                <p className="text-gray-500">No hay resultados disponibles para mostrar para este estudio.</p>
+                            </div>
                         )}
 
                         {result.analisis_estado === 'aprobado' && (
@@ -187,7 +238,7 @@ const ResultViewer: React.FC<ResultViewerProps> = ({ patient, result, onClose })
             </div>
             {isInterpretationOpen && (
                 <InterpretationViewerModal
-                    interpretation={result.analisis_editado || result.analisis_ia}
+                    interpretation={result.analisis_estado || result.analisis_ia || ''}
                     onClose={() => setIsInterpretationOpen(false)}
                 />
             )}
