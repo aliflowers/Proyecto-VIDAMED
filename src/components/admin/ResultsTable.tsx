@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Eye, Trash, FileText, BrainCircuit, Info, Search, Pencil, X } from 'lucide-react';
+import { Eye, Trash, FileText, BrainCircuit, Info, Search, Pencil, X, Mail } from 'lucide-react';
+import { FaWhatsapp } from 'react-icons/fa';
 import { formatDate } from '@/utils/formatters';
 import { supabase } from '@/services/supabaseClient';
 import { toast } from 'react-toastify';
@@ -54,6 +55,72 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   const [saving, setSaving] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [editMotivo, setEditMotivo] = useState<string>(''); // <- NUEVO estado
+  const [sendingWhatsappId, setSendingWhatsappId] = useState<number | null>(null);
+  const [sendingEmailId, setSendingEmailId] = useState<number | null>(null);
+
+  const notifyWhatsapp = async (resultId: number) => {
+    setSendingWhatsappId(resultId);
+    try {
+      const resp = await fetch('/api/notify/whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ result_id: resultId }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok && data?.ok) {
+        toast.success(data?.message || 'WhatsApp enviado correctamente');
+      } else {
+        const code = data?.code || 'UNKNOWN_ERROR';
+        if (code === 'NO_PHONE') {
+          toast.error('El paciente no tiene teléfono registrado.');
+        } else if (code === 'ENV_MISSING') {
+          toast.error('Faltan variables de entorno para WhatsApp API.');
+        } else if (code === 'WHATSAPP_API_ERROR') {
+          toast.error(`Error al enviar WhatsApp: ${data?.message || 'API error'}`);
+        } else if (data?.message) {
+          toast.error(data.message);
+        } else {
+          toast.error('No se pudo enviar la notificación por WhatsApp.');
+        }
+      }
+    } catch (e: any) {
+      toast.error(`Error de red enviando WhatsApp: ${e?.message || e}`);
+    } finally {
+      setSendingWhatsappId(null);
+    }
+  };
+
+  const notifyEmail = async (resultId: number) => {
+    setSendingEmailId(resultId);
+    try {
+      const resp = await fetch('/api/notify/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ result_id: resultId }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok && data?.ok) {
+        toast.success(data?.message || 'Email enviado correctamente');
+      } else {
+        const code = data?.code || 'UNKNOWN_ERROR';
+        if (code === 'NO_EMAIL') {
+          toast.error('Este paciente no tiene email registrado.');
+        } else if (code === 'INTERPRETATION_NOT_APPROVED') {
+          toast.info('La interpretación IA no está aprobada. Apruébala antes de enviar.');
+        } else if (code === 'ENV_MISSING') {
+          toast.error('Configuración SMTP incompleta (host/port/user/pass).');
+        } else if (data?.message) {
+          toast.error(data.message);
+        } else {
+          toast.error('No se pudo enviar la notificación por email.');
+        }
+      }
+    } catch (e: any) {
+      toast.error(`Error de red enviando Email: ${e?.message || e}`);
+    } finally {
+      setSendingEmailId(null);
+    }
+  };
 
   // Helper: actualizar resultado con reintento si hay error de red
   const updateResultadoConRetry = async (id: number, updatedData: any, retries = 1, motivoEstudio?: string | null): Promise<void> => {
@@ -312,6 +379,40 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                         <Eye className="h-4 w-4" />
                       </button>
                     )}
+
+                    {/* Notificar por WhatsApp */}
+                    <button
+                      onClick={() => notifyWhatsapp(result.id)}
+                      className="p-1 text-green-600 hover:text-green-900 border border-green-200 rounded-md hover:bg-green-50 transition-colors disabled:opacity-50"
+                      title="Enviar notificación por WhatsApp"
+                      disabled={sendingWhatsappId === result.id}
+                    >
+                      {sendingWhatsappId === result.id ? (
+                        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : (
+                        <FaWhatsapp className="h-4 w-4" />
+                      )}
+                    </button>
+
+                    {/* Notificar por Email (requiere interpretación aprobada) */}
+                    <button
+                      onClick={() => notifyEmail(result.id)}
+                      className="p-1 text-emerald-600 hover:text-emerald-900 border border-emerald-200 rounded-md hover:bg-emerald-50 transition-colors disabled:opacity-50"
+                      title={result.analisis_estado?.toLowerCase() === 'aprobado' ? 'Enviar resultado por Email' : 'Aprueba la interpretación IA para habilitar el envío'}
+                      disabled={sendingEmailId === result.id || !(result.analisis_estado && result.analisis_estado.toLowerCase() === 'aprobado')}
+                    >
+                      {sendingEmailId === result.id ? (
+                        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : (
+                        <Mail className="h-4 w-4" />
+                      )}
+                    </button>
 
                     {result.resultado_data?.tipo === 'manual' && (
                       <button

@@ -6,6 +6,8 @@ import { GoogleGenerativeAI, Part, Tool, SchemaType, Content } from '@google/gen
 import { DEFAULT_GEMINI_MODEL } from './config.js';
 import { nextDay, format, isFuture, parseISO } from 'date-fns';
 import path from 'path';
+import notifyWhatsappHandler from './notify/whatsapp.js';
+import notifyEmailHandler from './notify/email.js';
 
 async function startServer() {
     // Forzar la carga del archivo .env desde la raíz del proyecto
@@ -418,6 +420,26 @@ ${valuesContext}
       } catch (error) {
         console.error('💥 Ocurrió un error catastrófico en /api/interpretar:', error);
         res.status(500).json({ error: 'Ocurrió un error interno en el servidor.', details: error instanceof Error ? error.message : String(error) });
+      }
+    });
+
+    // Notificaciones: WhatsApp
+    app.post('/api/notify/whatsapp', async (req: Request, res: Response) => {
+      try {
+        await (notifyWhatsappHandler as any)(req, res);
+      } catch (err) {
+        console.error('[api] Uncaught error en /api/notify/whatsapp:', err);
+        if (!res.headersSent) res.status(500).json({ ok: false, error: 'Error interno en /api/notify/whatsapp' });
+      }
+    });
+
+    // Notificaciones: Email
+    app.post('/api/notify/email', async (req: Request, res: Response) => {
+      try {
+        await (notifyEmailHandler as any)(req, res);
+      } catch (err) {
+        console.error('[api] Uncaught error en /api/notify/email:', err);
+        if (!res.headersSent) res.status(500).json({ ok: false, error: 'Error interno en /api/notify/email' });
       }
     });
 

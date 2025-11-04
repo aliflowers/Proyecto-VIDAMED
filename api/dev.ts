@@ -14,6 +14,8 @@ import cors from 'cors';
 import chatHandler from './chat.ts';
 import tokenHandler from './voice/token.ts';
 import interpretarHandler from './interpretar.ts'; // Importar el nuevo manejador
+import notifyWhatsappHandler from './notify/whatsapp.ts';
+import notifyEmailHandler from './notify/email.ts';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { DEFAULT_GEMINI_MODEL } from './config.ts';
 
@@ -61,6 +63,25 @@ app.post('/api/interpretar', async (req: Request, res: Response) => {
     await (interpretarHandler as any)(req, res);
   } catch (err) {
     console.error('[dev-api] Uncaught error in /api/interpretar:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Internal error in dev API. Check server logs.' });
+  }
+});
+
+// Notificaciones (dev mirror)
+app.post('/api/notify/whatsapp', async (req: Request, res: Response) => {
+  try {
+    await (notifyWhatsappHandler as any)(req, res);
+  } catch (err) {
+    console.error('[dev-api] Uncaught error in /api/notify/whatsapp:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Internal error in dev API. Check server logs.' });
+  }
+});
+
+app.post('/api/notify/email', async (req: Request, res: Response) => {
+  try {
+    await (notifyEmailHandler as any)(req, res);
+  } catch (err) {
+    console.error('[dev-api] Uncaught error in /api/notify/email:', err);
     if (!res.headersSent) res.status(500).json({ error: 'Internal error in dev API. Check server logs.' });
   }
 });

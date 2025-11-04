@@ -58,6 +58,30 @@ Supabase local (solo si sirves Edge en local):
 
 ---
 
+## Variables de Entorno (Notificaciones)
+
+WhatsApp (Meta Cloud API):
+- `WHATSAPP_API_TOKEN=...` Token de acceso de la app (Bearer).
+- `WHATSAPP_PHONE_NUMBER_ID=...` ID del número de WhatsApp Business.
+- `WHATSAPP_DEFAULT_COUNTRY_CODE=58` (opcional) Código país para normalizar teléfonos sin prefijo.
+- `PATIENT_PORTAL_URL=https://vidamed.example.com/portal` (opcional) URL del portal de pacientes para incluir en el mensaje.
+
+Email (SMTP):
+- `SMTP_HOST=...` Host del servidor SMTP.
+- `SMTP_PORT=465` Puerto (465 para SSL, 587 para STARTTLS).
+- `SMTP_USER=...` Usuario de autenticación SMTP.
+- `SMTP_PASS=...` Password de autenticación SMTP.
+- `EMAIL_FROM="VidaMed <no-reply@vidamed.com>"` Remitente mostrado (opcional).
+- `EMAIL_REPLY_TO=support@vidamed.com` Dirección de respuesta (opcional).
+
+Notas:
+- Las rutas de desarrollo del backend usan Express en `http://127.0.0.1:3001` (proxy Vite `/api`).
+- El backend lee variables tanto con nombre directo como con prefijo `VITE_` o `PRIVATE_` para flexibilidad en dev.
+- El envío de email requiere que `analisis_estado` sea `'aprobado'`; si no, el backend responde con `INTERPRETATION_NOT_APPROVED`.
+- Si el paciente no tiene email, la API responde `NO_EMAIL`. Para WhatsApp, si no hay teléfono, responde `NO_PHONE`.
+
+---
+
 ## Modo Desarrollo (Comandos)
 
 - Terminal 1 (frontend): `pnpm dev` → http://localhost:5173
