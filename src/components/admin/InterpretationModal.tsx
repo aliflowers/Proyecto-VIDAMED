@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Loader, Check, X } from 'lucide-react';
+import { Loader, Check, X, RotateCcw } from 'lucide-react';
 import { ResultadoPaciente } from '@/types';
 
 interface InterpretationModalProps {
@@ -7,9 +7,11 @@ interface InterpretationModalProps {
     onClose: () => void;
     onUpdateStatus: (resultId: number, status: 'aprobado' | 'rechazado', editedText?: string) => Promise<void>;
     isLoading: boolean;
+    onRegenerate: (resultId: number) => Promise<void>;
+    isGenerating: boolean;
 }
 
-const InterpretationModal: React.FC<InterpretationModalProps> = ({ result, onClose, onUpdateStatus, isLoading }) => {
+const InterpretationModal: React.FC<InterpretationModalProps> = ({ result, onClose, onUpdateStatus, isLoading, onRegenerate, isGenerating }) => {
     const [editedInterpretation, setEditedInterpretation] = useState('');
 
     useEffect(() => {
@@ -62,6 +64,15 @@ const InterpretationModal: React.FC<InterpretationModalProps> = ({ result, onClo
                 </div>
                 <footer className="p-4 flex justify-end items-center border-t gap-4">
                     <p className="text-sm text-gray-500 mr-auto">Estado actual: <span className="font-bold">{result.analisis_estado || 'pendiente'}</span></p>
+                    <button
+                        onClick={() => onRegenerate(result.id)}
+                        disabled={isGenerating}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-400 flex items-center"
+                        title="Re-generar interpretación con IA"
+                    >
+                        {isGenerating ? <Loader className="animate-spin mr-2" /> : <RotateCcw size={18} className="mr-2" />}
+                        Re-generar
+                    </button>
                     <button 
                         onClick={handleReject} 
                         disabled={isLoading}

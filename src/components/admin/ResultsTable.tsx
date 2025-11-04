@@ -1,6 +1,8 @@
-import React, { useState, useMemo } from 'react';
-import { Eye, Trash, FileText, BrainCircuit, Info, Search } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Eye, Trash, FileText, BrainCircuit, Info, Search, Pencil, X } from 'lucide-react';
 import { formatDate } from '@/utils/formatters';
+import { supabase } from '@/services/supabaseClient';
+import { toast } from 'react-toastify';
 
 interface GlobalResult {
   id: number;
@@ -23,6 +25,7 @@ interface ResultsTableProps {
   onGenerateInterpretation: (result: GlobalResult) => void;
   isLoading?: boolean;
   generatingInterpretationId?: number | null;
+  onResultUpdated?: (updated: GlobalResult) => void;
 }
 
 const ResultsTable: React.FC<ResultsTableProps> = ({
@@ -31,13 +34,47 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   onDeleteResult,
   onGenerateInterpretation,
   isLoading,
-  generatingInterpretationId
+  generatingInterpretationId,
+  onResultUpdated
 }) => {
+  // Estado local para reflejar cambios inmediatos en la UI
+  const [localResults, setLocalResults] = useState<GlobalResult[]>(results);
+  useEffect(() => {
+    setLocalResults(results);
+  }, [results]);
+
   const [sortBy, setSortBy] = useState<string>('fecha');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
+  // Estado del modal de edición
+  const [isEditOpen, setIsEditOpen] = useState<boolean>(false);
+  const [editingResult, setEditingResult] = useState<GlobalResult | null>(null);
+  const [studyFields, setStudyFields] = useState<Array<{ name: string; label: string; unit?: string; reference?: string }>>([]);
+  const [editValues, setEditValues] = useState<Record<string, any>>({});
+  const [saving, setSaving] = useState<boolean>(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // Helper: actualizar resultado con reintento si hay error de red
+  const updateResultadoConRetry = async (id: number, updatedData: any, retries = 1): Promise<void> => {
+    try {
+      const { error } = await supabase
+        .from('resultados_pacientes')
+        .update({ resultado_data: updatedData })
+        .eq('id', id);
+      if (error) throw error;
+    } catch (err: any) {
+      const msg = String(err?.message || '');
+      const isNetwork = msg.includes('Failed to fetch') || msg.includes('ERR_CONNECTION_CLOSED');
+      if (isNetwork && retries > 0) {
+        await new Promise(res => setTimeout(res, 700));
+        return updateResultadoConRetry(id, updatedData, retries - 1);
+      }
+      throw err;
+    }
+  };
+
   const sortedResults = useMemo(() => {
-    return [...results].sort((a, b) => {
+    return [...localResults].sort((a, b) => {
       let aVal: any;
       let bVal: any;
 
@@ -65,7 +102,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
         return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
       }
     });
-  }, [results, sortBy, sortOrder]);
+  }, [localResults, sortBy, sortOrder]);
 
   const handleSort = (column: string) => {
     if (sortBy === column) {
@@ -277,6 +314,52 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                       </button>
                     )}
 
+                    {result.resultado_data?.tipo === 'manual' && (
+                      <button
+                        onClick={async () => {
+                          setFormError(null);
+                          setEditingResult(result);
+                          setIsEditOpen(true);
+                          // Cargar campos del estudio
+                          const { data, error } = await supabase
+                            .from('estudios')
+                            .select('campos_formulario, nombre')
+                            .eq('id', result.estudio_id)
+                            .single();
+                          if (error) {
+                            console.error('Error cargando campos del estudio:', error);
+                            toast.error('Error al cargar campos del estudio');
+                            setStudyFields([]);
+                          } else {
+                            const campos = Array.isArray(data?.campos_formulario)
+                              ? data.campos_formulario.map((campo: any) => ({
+                                  name: campo.name || campo.nombre,
+                                  label: campo.etiqueta || campo.label || campo.name || campo.nombre,
+                                  unit: campo.unit || campo.unidad,
+                                  reference: campo.reference || campo.valor_referencial,
+                                }))
+                              : [];
+                            setStudyFields(campos);
+                          }
+                          // Prefill valores
+                          try {
+                            const raw = typeof result.resultado_data === 'string'
+                              ? JSON.parse(result.resultado_data as any)
+                              : result.resultado_data;
+                            const valores = raw?.valores && typeof raw.valores === 'object' ? raw.valores : {};
+                            setEditValues(valores);
+                          } catch (e) {
+                            console.warn('No se pudieron pre-cargar valores del resultado');
+                            setEditValues({});
+                          }
+                        }}
+                        className="p-1 text-blue-600 hover:text-blue-900 border border-blue-200 rounded-md hover:bg-blue-50 transition-colors"
+                        title="Editar parámetros del estudio"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    )}
+
                     {!!result.analisis_ia && (
                       <button
                         onClick={() => onGenerateInterpretation(result)}
@@ -333,6 +416,91 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
           <p className="mt-1 text-sm text-gray-500">
             Comienza creando el primer resultado utilizando los botones de subida de archivo o ingreso manual.
           </p>
+        </div>
+      )}
+
+      {/* ✏️ Modal de edición de resultados manuales */}
+      {isEditOpen && editingResult && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl flex flex-col max-h-[90vh]">
+            <header className="p-4 flex justify-between items-center border-b">
+              <h2 className="text-xl font-bold">Editar Resultado: {editingResult.nombre_estudio}</h2>
+              <button onClick={() => setIsEditOpen(false)} className="p-2 hover:bg-gray-200 rounded-full"><X size={20} /></button>
+            </header>
+            <div className="p-6 overflow-y-auto space-y-4">
+              {formError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-md">{formError}</div>
+              )}
+              {studyFields.length === 0 ? (
+                <p className="text-gray-600 text-sm">Este estudio no tiene campos configurados para edición.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {studyFields.map((field, idx) => (
+                    <div key={`${field.name}-${idx}`} className="flex flex-col">
+                      <label className="text-sm font-medium text-gray-700 mb-1">{field.label}</label>
+                      <input
+                        value={editValues[field.name] ?? ''}
+                        onChange={(e) => setEditValues(prev => ({ ...prev, [field.name]: e.target.value }))}
+                        className="border rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-200"
+                        placeholder={field.unit ? `Unidad: ${field.unit}` : ''}
+                      />
+                      {(field.reference) && (
+                        <span className="text-xs text-gray-400 mt-1">Referencia: {field.reference}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <footer className="p-4 flex justify-end items-center border-t gap-3">
+              <button
+                onClick={() => setIsEditOpen(false)}
+                className="px-4 py-2 bg-gray-100 text-gray-800 rounded hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={async () => {
+                  setFormError(null);
+                  // Validación básica: no permitir campos vacíos si existen en el esquema
+                  const missing = studyFields.filter(f => (editValues[f.name] === undefined || editValues[f.name] === null || String(editValues[f.name]).trim() === ''));
+                  if (missing.length > 0) {
+                    setFormError(`Por favor completa: ${missing.map(m => m.label).join(', ')}`);
+                    return;
+                  }
+                  setSaving(true);
+                  try {
+                    // Construir nuevo resultado_data preservando metadatos
+                    const raw = typeof editingResult.resultado_data === 'string'
+                      ? JSON.parse(editingResult.resultado_data as any)
+                      : editingResult.resultado_data;
+                    const updated = {
+                      ...raw,
+                      valores: editValues,
+                    };
+
+                    await updateResultadoConRetry(editingResult.id, updated, 1);
+
+                    // Actualizar tabla local inmediatamente y mantener modal abierto
+                    const updatedResult: GlobalResult = { ...editingResult, resultado_data: updated };
+                    setLocalResults(prev => prev.map(r => r.id === editingResult.id ? updatedResult : r));
+                    setEditingResult(updatedResult);
+                    if (onResultUpdated) onResultUpdated(updatedResult);
+                    toast.success('Resultado actualizado correctamente');
+                  } catch (err: any) {
+                    console.error('Error guardando edición:', err);
+                    toast.error(`Error al guardar cambios: ${err.message}`);
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                disabled={saving}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
+              >
+                {saving ? 'Guardando...' : 'Guardar Cambios'}
+              </button>
+            </footer>
+          </div>
         </div>
       )}
     </div>

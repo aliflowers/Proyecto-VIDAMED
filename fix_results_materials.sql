@@ -136,3 +136,51 @@ COMMENT ON TABLE resultado_materiales IS 'Relación entre resultados médicos y 
 -- 🎯 Columna backup en resultados_pacientes agregada
 
 -- 🚀 Módulo de Resultados listo para implementación completa!
+-- ACTUALIZACIÓN: Corrección de la función RPC para descontar en unidades
+-- Usa COALESCE sobre unidades_totales, y valida con unidades disponibles reales
+CREATE OR REPLACE FUNCTION public.deduct_inventory_materials(materials JSONB)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    material_record JSONB;
+    mat_id INTEGER;
+    used_units INTEGER;
+    available_units INTEGER;
+BEGIN
+    -- Itera cada material del array JSONB
+    FOR material_record IN SELECT * FROM jsonb_array_elements(materials) LOOP
+        mat_id := (material_record->>'id')::INTEGER;
+        used_units := (material_record->>'cantidad_usada')::INTEGER;
+
+        IF mat_id IS NULL OR used_units IS NULL THEN
+            RAISE EXCEPTION 'Parámetros inválidos: id % cantidad_usada %', mat_id, used_units;
+        END IF;
+
+        -- Calcula unidades disponibles reales
+        SELECT COALESCE(unidades_totales, COALESCE(cantidad_stock, 0) * COALESCE(unidades_por_caja, 1))
+        INTO available_units
+        FROM inventario
+        WHERE id = mat_id;
+
+        IF available_units IS NULL THEN
+            RAISE EXCEPTION 'Material ID % no encontrado', mat_id;
+        END IF;
+
+        -- Valida contra unidades disponibles (no cajas)
+        IF available_units < used_units THEN
+            RAISE EXCEPTION 'Stock insuficiente para material ID % (necesario: %, disponible: %)',
+                            mat_id, used_units, available_units;
+        END IF;
+
+        -- Descuenta unidades y actualiza marca temporal
+        UPDATE inventario
+        SET unidades_totales = GREATEST(0, COALESCE(unidades_totales, COALESCE(cantidad_stock, 0) * COALESCE(unidades_por_caja, 1)) - used_units),
+            ultima_actualizacion_stock = NOW()
+        WHERE id = mat_id;
+    END LOOP;
+
+    RETURN TRUE;
+END;
+$$;

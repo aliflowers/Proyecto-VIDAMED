@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Printer, X, BrainCircuit } from 'lucide-react';
 import Logo from '@/components/Logo';
 import InterpretationViewerModal from '@/components/InterpretationViewerModal';
-import { supabase } from '@/services/supabaseClient';
+import { supabasePublic as supabase } from '@/services/supabaseClient';
 
 import { ResultadoPaciente, ResultadoDataManual } from '@/types';
 interface Patient {
@@ -93,6 +93,19 @@ const ResultViewer: React.FC<ResultViewerProps> = ({ patient, result, onClose })
     // Cargar detalles del estudio cuando el modal se abre
     useEffect(() => {
         const loadStudyDetails = async () => {
+            // Si el result viene con study_details pre-cargado (PatientPortal), lo usamos directamente
+            const sd: any = (result as any)?.study_details;
+            if (sd) {
+                const formatted: Study = {
+                    id: sd.id?.toString?.() ?? sd.id ?? '',
+                    name: sd.name ?? sd.nombre ?? '',
+                    campos_formulario: normalizeCamposFormulario(sd.campos_formulario)
+                };
+                setStudyDetails(formatted);
+                setLoadingStudy(false);
+                return;
+            }
+
             if (!result.estudio_id) {
                 console.warn('No estudio_id found in result:', result);
                 setLoadingStudy(false);
@@ -129,7 +142,7 @@ const ResultViewer: React.FC<ResultViewerProps> = ({ patient, result, onClose })
         };
 
         loadStudyDetails();
-    }, [result.estudio_id]);
+    }, [result.estudio_id, (result as any)?.study_details]);
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -222,7 +235,7 @@ const ResultViewer: React.FC<ResultViewerProps> = ({ patient, result, onClose })
                             </div>
                         )}
 
-                        {result.analisis_estado === 'aprobado' && (
+                        {result.analisis_estado === 'aprobado' && !!(result as any)?.analisis_ia && (
                             <div className="mt-8 text-center">
                                 <button 
                                     onClick={() => setIsInterpretationOpen(true)}
@@ -238,7 +251,7 @@ const ResultViewer: React.FC<ResultViewerProps> = ({ patient, result, onClose })
             </div>
             {isInterpretationOpen && (
                 <InterpretationViewerModal
-                    interpretation={result.analisis_estado || result.analisis_ia || ''}
+                    interpretation={(result as any)?.analisis_ia || ''}
                     onClose={() => setIsInterpretationOpen(false)}
                 />
             )}

@@ -53,6 +53,7 @@ const ResultsPage: React.FC = () => {
   const [currentInterpretation, setCurrentInterpretation] = useState<ResultadoPaciente | null>(null);
   const [interpretationLoading, setInterpretationLoading] = useState(false);
   const [interpretationModalOpen, setInterpretationModalOpen] = useState(false);
+  const [interpretationGenerating, setInterpretationGenerating] = useState(false);
 
   // 🎯 Estados para visualización
   const [viewingResult, setViewingResult] = useState<GlobalResult | null>(null);
@@ -371,6 +372,12 @@ const ResultsPage: React.FC = () => {
     }
   };
 
+  // 🔄 Sincronizar UI cuando se edita un resultado desde la tabla
+  const handleResultUpdated = (updated: GlobalResult) => {
+    setAllResults(prev => prev.map(r => r.id === updated.id ? { ...r, resultado_data: updated.resultado_data } : r));
+    setViewingResult(prev => (prev && prev.id === updated.id) ? { ...prev, resultado_data: updated.resultado_data } : prev);
+  };
+
   // 🤖 Análisis IA
   const handleGenerateInterpretation = async (result: GlobalResult) => {
     console.log('▶️ Iniciando handleGenerateInterpretation en ResultsPage para resultado:', result);
@@ -471,6 +478,61 @@ const ResultsPage: React.FC = () => {
       setInterpretationModalOpen(false);
     }
     setInterpretationLoading(false);
+  };
+
+  // 🔁 Re-generar interpretación con IA basándose en valores editados
+  const handleRegenerateInterpretation = async (resultId: number) => {
+    const target = allResults.find(r => r.id === resultId);
+    if (!target) {
+      toast.error('Resultado no encontrado para re-generación.');
+      return;
+    }
+
+    setInterpretationGenerating(true);
+    try {
+      const apiUrl = '/api/interpretar';
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ result_id: target.id }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        try {
+          const data = JSON.parse(text);
+          throw new Error(data.error || 'Error re-generando interpretación con IA.');
+        } catch (e) {
+          throw new Error(`Error ${response.status} al re-generar. Respuesta inválida.`);
+        }
+      }
+
+      const data = await response.json();
+      const { interpretation, success } = data;
+      if (!success || !interpretation) {
+        throw new Error('La IA no devolvió una interpretación válida.');
+      }
+
+      const { error: updateError } = await supabase
+        .from('resultados_pacientes')
+        .update({
+          analisis_ia: interpretation,
+          analisis_estado: 'completado',
+        })
+        .eq('id', target.id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      toast.success('Interpretación re-generada y actualizada.');
+      await fetchAllResults();
+    } catch (error: any) {
+      console.error('❌ Error en re-generación de interpretación:', error);
+      toast.error(`Error re-generando: ${error.message}`);
+    } finally {
+      setInterpretationGenerating(false);
+    }
   };
 
   // Función auxiliar para subida de archivos con paciente
@@ -621,6 +683,7 @@ const ResultsPage: React.FC = () => {
         onGenerateInterpretation={handleGenerateInterpretation}
         isLoading={loading}
         generatingInterpretationId={interpretationLoading ? currentInterpretation?.id : null}
+        onResultUpdated={handleResultUpdated}
       />
 
       {/* 🔄 Modals */}
@@ -693,6 +756,8 @@ const ResultsPage: React.FC = () => {
           onClose={() => setInterpretationModalOpen(false)}
           onUpdateStatus={handleUpdateInterpretationStatus}
           isLoading={interpretationLoading}
+          onRegenerate={handleRegenerateInterpretation}
+          isGenerating={interpretationGenerating}
         />
       )}
 

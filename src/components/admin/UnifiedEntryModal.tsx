@@ -9,6 +9,8 @@ interface InventoryItem {
   nombre: string;
   sku: string;
   cantidad_stock: number;
+  unidades_totales: number;
+  unidades_por_caja: number;
 }
 
 interface SelectedMaterial {
@@ -17,6 +19,7 @@ interface SelectedMaterial {
   sku: string;
   cantidad_usada: number;
   cantidad_stock: number;
+  unidades_totales: number;
 }
 
 interface UnifiedEntryModalProps {
@@ -77,8 +80,8 @@ const UnifiedEntryModal: React.FC<UnifiedEntryModalProps> = ({
   const fetchMaterials = async () => {
     const { data, error } = await supabase
       .from('inventario')
-      .select('id, nombre, sku, cantidad_stock')
-      .gt('cantidad_stock', 0)
+      .select('id, nombre, sku, cantidad_stock, unidades_totales, unidades_por_caja')
+      .gt('unidades_totales', 0)
       .order('nombre');
 
     if (error) {
@@ -139,7 +142,8 @@ const UnifiedEntryModal: React.FC<UnifiedEntryModalProps> = ({
         nombre: material.nombre,
         sku: material.sku,
         cantidad_usada: 1,
-        cantidad_stock: material.cantidad_stock
+        cantidad_stock: material.cantidad_stock,
+        unidades_totales: material.unidades_totales
       };
       setSelectedMaterials([...selectedMaterials, selectedMaterial]);
     }
@@ -356,7 +360,7 @@ const UnifiedEntryModal: React.FC<UnifiedEntryModalProps> = ({
                                   {material.nombre}
                                   {isSelected && <Check size={16} className="ml-2 text-green-600" />}
                                 </div>
-                                <div className="text-sm text-gray-600">SKU: {material.sku || 'N/A'} | Stock: {material.cantidad_stock}</div>
+                                <div className="text-sm text-gray-600">SKU: {material.sku || 'N/A'} | Unidades: {material.unidades_totales} (Cajas: {material.cantidad_stock} x {material.unidades_por_caja || 1})</div>
                               </div>
 
                               {/* Controles de cantidad */}
@@ -379,19 +383,19 @@ const UnifiedEntryModal: React.FC<UnifiedEntryModalProps> = ({
                                     onChange={(e) => {
                                       e.stopPropagation();
                                       const newQuantity = parseInt(e.target.value, 10);
-                                      if (!isNaN(newQuantity) && newQuantity >= 1 && newQuantity <= material.cantidad_stock) {
+                                  if (!isNaN(newQuantity) && newQuantity >= 1 && newQuantity <= material.unidades_totales) {
                                         handleQuantityChange(selectedMaterial.id, newQuantity);
                                       }
                                     }}
                                     className="w-16 px-2 py-1 text-center border rounded text-sm"
                                     min="1"
-                                    max={material.cantidad_stock}
+                                    max={material.unidades_totales}
                                   />
 
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      const newQuantity = Math.min(material.cantidad_stock, selectedMaterial.cantidad_usada + 1);
+                                      const newQuantity = Math.min(material.unidades_totales, selectedMaterial.cantidad_usada + 1);
                                       handleQuantityChange(selectedMaterial.id, newQuantity);
                                     }}
                                     className="p-1 hover:bg-gray-200 rounded"
