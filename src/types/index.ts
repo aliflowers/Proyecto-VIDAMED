@@ -49,6 +49,8 @@ export interface ResultadoDataManual {
     paciente_nombres?: string;
     paciente_apellidos?: string;
     paciente_cedula?: string;
+    // Campo opcional: razón clínica de la solicitud del estudio
+    motivo_estudio?: string;
     fecha_ingreso_manual?: string;
 }
 
@@ -71,6 +73,8 @@ export interface ResultadoPaciente {
     estudio_id: number;
     resultado_data: ResultadoData | Record<string, any>; // Permite compatibilidad con datos antiguos no estructurados
     fecha_creacion: string;
+    // Nuevo campo: razón clínica del estudio (se guarda a nivel de fila)
+    motivo_estudio?: string;
     analisis_ia?: string;
     analisis_estado?: 'pendiente' | 'completado' | 'aprobado' | 'rechazado';
 }

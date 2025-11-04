@@ -53,13 +53,14 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   const [editValues, setEditValues] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [editMotivo, setEditMotivo] = useState<string>(''); // <- NUEVO estado
 
   // Helper: actualizar resultado con reintento si hay error de red
-  const updateResultadoConRetry = async (id: number, updatedData: any, retries = 1): Promise<void> => {
+  const updateResultadoConRetry = async (id: number, updatedData: any, retries = 1, motivoEstudio?: string | null): Promise<void> => {
     try {
       const { error } = await supabase
         .from('resultados_pacientes')
-        .update({ resultado_data: updatedData })
+        .update({ resultado_data: updatedData, motivo_estudio: motivoEstudio ?? null }) // <- NUEVO: actualiza columna
         .eq('id', id);
       if (error) throw error;
     } catch (err: any) {
@@ -67,7 +68,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
       const isNetwork = msg.includes('Failed to fetch') || msg.includes('ERR_CONNECTION_CLOSED');
       if (isNetwork && retries > 0) {
         await new Promise(res => setTimeout(res, 700));
-        return updateResultadoConRetry(id, updatedData, retries - 1);
+        return updateResultadoConRetry(id, updatedData, retries - 1, motivoEstudio);
       }
       throw err;
     }
@@ -294,6 +295,14 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
 
                 <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-center">
                   <div className="flex items-center justify-center space-x-2">
+                    {/* Botón de ver resultado en visor modal (lupa) */}
+                    <button
+                      onClick={() => onViewResult(result)}
+                      className="p-1 text-gray-600 hover:text-gray-900 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
+                      title="Ver resultado"
+                    >
+                      <Search className="h-4 w-4" />
+                    </button>
                     {result.resultado_data?.url && (
                       <button
                         onClick={() => window.open(result.resultado_data.url, '_blank', 'noopener,noreferrer')}
@@ -301,16 +310,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                         title="Ver archivo"
                       >
                         <Eye className="h-4 w-4" />
-                      </button>
-                    )}
-
-                    {result.resultado_data?.tipo === 'manual' && (
-                      <button
-                        onClick={() => onViewResult(result)}
-                        className="p-1 text-purple-600 hover:text-purple-900 border border-purple-200 rounded-md hover:bg-purple-50 transition-colors"
-                        title="Ver resultado manual"
-                      >
-                        <Search className="h-4 w-4" />
                       </button>
                     )}
 
@@ -348,9 +347,12 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                               : result.resultado_data;
                             const valores = raw?.valores && typeof raw.valores === 'object' ? raw.valores : {};
                             setEditValues(valores);
+                            const motivoValue = raw?.motivo_estudio;
+                            setEditMotivo(typeof motivoValue === 'string' ? motivoValue : ''); // <- NUEVO: precargar motivo
                           } catch (e) {
                             console.warn('No se pudieron pre-cargar valores del resultado');
                             setEditValues({});
+                            setEditMotivo(''); // <- NUEVO: reset motivo
                           }
                         }}
                         className="p-1 text-blue-600 hover:text-blue-900 border border-blue-200 rounded-md hover:bg-blue-50 transition-colors"
@@ -431,6 +433,21 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
               {formError && (
                 <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-md">{formError}</div>
               )}
+              {/* NUEVO: Campo Motivo del Estudio */}
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-700 mb-1">Motivo del Estudio</label>
+                <textarea
+                  value={editMotivo}
+                  onChange={(e) => setEditMotivo(e.target.value)}
+                  className="border rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-200"
+                  placeholder="Describe brevemente por qué se realiza este estudio"
+                  rows={3}
+                />
+                <span className="text-xs text-gray-400 mt-1">
+                  Este texto se guardará y se mostrará al interpretar resultados.
+                </span>
+              </div>
+
               {studyFields.length === 0 ? (
                 <p className="text-gray-600 text-sm">Este estudio no tiene campos configurados para edición.</p>
               ) : (
@@ -462,7 +479,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
               <button
                 onClick={async () => {
                   setFormError(null);
-                  // Validación básica: no permitir campos vacíos si existen en el esquema
                   const missing = studyFields.filter(f => (editValues[f.name] === undefined || editValues[f.name] === null || String(editValues[f.name]).trim() === ''));
                   if (missing.length > 0) {
                     setFormError(`Por favor completa: ${missing.map(m => m.label).join(', ')}`);
@@ -477,16 +493,23 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                     const updated = {
                       ...raw,
                       valores: editValues,
+                      motivo_estudio: editMotivo // <- NUEVO: persistir en JSON
                     };
 
-                    await updateResultadoConRetry(editingResult.id, updated, 1);
+                    await updateResultadoConRetry(
+                      editingResult.id,
+                      updated,
+                      1,
+                      editMotivo?.trim() || null // <- NUEVO: persistir en columna
+                    );
 
-                    // Actualizar tabla local inmediatamente y mantener modal abierto
                     const updatedResult: GlobalResult = { ...editingResult, resultado_data: updated };
                     setLocalResults(prev => prev.map(r => r.id === editingResult.id ? updatedResult : r));
                     setEditingResult(updatedResult);
                     if (onResultUpdated) onResultUpdated(updatedResult);
                     toast.success('Resultado actualizado correctamente');
+                    // Cerrar modal tras guardar
+                    setIsEditOpen(false);
                   } catch (err: any) {
                     console.error('Error guardando edición:', err);
                     toast.error(`Error al guardar cambios: ${err.message}`);

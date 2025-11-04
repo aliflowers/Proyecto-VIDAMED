@@ -25,7 +25,7 @@ interface SelectedMaterial {
 interface UnifiedEntryModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCompleteSelection: (patient: Patient, study: SchedulingStudy, materials: SelectedMaterial[]) => void;
+  onCompleteSelection: (patient: Patient, study: SchedulingStudy, materials: SelectedMaterial[], motivoEstudio: string) => void;
   studies: SchedulingStudy[];
 }
 
@@ -44,6 +44,7 @@ const UnifiedEntryModal: React.FC<UnifiedEntryModalProps> = ({
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [selectedStudy, setSelectedStudy] = useState<SchedulingStudy | null>(null);
   const [selectedMaterials, setSelectedMaterials] = useState<SelectedMaterial[]>([]);
+  const [motivoEstudio, setMotivoEstudio] = useState<string>('');
 
   // Estados para listas desplegables
   const [patientOpen, setPatientOpen] = useState(false);
@@ -167,7 +168,7 @@ const UnifiedEntryModal: React.FC<UnifiedEntryModalProps> = ({
     }
 
     console.log('✅ Calling onCompleteSelection...');
-    onCompleteSelection(selectedPatient, selectedStudy, selectedMaterials);
+    onCompleteSelection(selectedPatient, selectedStudy, selectedMaterials, motivoEstudio.trim());
     console.log('✅ onCompleteSelection called, closing modal...');
     onClose();
   };
@@ -415,6 +416,22 @@ const UnifiedEntryModal: React.FC<UnifiedEntryModalProps> = ({
             </div>
           </div>
 
+          {/* Motivo del Estudio */}
+          <div className="mt-6">
+            <label htmlFor="motivo-estudio" className="block text-sm font-medium text-gray-700 mb-1">
+              Motivo del Estudio
+            </label>
+            <textarea
+              id="motivo-estudio"
+              className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Describa brevemente por qué se realiza este estudio"
+              rows={3}
+              value={motivoEstudio}
+              onChange={(e) => setMotivoEstudio(e.target.value)}
+            />
+            <p className="mt-1 text-xs text-gray-500">Este texto se guardará con el resultado y ayudará a la IA a interpretar con mayor precisión.</p>
+          </div>
+
           {/* Summary */}
           {selectedPatient && selectedStudy && selectedMaterials.length > 0 && (
             <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -423,6 +440,9 @@ const UnifiedEntryModal: React.FC<UnifiedEntryModalProps> = ({
                 <div><strong>Paciente:</strong> {selectedPatient.nombres} {selectedPatient.apellidos}</div>
                 <div><strong>Estudio:</strong> {selectedStudy.name}</div>
                 <div><strong>Materiales:</strong> {selectedMaterials.length} seleccionado(s)</div>
+                {motivoEstudio && (
+                  <div><strong>Motivo del Estudio:</strong> {motivoEstudio}</div>
+                )}
               </div>
             </div>
           )}

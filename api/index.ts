@@ -294,7 +294,7 @@ Instrucciones estrictas:
 
     // --- ANÁLISIS DE RESULTADOS MÉDICOS CON IA ---
 
-    function buildMedicalAnalysisPrompt(patientName: string, studyName: string, resultValues: Record<string, any>): string {
+    function buildMedicalAnalysisPrompt(patientName: string, studyName: string, resultValues: Record<string, any>, motivoEstudio?: string): string {
       let valuesContext = '';
       if (Object.keys(resultValues).length > 0) {
         Object.entries(resultValues).forEach(([key, value]) => {
@@ -310,6 +310,7 @@ Eres un analista clínico médico altamente calificado en Venezuela. Tu tarea es
 **CONTEXTO DEL PACIENTE Y ESTUDIO:**
 - **Paciente:** ${patientName}
 - **Estudio Realizado:** ${studyName}
+- **Motivo del Estudio:** ${motivoEstudio && motivoEstudio.trim() ? motivoEstudio : 'No especificado por el paciente'}
 - **Resultados Obtenidos:**
 ${valuesContext}
 
@@ -387,13 +388,18 @@ ${valuesContext}
     const study = Array.isArray(resultData.estudios) ? resultData.estudios[0] : resultData.estudios;
 
     const patientName = `${patient?.nombres || ''} ${patient?.apellidos || ''}`.trim();
-    const resultValues = resultData.resultado_data?.valores || {};
+      let rawData: any = resultData.resultado_data;
+      if (rawData && typeof rawData === 'string') {
+        try { rawData = JSON.parse(rawData); } catch {}
+      }
+      const resultValues = rawData?.valores || {};
+      const motivoEstudio: string | undefined = rawData?.motivo_estudio || undefined;
     const studyName = study?.nombre || 'Estudio no especificado';
     
         console.log('🧬 Construyendo el prompt para Gemini...', { patientName, studyName, resultValues });
     
         // 2. Construir el prompt para la IA
-        const prompt = buildMedicalAnalysisPrompt(patientName, studyName, resultValues);
+        const prompt = buildMedicalAnalysisPrompt(patientName, studyName, resultValues, motivoEstudio);
         console.log('📝 Prompt final construido:', prompt);
     
         // 3. Llamar a la API de Gemini

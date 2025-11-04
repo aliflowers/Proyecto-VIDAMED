@@ -40,6 +40,7 @@ const ResultsPage: React.FC = () => {
   const [manualEntryStudy, setManualEntryStudy] = useState<SchedulingStudy | null>(null);
   const [selectedMaterials, setSelectedMaterials] = useState<any[]>([]);
   const [unifiedModalOpen, setUnifiedModalOpen] = useState(false);
+  const [motivoEstudio, setMotivoEstudio] = useState<string>('');
 
   // 📊 Estados para resultados globales
   const [allResults, setAllResults] = useState<GlobalResult[]>([]);
@@ -199,11 +200,12 @@ const ResultsPage: React.FC = () => {
   };
 
   // ✅ NUEVA FUNCIÓN: Recibir selección completa del modal unificado
-  const handleCompleteSelection = (patient: Patient, study: SchedulingStudy, materials: any[]) => {
+  const handleCompleteSelection = (patient: Patient, study: SchedulingStudy, materials: any[], motivo: string) => {
     console.log('🎉 handleCompleteSelection called from UnifiedEntryModal');
     console.log('Patient:', patient);
     console.log('Study:', study);
     console.log('Materials:', materials);
+    console.log('Motivo Estudio:', motivo);
 
     // Cerrar el modal unificado primero
     setUnifiedModalOpen(false);
@@ -224,6 +226,7 @@ const ResultsPage: React.FC = () => {
     // Asignar estudio y abrir ManualResultForm
     console.log('Setting manualEntryStudy with:', study);
     setManualEntryStudy(study);
+    setMotivoEstudio(motivo || '');
     console.log('✅ handleCompleteSelection completed - ManualResultForm should open now');
   };
 
@@ -301,19 +304,21 @@ const ResultsPage: React.FC = () => {
       const resultadoData: ResultadoDataManual = {
         nombre_estudio: manualEntryStudy.name,
         tipo: 'manual',
-        valores: plainResults, // `results` debe ser mapa plano de pruebas -> valor
+        valores: plainResults,
         materiales_utilizados: selectedMaterials.map(m => ({ id: m.id, nombre: m.nombre, cantidad_usada: m.cantidad_usada })),
         paciente_id: Number(selectedPatient.id),
         paciente_nombres: selectedPatient.nombres,
         paciente_apellidos: selectedPatient.apellidos,
         paciente_cedula: selectedPatient.cedula_identidad,
         fecha_ingreso_manual: new Date().toISOString(),
+        motivo_estudio: motivoEstudio,
       };
 
       const dataToInsert = {
         paciente_id: Number(selectedPatient.id),
         estudio_id: parseInt(manualEntryStudy.id, 10),
         resultado_data: resultadoData,
+        motivo_estudio: motivoEstudio // <- NUEVO: pobla la columna dedicada
       };
 
       const { error: dbError } = await supabase.from('resultados_pacientes').insert([dataToInsert]);
@@ -337,6 +342,7 @@ const ResultsPage: React.FC = () => {
       setManualEntryStudy(null);
       setSelectedMaterials([]);
       setSelectedPatient(null);
+      setMotivoEstudio('');
       fetchAllResults(); // Refresh tabla con nuevo resultado
     } catch (error: any) {
       console.error('❌ Error guardando resultado:', error);

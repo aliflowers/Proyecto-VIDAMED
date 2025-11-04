@@ -170,6 +170,15 @@ const ResultViewer: React.FC<ResultViewerProps> = ({ patient, result, onClose })
                             <p><strong>Teléfono:</strong> {patient.telefono}</p>
                             <p><strong>Email:</strong> {patient.email}</p>
                             <p><strong>Dirección:</strong> {patient.direccion}</p>
+                            {(() => { 
+                                const col = (result as any)?.motivo_estudio;
+                                const md = getManualData();
+                                const json = md?.motivo_estudio;
+                                const motivo = (typeof col === 'string' && col.trim()) ? col.trim() : (typeof json === 'string' ? json.trim() : '');
+                                return motivo ? (
+                                    <p className="col-span-2"><strong>Motivo del Estudio:</strong> {motivo}</p>
+                                ) : null;
+                            })()}
                         </div>
                         <h2 className="text-xl font-bold text-primary text-center my-6">{studyDetails?.name || 'Detalles del Estudio'}</h2>
                         {loadingStudy ? (

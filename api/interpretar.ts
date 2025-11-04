@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { DEFAULT_GEMINI_MODEL } from './config.ts';
 
-function buildMedicalAnalysisPrompt(patientName: string, studyName: string, results: Record<string, any>): string {
+function buildMedicalAnalysisPrompt(patientName: string, studyName: string, results: Record<string, any>, motivoEstudio?: string): string {
   const resultsText = Object.entries(results)
     .map(([key, value]) => `- ${key}: ${value}`)
     .join('\n');
@@ -22,6 +22,7 @@ function buildMedicalAnalysisPrompt(patientName: string, studyName: string, resu
     **Datos del Análisis:**
     - **Paciente:** ${patientName}
     - **Estudio:** ${studyName}
+    - **Motivo del Estudio:** ${motivoEstudio && motivoEstudio.trim() ? motivoEstudio : 'No especificado por el paciente'}
     - **Resultados:**
     ${resultsText}
 
@@ -112,10 +113,15 @@ export default async function interpretarHandler(req: Request, res: Response) {
 
       const patientName = `${patient.nombres} ${patient.apellidos}`.trim();
       const studyName = study.nombre;
-      const resultValues = resultData.resultado_data?.valores || {};
+      let rawData: any = resultData.resultado_data;
+      if (rawData && typeof rawData === 'string') {
+        try { rawData = JSON.parse(rawData); } catch {}
+      }
+      const resultValues = rawData?.valores || {};
+      const motivoEstudio: string | undefined = rawData?.motivo_estudio || undefined;
 
       console.log('🧬 Construyendo el prompt para la IA...');
-      const prompt = buildMedicalAnalysisPrompt(patientName, studyName, resultValues);
+      const prompt = buildMedicalAnalysisPrompt(patientName, studyName, resultValues, motivoEstudio);
       console.log('📝 Prompt generado (primeros 200 caracteres):', prompt.substring(0, 200));
 
       console.log('🤖 Llamando a la API de Gemini...');

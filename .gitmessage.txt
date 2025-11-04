@@ -1,0 +1,22 @@
+﻿feat(portal pacientes y admin): unidades/referencias en viewer, interpretación IA y edición robusta
+
+Portal de Pacientes:
+- ResultViewer prioriza study_details, normaliza campos_formulario y renderiza Unidades y Valores de Referencia.
+- Lecturas públicas con supabasePublic.
+
+Interpretación de Resultados:
+- Botón visible sólo si analisis_estado === 'aprobado' y existe analisis_ia.
+- Modal muestra analisis_ia (antes se pasaba analisis_estado).
+
+Administración - ResultsTable:
+- Helper de reintento (updateResultadoConRetry) ante errores de red: Failed to fetch / ERR_CONNECTION_CLOSED.
+- Mantiene modal abierto, actualiza editingResult y tabla local, invoca onResultUpdated.
+- Ajustada dependencia de ordenamiento a localResults.
+
+Administración - ResultsPage:
+- handleResultUpdated sincroniza allResults y viewingResult tras ediciones.
+- Integrado Regenerar interpretación: estado de carga, actualización en Supabase y refresco de lista.
+- Pasadas nuevas props a InterpretationModal.
+
+Administración - InterpretationModal:
+- Botón Regenerar con spinner; nuevas props isGenerating y onRegenerate; icono RotateCcw.
