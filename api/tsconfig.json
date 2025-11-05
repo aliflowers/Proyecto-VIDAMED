@@ -9,6 +9,14 @@
     "forceConsistentCasingInFileNames": true,
     "outDir": "./dist"
   },
-  "include": ["index.ts", "config.ts"],
+  "include": [
+    "index.ts",
+    "dev.ts",
+    "config.ts",
+    "chat.ts",
+    "interpretar.ts",
+    "notify/**/*.ts",
+    "voice/**/*.ts"
+  ],
   "exclude": ["node_modules"]
 }

@@ -15,6 +15,7 @@
     "noEmit": true,
     "allowJs": true,
     "jsx": "react-jsx",
+    "baseUrl": "./src",
 
     /* Linting */
     "strict": true,

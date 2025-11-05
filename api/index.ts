@@ -5,16 +5,26 @@ import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI, Part, Tool, SchemaType, Content } from '@google/generative-ai';
 import { DEFAULT_GEMINI_MODEL } from './config.js';
 import { nextDay, format, isFuture, parseISO } from 'date-fns';
+import path from 'path';
+import notifyWhatsappHandler from './notify/whatsapp.js';
+import notifyEmailHandler from './notify/email.js';
 
 async function startServer() {
-    dotenv.config();
+    // Forzar la carga del archivo .env desde la raíz del proyecto
+    dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-    const geminiApiKey = process.env.GEMINI_API_KEY;
+    // Usar directamente la variable correcta de ese archivo
+    const geminiApiKey = process.env.VITE_GEMINI_API_KEY;
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!geminiApiKey || !supabaseUrl || !supabaseServiceKey) {
-        console.error("Error: Faltan variables de entorno críticas.");
+        const missing = [
+            !geminiApiKey ? 'VITE_GEMINI_API_KEY' : null,
+            !supabaseUrl ? 'SUPABASE_URL' : null,
+            !supabaseServiceKey ? 'SUPABASE_SERVICE_ROLE_KEY' : null,
+        ].filter(Boolean);
+        console.error(`Error: Faltan variables de entorno críticas en el archivo .env de la raíz: ${missing.join(', ')}`);
         process.exit(1);
     }
 
@@ -284,6 +294,156 @@ Instrucciones estrictas:
       }
     });
 
+    // --- ANÁLISIS DE RESULTADOS MÉDICOS CON IA ---
+
+    function buildMedicalAnalysisPrompt(patientName: string, studyName: string, resultValues: Record<string, any>, motivoEstudio?: string): string {
+      let valuesContext = '';
+      if (Object.keys(resultValues).length > 0) {
+        Object.entries(resultValues).forEach(([key, value]) => {
+          valuesContext += `- ${key}: ${value}\n`;
+        });
+      } else {
+        valuesContext = 'Valores no disponibles o no aplicables para este estudio.\n';
+      }
+    
+      const medicalAnalysisPrompt = `
+Eres un analista clínico médico altamente calificado en Venezuela. Tu tarea es interpretar los siguientes resultados de laboratorio de manera profesional y clara.
+
+**CONTEXTO DEL PACIENTE Y ESTUDIO:**
+- **Paciente:** ${patientName}
+- **Estudio Realizado:** ${studyName}
+- **Motivo del Estudio:** ${motivoEstudio && motivoEstudio.trim() ? motivoEstudio : 'No especificado por el paciente'}
+- **Resultados Obtenidos:**
+${valuesContext}
+
+**INSTRUCCIONES PARA TU ANÁLISIS:**
+1.  **Rol y Tono:** Actúa como un médico especialista en análisis de laboratorio. El tono debe ser profesional, informativo y tranquilizador, adecuado tanto para un colega médico como para el paciente.
+2.  **Análisis Detallado:**
+    *   Identifica y lista cualquier valor que esté fuera del rango de referencia normal.
+    *   Para cada valor anormal, explica su posible significado clínico.
+    *   Si todos los valores son normales, indícalo claramente y confirma que los resultados están dentro de lo esperado.
+3.  **Correlación Clínica:** Basado en los hallazgos, proporciona una posible correlación clínica o un diagnóstico diferencial. Menciona qué sistemas del cuerpo o condiciones podrían estar relacionados con los resultados.
+4.  **Recomendaciones:** Ofrece recomendaciones claras y concisas. Esto podría incluir:
+    *   Sugerir la consulta con un médico especialista (p. ej., hematólogo, endocrinólogo).
+    *   Recomendar estudios de seguimiento si es necesario.
+    *   Consejos de estilo de vida si son pertinentes.
+5.  **Formato de Salida:** Estructura la respuesta con las siguientes secciones en formato Markdown:
+    *   **### Interpretación de Resultados**
+    *   **### Hallazgos Clave**
+    *   **### Posible Correlación Clínica**
+    *   **### Recomendaciones**
+    *   **### Nota Aclaratoria** (Incluye un descargo de responsabilidad indicando que este es un análisis preliminar y no reemplaza una consulta médica formal).
+
+**IMPORTANTE:** No inventes información. Basa tu análisis únicamente en los datos proporcionados. Sé preciso y evita la especulación excesiva.
+`;
+      return medicalAnalysisPrompt;
+    }
+
+
+    app.post('/api/interpretar', async (req, res) => {
+      console.log('\n--- NUEVA SOLICITUD A /api/interpretar ---');
+      console.log('🕜 Timestamp:', new Date().toISOString());
+      console.log('📦 Cuerpo de la solicitud (req.body):', req.body);
+    
+      const { result_id } = req.body;
+    
+      if (!result_id) {
+        console.error('❌ Error: result_id no fue proporcionado en la solicitud.');
+        return res.status(400).json({ error: 'El ID del resultado es requerido.' });
+      }
+    
+      console.log(`🆔 Procesando result_id: ${result_id}`);
+    
+      try {
+        // 1. Obtener el resultado médico de Supabase
+        console.log(`🔍 Buscando resultado en Supabase con id: ${result_id}`);
+        const { data: resultData, error: resultError } = await supabaseAdmin
+          .from('resultados_pacientes')
+          .select(`
+            id,
+            resultado_data,
+            pacientes (
+              nombres,
+              apellidos
+            ),
+            estudios (
+              nombre
+            )
+          `)
+          .eq('id', result_id)
+          .single();
+    
+        if (resultError) {
+          console.error('❌ Error al consultar Supabase:', resultError);
+          return res.status(500).json({ error: 'Error al consultar la base de datos.', details: resultError.message });
+        }
+    
+        if (!resultData) {
+          console.warn(`⚠️ No se encontró ningún resultado con id: ${result_id}`);
+          return res.status(404).json({ error: 'Resultado médico no encontrado.' });
+        }
+    
+        console.log('✅ Resultado encontrado en Supabase:', resultData);
+
+    // Manejar el caso de que las relaciones devuelvan un array
+    const patient = Array.isArray(resultData.pacientes) ? resultData.pacientes[0] : resultData.pacientes;
+    const study = Array.isArray(resultData.estudios) ? resultData.estudios[0] : resultData.estudios;
+
+    const patientName = `${patient?.nombres || ''} ${patient?.apellidos || ''}`.trim();
+      let rawData: any = resultData.resultado_data;
+      if (rawData && typeof rawData === 'string') {
+        try { rawData = JSON.parse(rawData); } catch {}
+      }
+      const resultValues = rawData?.valores || {};
+      const motivoEstudio: string | undefined = rawData?.motivo_estudio || undefined;
+    const studyName = study?.nombre || 'Estudio no especificado';
+    
+        console.log('🧬 Construyendo el prompt para Gemini...', { patientName, studyName, resultValues });
+    
+        // 2. Construir el prompt para la IA
+        const prompt = buildMedicalAnalysisPrompt(patientName, studyName, resultValues, motivoEstudio);
+        console.log('📝 Prompt final construido:', prompt);
+    
+        // 3. Llamar a la API de Gemini
+        console.log('🤖 Llamando a la API de Gemini...');
+        const model = genAI.getGenerativeModel({ model: DEFAULT_GEMINI_MODEL });
+        const generationResult = await model.generateContent(prompt);
+        const response = await generationResult.response;
+        const interpretation = await response.text();
+    
+        console.log('✅ Respuesta recibida de Gemini:', interpretation);
+    
+        // 4. Enviar la interpretación como respuesta
+        console.log('✔️ Enviando respuesta exitosa al cliente.');
+        res.json({ success: true, interpretation });
+    
+      } catch (error) {
+        console.error('💥 Ocurrió un error catastrófico en /api/interpretar:', error);
+        res.status(500).json({ error: 'Ocurrió un error interno en el servidor.', details: error instanceof Error ? error.message : String(error) });
+      }
+    });
+
+    // Notificaciones: WhatsApp
+    app.post('/api/notify/whatsapp', async (req: Request, res: Response) => {
+      try {
+        await (notifyWhatsappHandler as any)(req, res);
+      } catch (err) {
+        console.error('[api] Uncaught error en /api/notify/whatsapp:', err);
+        if (!res.headersSent) res.status(500).json({ ok: false, error: 'Error interno en /api/notify/whatsapp' });
+      }
+    });
+
+    // Notificaciones: Email
+    app.post('/api/notify/email', async (req: Request, res: Response) => {
+      try {
+        await (notifyEmailHandler as any)(req, res);
+      } catch (err) {
+        console.error('[api] Uncaught error en /api/notify/email:', err);
+        if (!res.headersSent) res.status(500).json({ ok: false, error: 'Error interno en /api/notify/email' });
+      }
+    });
+
+    const PORT = process.env.PORT || 3001;
     app.listen(port, () => {
       console.log(`Servidor escuchando en el puerto ${port}`);
       console.log(`[IA] Modelo Gemini activo: ${DEFAULT_GEMINI_MODEL}`);

@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => {
     define: {},
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(__dirname, './src'),
         '@google/genai': path.resolve(__dirname, './node_modules/@google/genai'),
       },
     },
@@ -51,21 +51,20 @@ export default defineConfig(({ mode }) => {
             }
           ],
         },
+        workbox: {
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB
+        },
       }),
     ],
-    server: isDev
-      ? {
-          host: true,
-          proxy: {
-            '/api': {
-              target: 'http://127.0.0.1:3001',
-              changeOrigin: true,
-            },
-          },
-        }
-      : {
-          host: true,
+    server: {
+      host: true,
+      proxy: {
+        '/api': {
+          target: 'http://127.0.0.1:3001',
+          changeOrigin: true,
         },
+      },
+    },
     preview: {
       host: true,
       port: 4173, // Puedes especificar un puerto si quieres

@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback } from 'react';
-import { supabase } from '../services/supabaseClient';
+import { supabase } from '@/services/supabaseClient';
 
 interface StatisticsData {
     patientCount: number;

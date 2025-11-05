@@ -1,21 +1,23 @@
-import express from 'express';
-import type { Request, Response } from 'express';
-import { fileURLToPath } from 'url';
-import path from 'path';
 import dotenv from 'dotenv';
-import cors from 'cors';
-import chatHandler from './chat.ts';
-import tokenHandler from './voice/token.ts';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { DEFAULT_GEMINI_MODEL } from './config.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-// Load root .env (one level up from /api)
-// Load envs from root .env and also api/.env (api/.env will NOT override existing keys)
+// Carga las variables de entorno desde el archivo .env en la raíz del proyecto.
+// Esto debe hacerse ANTES de importar otros módulos que las necesiten.
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
- // Load optional local .env inside /api to allow backend-only secrets in dev
- dotenv.config({ path: path.resolve(__dirname, '.env') });
+
+import express from 'express';
+import type { Request, Response } from 'express';
+import cors from 'cors';
+import chatHandler from './chat.ts';
+import tokenHandler from './voice/token.ts';
+import interpretarHandler from './interpretar.ts'; // Importar el nuevo manejador
+import notifyWhatsappHandler from './notify/whatsapp.ts';
+import notifyEmailHandler from './notify/email.ts';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { DEFAULT_GEMINI_MODEL } from './config.ts';
 
 // Dev server to run API routes locally without Vercel CLI.
 // It mirrors the Vercel routes so Vite proxy (/api -> http://localhost:3000) works.
@@ -51,6 +53,35 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     await (chatHandler as any)(req, res);
   } catch (err) {
     console.error('[dev-api] Uncaught error in /api/chat:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Internal error in dev API. Check server logs.' });
+  }
+});
+
+// Registrar la nueva ruta de interpretación
+app.post('/api/interpretar', async (req: Request, res: Response) => {
+  try {
+    await (interpretarHandler as any)(req, res);
+  } catch (err) {
+    console.error('[dev-api] Uncaught error in /api/interpretar:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Internal error in dev API. Check server logs.' });
+  }
+});
+
+// Notificaciones (dev mirror)
+app.post('/api/notify/whatsapp', async (req: Request, res: Response) => {
+  try {
+    await (notifyWhatsappHandler as any)(req, res);
+  } catch (err) {
+    console.error('[dev-api] Uncaught error in /api/notify/whatsapp:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Internal error in dev API. Check server logs.' });
+  }
+});
+
+app.post('/api/notify/email', async (req: Request, res: Response) => {
+  try {
+    await (notifyEmailHandler as any)(req, res);
+  } catch (err) {
+    console.error('[dev-api] Uncaught error in /api/notify/email:', err);
     if (!res.headersSent) res.status(500).json({ error: 'Internal error in dev API. Check server logs.' });
   }
 });
