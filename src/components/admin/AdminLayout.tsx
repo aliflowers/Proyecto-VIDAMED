@@ -4,6 +4,7 @@ import { supabase } from '@/services/supabaseClient';
 import { LayoutDashboard, FlaskConical, Newspaper, MessageSquare, Calendar, Users, BarChart2, Settings, LogOut, Package, Menu, FileText } from 'lucide-react';
 import Logo from '@/components/Logo';
 import { StatisticsProvider } from '@/context/StatisticsContext';
+import { ToastContainer } from 'react-toastify';
 
 const AdminLayout: React.FC = () => {
     const navigate = useNavigate();
@@ -111,6 +112,8 @@ const AdminLayout: React.FC = () => {
                     <StatisticsProvider>
                         <Outlet />
                     </StatisticsProvider>
+                    {/* Contenedor de notificaciones para el panel admin */}
+                    <ToastContainer position="top-right" autoClose={4000} newestOnTop closeOnClick pauseOnHover />
                 </div>
             </main>
         </div>

@@ -24,8 +24,8 @@ Este documento guía los pasos a implementar para que todos los servicios funcio
   - En modo development: proxy `'/api'` → `http://localhost:3000` (vercel dev).
   - Remover/condicionar HMR wss de ngrok para evitar conflictos.
 - [ ] Corregir components/VoiceChat.tsx:
-  - Usar `import.meta.env.VITE_ELEVENLABS_AGENT_ID` en lugar de `process.env`.
-  - Llamar a `/api/voice/token` y pasar `conversationToken` a `startSession({ connectionType: 'webrtc' })`.
+  - No usar `VITE_ELEVENLABS_AGENT_ID` en el cliente; mantener `ELEVENLABS_AGENT_ID` privado en backend.
+  - Obtener `conversationToken` desde `/api/voice/token` y pasar a `startSession({ connectionType: 'webrtc' })`.
 
 3) Supabase Edge Functions (plantillas)
 - [ ] Crear funciones:
@@ -45,7 +45,7 @@ Este documento guía los pasos a implementar para que todos los servicios funcio
 Frontend (.env):
 - `VITE_SUPABASE_URL=...`
 - `VITE_SUPABASE_ANON_KEY=...`
-- `VITE_ELEVENLABS_AGENT_ID=...` (si el agente es público; si privado, se usa `/api/voice/token`)
+- (No declares variables de ElevenLabs en el cliente; usa `/api/voice/token`)
 
 Vercel dev (crear `.env` o configurar con `vercel env`):
 - `GEMINI_API_KEY=...`

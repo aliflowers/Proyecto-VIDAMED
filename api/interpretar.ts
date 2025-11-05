@@ -34,12 +34,12 @@ export default async function interpretarHandler(req: Request, res: Response) {
     console.log('⚡️ Recibida una nueva solicitud en /api/interpretar (manejador dedicado)');
     try {
       // --- Inicialización y validación de variables de entorno --- 
-      const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-      const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE || process.env.VITE_SUPABASE_SERVICE_ROLE;
-      const geminiApiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+      const supabaseUrl = process.env.SUPABASE_URL;
+      const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE || process.env.PRIVATE_SUPABASE_SERVICE_ROLE_KEY;
+      const geminiApiKey = process.env.GEMINI_API_KEY;
 
       if (!supabaseUrl || !supabaseServiceRoleKey || !geminiApiKey) {
-        console.error('INTERPRETAR_HANDLER: Faltan variables de entorno críticas. Se requieren SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY y GEMINI_API_KEY (con fallback VITE_* en desarrollo).');
+        console.error('INTERPRETAR_HANDLER: Faltan variables de entorno críticas. Se requieren SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY y GEMINI_API_KEY.');
         return res.status(500).json({ error: 'El servidor no tiene configuradas las variables de entorno necesarias.' });
       }
 

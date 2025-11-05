@@ -106,7 +106,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
         if (code === 'NO_EMAIL') {
           toast.error('Este paciente no tiene email registrado.');
         } else if (code === 'INTERPRETATION_NOT_APPROVED') {
-          toast.info('La interpretación IA no está aprobada. Apruébala antes de enviar.');
+          toast.error('No se envió: falta análisis/interpretación IA aprobada.');
         } else if (code === 'ENV_MISSING') {
           toast.error('Configuración SMTP incompleta (host/port/user/pass).');
         } else if (data?.message) {

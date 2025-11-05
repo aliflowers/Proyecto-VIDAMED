@@ -14,13 +14,11 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    const ELEVENLABS_API_KEY =
-      process.env.ELEVENLABS_API_KEY || process.env.VITE_ELEVENLABS_API_KEY;
-    const DEFAULT_AGENT_ID =
-      process.env.ELEVENLABS_AGENT_ID || process.env.VITE_ELEVENLABS_AGENT_ID;
+    const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+    const DEFAULT_AGENT_ID = process.env.ELEVENLABS_AGENT_ID;
 
     if (!ELEVENLABS_API_KEY) {
-      res.status(500).json({ error: 'Falta ELEVENLABS_API_KEY (o VITE_ELEVENLABS_API_KEY) en el entorno del servidor' });
+      res.status(500).json({ error: 'Falta ELEVENLABS_API_KEY en el entorno del servidor' });
       return;
     }
 
@@ -31,7 +29,7 @@ export default async function handler(req: any, res: any) {
       DEFAULT_AGENT_ID;
 
     if (!agentId) {
-      res.status(400).json({ error: 'Falta agentId (configure ELEVENLABS_AGENT_ID o VITE_ELEVENLABS_AGENT_ID, o páselo por query ?agentId=)' });
+      res.status(400).json({ error: 'Falta agentId (configure ELEVENLABS_AGENT_ID o páselo por query ?agentId=)' });
       return;
     }
 

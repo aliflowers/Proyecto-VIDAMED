@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import { createClient } from '@supabase/supabase-js';
 
 function getEnv(name: string): string | undefined {
-  return process.env[name] || process.env[`VITE_${name}`] || process.env[`PRIVATE_${name}`];
+  return process.env[name] || process.env[`PRIVATE_${name}`];
 }
 
 export default async function notifyWhatsappHandler(req: Request, res: Response) {

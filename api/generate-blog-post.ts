@@ -6,9 +6,8 @@ import { DEFAULT_GEMINI_MODEL } from './config.js';
  * Vercel Serverless Function: /api/generate-blog-post
  * Genera contenido de blog usando Gemini y devuelve un objeto JSON estructurado.
  *
- * Env requeridas (producción/dev):
- * - GEMINI_API_KEY (preferido en producción)
- * - VITE_GEMINI_API_KEY (solo fallback para desarrollo)
+ * Env requeridas (backend en Vercel):
+ * - GEMINI_API_KEY
  */
 export default async function handler(req: Request, res: Response) {
   try {
@@ -16,9 +15,9 @@ export default async function handler(req: Request, res: Response) {
       return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return res.status(500).json({ error: 'Falta GEMINI_API_KEY (o VITE_GEMINI_API_KEY) en entorno del servidor.' });
+      return res.status(500).json({ error: 'Falta GEMINI_API_KEY en entorno del servidor.' });
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);

@@ -13,14 +13,14 @@ async function startServer() {
     // Forzar la carga del archivo .env desde la raíz del proyecto
     dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-    // Usar directamente la variable correcta de ese archivo
-    const geminiApiKey = process.env.VITE_GEMINI_API_KEY;
+    // Usar directamente las variables privadas del entorno
+    const geminiApiKey = process.env.GEMINI_API_KEY;
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!geminiApiKey || !supabaseUrl || !supabaseServiceKey) {
         const missing = [
-            !geminiApiKey ? 'VITE_GEMINI_API_KEY' : null,
+            !geminiApiKey ? 'GEMINI_API_KEY' : null,
             !supabaseUrl ? 'SUPABASE_URL' : null,
             !supabaseServiceKey ? 'SUPABASE_SERVICE_ROLE_KEY' : null,
         ].filter(Boolean);

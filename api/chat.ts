@@ -19,11 +19,9 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    // Variables de entorno requeridas (con fallbacks VITE_ en dev)
-    const GEMINI_API_KEY =
-      process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
-    const SUPABASE_URL =
-      process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    // Variables de entorno requeridas (solo privadas en backend)
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+    const SUPABASE_URL = process.env.SUPABASE_URL;
     const SUPABASE_SERVICE_ROLE_KEY =
       process.env.SUPABASE_SERVICE_ROLE_KEY ||
       process.env.SUPABASE_SERVICE_ROLE ||
@@ -31,8 +29,8 @@ export default async function handler(req: any, res: any) {
 
     if (!GEMINI_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       const missing = [
-        !GEMINI_API_KEY ? 'GEMINI_API_KEY (o VITE_GEMINI_API_KEY)' : null,
-        !SUPABASE_URL ? 'SUPABASE_URL (o VITE_SUPABASE_URL)' : null,
+        !GEMINI_API_KEY ? 'GEMINI_API_KEY' : null,
+        !SUPABASE_URL ? 'SUPABASE_URL' : null,
         !SUPABASE_SERVICE_ROLE_KEY ? 'SUPABASE_SERVICE_ROLE_KEY (o SUPABASE_SERVICE_ROLE o PRIVATE_SUPABASE_SERVICE_ROLE_KEY)' : null,
       ].filter(Boolean);
       res.status(500).json({ error: `Faltan variables de entorno requeridas: ${missing.join(', ')}` });
