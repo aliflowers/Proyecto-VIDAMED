@@ -11,13 +11,13 @@ dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 import express from 'express';
 import type { Request, Response } from 'express';
 import cors from 'cors';
-import chatHandler from './chat.ts';
-import tokenHandler from './voice/token.ts';
-import interpretarHandler from './interpretar.ts'; // Importar el nuevo manejador
-import notifyWhatsappHandler from './notify/whatsapp.ts';
-import notifyEmailHandler from './notify/email.ts';
+import chatHandler from './chat.js';
+import tokenHandler from './voice/token.js';
+import interpretarHandler from './interpretar.js'; // Importar el nuevo manejador
+import notifyWhatsappHandler from './notify/whatsapp.js';
+import notifyEmailHandler from './notify/email.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { DEFAULT_GEMINI_MODEL } from './config.ts';
+import { DEFAULT_GEMINI_MODEL } from './config.js';
 
 // Dev server to run API routes locally without Vercel CLI.
 // It mirrors the Vercel routes so Vite proxy (/api -> http://localhost:3000) works.

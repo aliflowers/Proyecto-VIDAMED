@@ -14,6 +14,7 @@
     "dev.ts",
     "config.ts",
     "chat.ts",
+    "generate-blog-post.ts",
     "interpretar.ts",
     "notify/**/*.ts",
     "voice/**/*.ts"

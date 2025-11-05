@@ -11,6 +11,7 @@ Este documento describe cómo desplegar el proyecto de VidaMed como una solució
   - `POST /api/chat` → `api/chat.ts`
   - `GET /api/voice/token` → `api/voice/token.ts`
   - `POST /api/interpretar` → `api/interpretar.ts`
+  - `POST /api/generate-blog-post` → `api/generate-blog-post.ts`
 
 Estos archivos exportan una función por defecto `(req, res)` compatible con el modelo de funciones de Vercel (Node.js). En producción, ya no se levanta un servidor Express completo; cada endpoint se ejecuta de forma aislada.
 
@@ -62,7 +63,7 @@ Notas:
        }
      }
      ```
-   - El archivo actual `vercel.json` ya permite las rutas `/api/*`; puedes ampliar con la clave `functions` si lo deseas.
+   - El archivo actual `vercel.json` fija runtime Node 20, memoria y maxDuration para `api/**/*.ts` y añade headers de caché para activos estáticos.
 5) Deploy: `vercel` o botón de Deploy en el dashboard.
 
 ## Desarrollo local
@@ -70,6 +71,9 @@ Notas:
 - Backend (modo server local): `npm run dev` dentro de `api` para pruebas con Express. 
 - Alternativa serverless local: `vercel dev` en la raíz para simular funciones `/api/*`. 
   - Recomendado para validar comportamientos específicos de serverless.
+
+### Nota sobre imports ESM (NodeNext)
+Con `moduleResolution: NodeNext`, los imports relativos en TypeScript deben incluir la extensión `.js` (p.ej. `import x from './mod.js'`). Se ha normalizado el código a esta convención para evitar errores TS2835.
 
 ## Migración desde Express a Serverless
 - Estado actual:
@@ -118,6 +122,37 @@ Notas:
 - TS7016 (faltan definiciones de tipos): faltaban tipos → Instalados `@types/nodemailer` y `@types/pdfkit`.
 - TS7006 (parámetros `any` en eventos de `pdfkit`): con `strict` activo hay que tipar → se tipó `chunk: Buffer` y `err: Error` en `notify/email.ts`.
 
+## Checklist de Producción (Previo al Deploy)
+- Variables en Vercel configuradas: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, `ELEVENLABS_*`, `WHATSAPP_*`, `SMTP_*`, `EMAIL_FROM`.
+- `vercel.json` presente con `functions` para Node 20 y headers de caché.
+- Backend compila en `api`: `cd api && npm run build` sin errores.
+- Frontend compila en raíz: `npm run build` sin errores.
+- Pruebas manuales mínimas con `vercel dev` o `test-endpoint.js` hacia `/api/*`.
+- Supabase: tablas y RPCs requeridos (`search_studies`, etc.) funcionales.
+
+## Configuración aplicada (referencia rápida)
+`vercel.json` incluye:
+```json
+{
+  "functions": {
+    "api/**/*.ts": {
+      "runtime": "nodejs20.x",
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/:path*" }
+  ],
+  "headers": [
+    { "source": "/assets/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] },
+    { "source": "/manifest.webmanifest", "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }] },
+    { "source": "/favicon.ico", "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }] }
+  ]
+}
+```
+
 ---
 
 Si quieres, puedo ampliar `vercel.json` con `functions` (Node 20, memoria y duración) y añadir una sección de *checklist* previa al deploy (validación de variables, endpoints activos, salud de Supabase y SMTP/WhatsApp). No se aplican cambios de configuración sin tu confirmación.
+- Generador de Blog: `POST /api/generate-blog-post` con `{ topic, postType, tone, targetAudience, categories }`. Devuelve `{ titulo_articulo, resumen, contenido_html (Markdown), meta_titulo, meta_descripcion, keywords }`.

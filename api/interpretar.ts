@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { DEFAULT_GEMINI_MODEL } from './config.ts';
+import { DEFAULT_GEMINI_MODEL } from './config.js';
 
 function buildMedicalAnalysisPrompt(patientName: string, studyName: string, results: Record<string, any>, motivoEstudio?: string): string {
   const resultsText = Object.entries(results)
@@ -34,12 +34,12 @@ export default async function interpretarHandler(req: Request, res: Response) {
     console.log('⚡️ Recibida una nueva solicitud en /api/interpretar (manejador dedicado)');
     try {
       // --- Inicialización y validación de variables de entorno --- 
-      const supabaseUrl = process.env.VITE_SUPABASE_URL;
-      const supabaseServiceRoleKey = process.env.VITE_SUPABASE_SERVICE_ROLE; // Corregido para coincidir con el .env
-      const geminiApiKey = process.env.VITE_GEMINI_API_KEY;
+      const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+      const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE || process.env.VITE_SUPABASE_SERVICE_ROLE;
+      const geminiApiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
 
       if (!supabaseUrl || !supabaseServiceRoleKey || !geminiApiKey) {
-        console.error('INTERPRETAR_HANDLER: Faltan variables de entorno críticas. Asegúrate de que VITE_SUPABASE_URL, VITE_SUPABASE_SERVICE_ROLE y VITE_GEMINI_API_KEY estén definidas en el archivo .env en la raíz del proyecto.');
+        console.error('INTERPRETAR_HANDLER: Faltan variables de entorno críticas. Se requieren SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY y GEMINI_API_KEY (con fallback VITE_* en desarrollo).');
         return res.status(500).json({ error: 'El servidor no tiene configuradas las variables de entorno necesarias.' });
       }
 

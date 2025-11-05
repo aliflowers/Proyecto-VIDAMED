@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI, type Content, type Part, SchemaType, type Tool } from '@google/generative-ai';
-import { DEFAULT_GEMINI_MODEL } from './config.ts';
+import { DEFAULT_GEMINI_MODEL } from './config.js';
 import { createClient } from '@supabase/supabase-js';
 import { nextDay, format, isFuture, parseISO, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 
