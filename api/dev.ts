@@ -19,6 +19,20 @@ import notifyEmailHandler from './notify/email.js';
 import { sendAppointmentConfirmationEmail } from './notify/appointment-email.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { DEFAULT_GEMINI_MODEL } from './config.js';
+import { createClient } from '@supabase/supabase-js';
+
+// Configuración Supabase admin (para consultar y bloquear horarios)
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_SERVICE_ROLE ||
+  process.env.PRIVATE_SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.VITE_SUPABASE_SERVICE_ROLE;
+const supabaseAdmin =
+  SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+    ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    : null;
 
 // Dev server to run API routes locally without Vercel CLI.
 // It mirrors the Vercel routes so Vite proxy (/api -> http://localhost:3000) works.
@@ -161,6 +175,135 @@ app.get('/api/diag', (_req: Request, res: Response) => {
       ELEVENLABS_AGENT_ID: hasElevenAgent,
     },
   });
+});
+
+// --- Disponibilidad de horarios ---
+const WORK_START = '07:00';
+const WORK_END = '17:00';
+const STEP_MINUTES = 30;
+
+function generateDailySlots(start = WORK_START, end = WORK_END, stepMinutes = STEP_MINUTES): string[] {
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  const slots: string[] = [];
+  let totalStart = sh * 60 + sm;
+  const totalEnd = eh * 60 + em;
+  while (totalStart <= totalEnd) {
+    const h = Math.floor(totalStart / 60).toString().padStart(2, '0');
+    const m = (totalStart % 60).toString().padStart(2, '0');
+    slots.push(`${h}:${m}`);
+    totalStart += stepMinutes;
+  }
+  return slots;
+}
+
+async function getBookedTimesForDate(date: string, location?: string): Promise<Set<string>> {
+  if (!supabaseAdmin) return new Set();
+  // Usar rango de fecha en zona -04:00 para evitar LIKE sobre timestamp
+  const dayStart = `${date}T00:00:00-04:00`;
+  const dayEnd = `${date}T23:59:59-04:00`;
+  let query = supabaseAdmin
+    .from('citas')
+    .select('fecha_cita, ubicacion')
+    .gte('fecha_cita', dayStart)
+    .lte('fecha_cita', dayEnd);
+  if (location) {
+    query = query.eq('ubicacion', location);
+  }
+  const { data, error } = await query;
+  if (error) throw error;
+  const set = new Set<string>();
+  (data || []).forEach((r: any) => {
+    const d = new Date(r.fecha_cita);
+    const hh = d.getHours().toString().padStart(2, '0');
+    const mm = d.getMinutes().toString().padStart(2, '0');
+    set.add(`${hh}:${mm}`);
+  });
+  return set;
+}
+
+// GET /api/availability/slots?date=YYYY-MM-DD&location=...
+app.get('/api/availability/slots', async (req: Request, res: Response) => {
+  try {
+    if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
+    const date = String(req.query.date || '').trim();
+    const location = String(req.query.location || 'Sede Principal Maracay');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: 'Fecha inválida. Formato YYYY-MM-DD.' });
+    }
+
+    // Bloqueo total del día
+    const { data: blockedDay, error: dayErr } = await supabaseAdmin
+      .from('dias_no_disponibles')
+      .select('fecha')
+      .eq('fecha', date);
+    if (dayErr) throw dayErr;
+    const isDayBlocked = (blockedDay || []).length > 0;
+
+    const allSlots = generateDailySlots();
+
+    // Bloques administrativos por franja
+    const { data: blockedSlots, error: slotErr } = await supabaseAdmin
+      .from('horarios_no_disponibles')
+      .select('hora, ubicacion')
+      .eq('fecha', date)
+      .eq('ubicacion', location);
+    if (slotErr) throw slotErr;
+    const blockedSlotSet = new Set<string>((blockedSlots || []).map((r: any) => String(r.hora).slice(0,5)));
+
+    // Citas ocupadas
+    const bookedSet = await getBookedTimesForDate(date, location);
+
+    const unavailableSet = new Set<string>([...blockedSlotSet, ...bookedSet]);
+    const available = isDayBlocked ? [] : allSlots.filter(s => !unavailableSet.has(s));
+    res.status(200).json({ date, location, isDayBlocked, available, unavailable: Array.from(unavailableSet) });
+  } catch (e: any) {
+    console.error('[dev-api] Error en /api/availability/slots:', e);
+    res.status(500).json({ error: e.message || 'Error interno' });
+  }
+});
+
+// POST /api/availability/block { date, slot, location, motivo? }
+app.post('/api/availability/block', async (req: Request, res: Response) => {
+  try {
+    if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
+    const { date, slot, location, motivo } = req.body || {};
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) return res.status(400).json({ error: 'Fecha inválida' });
+    if (!slot || !/^\d{2}:\d{2}$/.test(String(slot))) return res.status(400).json({ error: 'Hora inválida (HH:mm)' });
+    const loc = String(location || 'Sede Principal Maracay');
+
+    const { error } = await (supabaseAdmin as any)
+      .from('horarios_no_disponibles')
+      .insert({ fecha: date, hora: slot, ubicacion: loc, motivo: motivo || null });
+    if (error) throw error;
+    res.status(200).json({ ok: true });
+  } catch (e: any) {
+    console.error('[dev-api] Error en /api/availability/block:', e);
+    res.status(500).json({ ok: false, error: e.message || 'Error interno' });
+  }
+});
+
+// DELETE /api/availability/block { date, slot, location }
+app.delete('/api/availability/block', async (req: Request, res: Response) => {
+  try {
+    if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
+    const { date, slot, location } = req.body || {};
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) return res.status(400).json({ error: 'Fecha inválida' });
+    if (!slot || !/^\d{2}:\d{2}$/.test(String(slot))) return res.status(400).json({ error: 'Hora inválida (HH:mm)' });
+    const loc = String(location || 'Sede Principal Maracay');
+
+    const { error } = await (supabaseAdmin as any)
+      .from('horarios_no_disponibles')
+      .delete()
+      .eq('fecha', date)
+      .eq('hora', slot)
+      .eq('ubicacion', loc);
+    if (error) throw error;
+    res.status(200).json({ ok: true });
+  } catch (e: any) {
+    console.error('[dev-api] Error en DELETE /api/availability/block:', e);
+    res.status(500).json({ ok: false, error: e.message || 'Error interno' });
+  }
 });
 
 // Blog post generator (dev mirror)

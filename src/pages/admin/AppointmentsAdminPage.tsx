@@ -49,6 +49,15 @@ const AppointmentsAdminPage: React.FC = () => {
     const [unavailableDays, setUnavailableDays] = useState<Date[]>([]);
     const [filters, setFilters] = useState({ searchTerm: '', status: 'all', location: 'all' });
 
+    // Estado para gestión de horarios por día
+    const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+    const [slotsLoading, setSlotsLoading] = useState(false);
+    const [slotsError, setSlotsError] = useState<string | null>(null);
+    const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+    const [unavailableSlots, setUnavailableSlots] = useState<string[]>([]);
+    const [isDayBlocked, setIsDayBlocked] = useState<boolean>(false);
+    const [togglingSlot, setTogglingSlot] = useState<string | null>(null);
+
     useEffect(() => {
         fetchAppointments();
         fetchUnavailableDays();
@@ -104,6 +113,8 @@ const AppointmentsAdminPage: React.FC = () => {
     const handleDaySelection: SelectMultipleEventHandler = async (days, selectedDay) => {
         const wasSelected = unavailableDays.some(d => isSameDay(d, selectedDay));
         setUnavailableDays(days || []);
+        // Guardar día actualmente seleccionado para mostrar horarios
+        setSelectedDate(selectedDay);
         const formattedDate = format(selectedDay, 'yyyy-MM-dd');
         let error;
         if (wasSelected) {
@@ -115,6 +126,9 @@ const AppointmentsAdminPage: React.FC = () => {
             alert(`Error al actualizar la disponibilidad: ${error.message}`);
             fetchUnavailableDays();
         }
+
+        // Cargar horarios para el día clicado
+        await loadSlotsForDate(selectedDay);
     };
 
     const handleUpdateStatus = async (id: number, status: string) => {
@@ -138,6 +152,77 @@ const AppointmentsAdminPage: React.FC = () => {
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFilters(prev => ({ ...prev, [name]: value }));
+    };
+
+    const getLocationForAvailability = () => {
+        // Si el filtro está en 'all', usar el nombre estándar de la sede principal
+        return filters.location === 'all' ? 'Sede Principal Maracay' : filters.location;
+    };
+
+    const loadSlotsForDate = async (dateObj: Date) => {
+        try {
+            setSlotsLoading(true);
+            setSlotsError(null);
+            const date = format(dateObj, 'yyyy-MM-dd');
+            const location = getLocationForAvailability();
+            const url = `/api/availability/slots?date=${encodeURIComponent(date)}&location=${encodeURIComponent(location)}`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`Error consultando horarios: ${res.status}`);
+            const json = await res.json();
+            setAvailableSlots(Array.isArray(json.available) ? json.available : []);
+            setUnavailableSlots(Array.isArray(json.unavailable) ? json.unavailable : []);
+            setIsDayBlocked(Boolean(json.isDayBlocked));
+        } catch (e: any) {
+            console.error('[admin] Error cargando slots:', e);
+            setSlotsError(e?.message || 'No se pudieron cargar los horarios.');
+            setAvailableSlots([]);
+            setUnavailableSlots([]);
+            setIsDayBlocked(false);
+        } finally {
+            setSlotsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        // Cuando cambie la ubicación o el día seleccionado, recargar slots
+        if (selectedDate) {
+            loadSlotsForDate(selectedDate);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filters.location]);
+
+    const toggleSlotAvailability = async (slot: string) => {
+        if (!selectedDate) return;
+        const date = format(selectedDate, 'yyyy-MM-dd');
+        const location = getLocationForAvailability();
+        try {
+            setTogglingSlot(slot);
+            const isCurrentlyAvailable = availableSlots.includes(slot);
+            const endpoint = '/api/availability/block';
+            const options: RequestInit = {
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date, slot, location }),
+            };
+            let res: Response;
+            if (isCurrentlyAvailable) {
+                // Bloquear horario
+                res = await fetch(endpoint, { ...options, method: 'POST' });
+            } else {
+                // Desbloquear horario
+                res = await fetch(endpoint, { ...options, method: 'DELETE' });
+            }
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(text || 'Fallo actualizando disponibilidad');
+            }
+            // Recargar slots tras éxito
+            await loadSlotsForDate(selectedDate);
+        } catch (e: any) {
+            console.error('[admin] Error toggling slot:', e);
+            alert(`Error actualizando disponibilidad: ${e?.message || 'Error desconocido'}`);
+        } finally {
+            setTogglingSlot(null);
+        }
     };
 
     if (isLoading) {
@@ -218,6 +303,52 @@ const AppointmentsAdminPage: React.FC = () => {
                             selected: { color: 'white', backgroundColor: '#F87171' }
                         }}
                     />
+                    {/* Contenedor de horarios del día seleccionado */}
+                    <div className="mt-6">
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-lg font-semibold">Horarios del día</h3>
+                            <div className="text-sm text-gray-500">
+                                {selectedDate ? format(selectedDate, 'PPP', { locale: es }) : 'Selecciona un día'}
+                            </div>
+                        </div>
+                        {slotsLoading && (
+                            <div className="flex items-center gap-2 text-gray-600"><Loader className="animate-spin" size={18} /> Cargando horarios...</div>
+                        )}
+                        {slotsError && (
+                            <div className="text-red-600 text-sm mb-2">{slotsError}</div>
+                        )}
+                        {selectedDate && !slotsLoading && !slotsError && (
+                            <>
+                                {isDayBlocked ? (
+                                    <div className="text-red-600 text-sm">Este día está bloqueado completamente.</div>
+                                ) : (
+                                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                                        {[...availableSlots, ...unavailableSlots]
+                                            .sort((a, b) => a.localeCompare(b))
+                                            .map((slot) => {
+                                                const isAvailable = availableSlots.includes(slot);
+                                                const isBusy = unavailableSlots.includes(slot);
+                                                const baseClasses = 'px-3 py-2 rounded border text-sm text-center cursor-pointer select-none';
+                                                const stateClasses = isAvailable
+                                                    ? 'bg-green-50 border-green-300 text-green-800 hover:bg-green-100'
+                                                    : 'bg-red-50 border-red-300 text-red-800 hover:bg-red-100';
+                                                const disabled = Boolean(togglingSlot) && togglingSlot === slot;
+                                                return (
+                                                    <button
+                                                        key={slot}
+                                                        className={`${baseClasses} ${stateClasses} ${disabled ? 'opacity-60 pointer-events-none' : ''}`}
+                                                        title={isAvailable ? 'Disponible: clic para bloquear' : (isBusy ? 'No disponible: clic para desbloquear' : 'Clic para cambiar estado')}
+                                                        onClick={() => toggleSlotAvailability(slot)}
+                                                    >
+                                                        {slot}
+                                                    </button>
+                                                );
+                                            })}
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
             {editingAppointment && (
