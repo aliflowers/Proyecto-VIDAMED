@@ -185,6 +185,55 @@ Se implementará un sistema de "Feature Flags" para gestionar diferentes niveles
 - **Solución:**
   - **Base de Conocimiento:** Se creó un archivo `src/data/studyTemplates.ts` que contiene una lista exhaustiva de plantillas para docenas de estudios clínicos, cada una con su categoría, descripción, preparación y todos sus parámetros predefinidos.
   - **Formulario Inteligente:** Se refactorizó el componente `StudyForm.tsx`, reemplazando el campo de texto del nombre por un componente de selección con búsqueda (`CreatableSelect`).
+
+---
+
+## Fase 8: Actualización de Agendamiento y Ubicaciones (Noviembre 2025)
+
+### 8.1. Cambios de Ubicación en Citas
+
+- Se actualizó la opción "Sede central" a "Sede Principal Maracay".
+- Se añadió la nueva opción "Sede La Colonia Tovar".
+- Se mantuvo "Servicio a Domicilio" como opción vigente.
+
+Validación en BD:
+- Se agregó una restricción de comprobación en `public.citas` para limitar `ubicacion` a: `('Sede Principal Maracay','Sede La Colonia Tovar','Servicio a Domicilio')`.
+
+### 8.2. Selector de Ciudad para Servicio a Domicilio (Frontend)
+
+- En `src/pages/SchedulingPage.tsx`:
+  - Se actualizó el selector de ubicación con las nuevas opciones de sede.
+  - Al seleccionar "Servicio a Domicilio", ahora se muestra un selector de ciudad con opciones: "Maracay" y "La Colonia Tovar".
+  - Se añadieron validaciones para requerir `direccion` y `ciudad` cuando el servicio es a domicilio.
+
+### 8.3. Esquema de Pacientes: Nueva Columna
+
+- Se creó la columna opcional `ciudad_domicilio` en la tabla `public.pacientes`.
+- Se añadió una restricción de comprobación para permitir únicamente: `('Maracay','La Colonia Tovar')` cuando el valor no es `NULL`.
+- Se actualizaron los tipos de TypeScript:
+  - `PatientPayload` y `Patient` ahora incluyen `ciudad_domicilio?: string`.
+
+### 8.4. Migración SQL Aplicada
+
+Nombre: `update_scheduling_locations_city`
+
+Resumen de queries ejecutadas:
+- `UPDATE public.citas SET ubicacion = 'Sede Principal Maracay' WHERE ubicacion = 'Sede central'`.
+- `UPDATE public.citas SET ubicacion = 'Sede Principal Maracay' WHERE ubicacion = 'Sede Principal'`.
+- `ALTER TABLE public.citas ADD CONSTRAINT citas_ubicacion_check CHECK (ubicacion IN ('Sede Principal Maracay','Sede La Colonia Tovar','Servicio a Domicilio'))`.
+- `ALTER TABLE public.pacientes ADD COLUMN IF NOT EXISTS ciudad_domicilio text`.
+- `ALTER TABLE public.pacientes ADD CONSTRAINT pacientes_ciudad_domicilio_check CHECK (ciudad_domicilio IS NULL OR ciudad_domicilio IN ('Maracay','La Colonia Tovar'))`.
+
+### 8.5. Compatibilidad y Validaciones
+
+- Compatibilidad hacia atrás garantizada: las citas existentes permanecen válidas; actualizaciones de nombre aplicadas automáticamente donde corresponde.
+- Validaciones en frontend aseguran `direccion` y `ciudad` sólo cuando aplica.
+
+### 8.6. Pruebas Recomendadas
+
+- Verificar visualmente el selector de ubicación y el selector de ciudad (sólo en domicilio).
+- Agendar citas en cada sede y confirmar almacenado correcto en Supabase.
+- Crear/actualizar pacientes con servicio a domicilio y comprobar `ciudad_domicilio`.
   - **Funcionalidad:** Al seleccionar un estudio de la lista, el formulario se autocompleta instantáneamente con toda la información de la plantilla. Se mantiene la opción de crear un estudio manualmente si no existe en la lista.
   - **Validación de Duplicados:** Se implementó una validación en tiempo real que consulta los estudios existentes en la base de datos y previene la creación de un estudio con un nombre que ya ha sido registrado, deshabilitando el botón de guardado y mostrando un mensaje de error.
 

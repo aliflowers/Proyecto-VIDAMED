@@ -37,6 +37,7 @@ export interface PatientPayload {
     email: string;
     telefono: string;
     direccion?: string;
+    ciudad_domicilio?: string;
 }
 
 
@@ -166,6 +167,7 @@ export interface Patient {
     email: string;
     telefono: string;
     direccion?: string;
+    ciudad_domicilio?: string;
 }
 
 export interface WeeklyPatient extends Patient {

@@ -20,7 +20,8 @@ const SchedulingPage: React.FC = () => {
     const [unavailableDays, setUnavailableDays] = useState<Date[]>([]);
     const [formData, setFormData] = useState({
         selectedStudies: [] as StudyOption[],
-        location: 'Sede Principal',
+        location: 'Sede Principal Maracay',
+        city: '',
         date: undefined as Date | undefined,
         hour: '08',
         minute: '00',
@@ -84,7 +85,8 @@ const SchedulingPage: React.FC = () => {
     };
     
     const handleLocationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFormData(prev => ({ ...prev, location: e.target.value }));
+        const newLocation = e.target.value;
+        setFormData(prev => ({ ...prev, location: newLocation, city: newLocation === 'Servicio a Domicilio' ? prev.city : '' }));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -112,6 +114,7 @@ const SchedulingPage: React.FC = () => {
             };
             if (formData.location === 'Servicio a Domicilio') {
                 patientPayload.direccion = formData.direccion;
+                patientPayload.ciudad_domicilio = formData.city || undefined;
             }
 
             let patientResponse = await supabase.from('pacientes').select('id').eq('cedula_identidad', formData.cedula).single();
@@ -186,9 +189,14 @@ const SchedulingPage: React.FC = () => {
                                 <h2 className="text-xl font-semibold text-primary mb-4">2. Elige la ubicación</h2>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <label className="flex items-center p-4 border rounded-lg hover:bg-light transition-colors cursor-pointer">
-                                        <input type="radio" name="location" value="Sede Principal" checked={formData.location === 'Sede Principal'} onChange={handleLocationChange} className="h-5 w-5 text-primary focus:ring-primary" />
+                                        <input type="radio" name="location" value="Sede Principal Maracay" checked={formData.location === 'Sede Principal Maracay'} onChange={handleLocationChange} className="h-5 w-5 text-primary focus:ring-primary" />
                                         <MapPin className="h-6 w-6 text-secondary mx-3" />
-                                        <span className="text-gray-700 font-medium">Sede Principal</span>
+                                        <span className="text-gray-700 font-medium">Sede Principal Maracay</span>
+                                    </label>
+                                    <label className="flex items-center p-4 border rounded-lg hover:bg-light transition-colors cursor-pointer">
+                                        <input type="radio" name="location" value="Sede La Colonia Tovar" checked={formData.location === 'Sede La Colonia Tovar'} onChange={handleLocationChange} className="h-5 w-5 text-primary focus:ring-primary" />
+                                        <MapPin className="h-6 w-6 text-secondary mx-3" />
+                                        <span className="text-gray-700 font-medium">Sede La Colonia Tovar</span>
                                     </label>
                                     <label className="flex items-center p-4 border rounded-lg hover:bg-light transition-colors cursor-pointer">
                                         <input type="radio" name="location" value="Servicio a Domicilio" checked={formData.location === 'Servicio a Domicilio'} onChange={handleLocationChange} className="h-5 w-5 text-primary focus:ring-primary" />
@@ -244,11 +252,21 @@ const SchedulingPage: React.FC = () => {
                                     <div className="relative"><label htmlFor="email" className="block text-sm font-medium text-gray-700">Email (Opcional)</label><input type="email" id="email" name="email" value={formData.email} onChange={handleInputChange} className="mt-1 block w-full pl-10 pr-3 py-2 border rounded-md" placeholder="tu@correo.com" /><Mail className="absolute left-3 top-8 text-gray-400 h-5 w-5" /></div>
                                     <div className="relative"><label htmlFor="phone" className="block text-sm font-medium text-gray-700">Teléfono {!formData.phone && <span className="text-red-500">*</span>}</label><input type="tel" id="phone" name="phone" value={formData.phone} onChange={handleInputChange} required className="mt-1 block w-full pl-10 pr-3 py-2 border rounded-md" placeholder="0412-1234567" /><Phone className="absolute left-3 top-8 text-gray-400 h-5 w-5" /></div>
                                     {formData.location === 'Servicio a Domicilio' && (
-                                        <div className="relative md:col-span-2">
-                                            <label htmlFor="direccion" className="block text-sm font-medium text-gray-700">Dirección {!formData.direccion && <span className="text-red-500">*</span>}</label>
-                                            <input type="text" id="direccion" name="direccion" value={formData.direccion} onChange={handleInputChange} required className="mt-1 block w-full pl-10 pr-3 py-2 border rounded-md" placeholder="Tu dirección completa" />
-                                            <Map className="absolute left-3 top-8 text-gray-400 h-5 w-5" />
-                                        </div>
+                                        <>
+                                            <div className="relative md:col-span-2">
+                                                <label htmlFor="direccion" className="block text-sm font-medium text-gray-700">Dirección {!formData.direccion && <span className="text-red-500">*</span>}</label>
+                                                <input type="text" id="direccion" name="direccion" value={formData.direccion} onChange={handleInputChange} required className="mt-1 block w-full pl-10 pr-3 py-2 border rounded-md" placeholder="Tu dirección completa" />
+                                                <Map className="absolute left-3 top-8 text-gray-400 h-5 w-5" />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <label htmlFor="city" className="block text-sm font-medium text-gray-700">Ciudad {!formData.city && <span className="text-red-500">*</span>}</label>
+                                                <select id="city" name="city" value={formData.city} onChange={handleInputChange} required className="mt-1 block w-full p-2 border rounded-md">
+                                                    <option value="">Selecciona una ciudad</option>
+                                                    <option value="Maracay">Maracay</option>
+                                                    <option value="La Colonia Tovar">La Colonia Tovar</option>
+                                                </select>
+                                            </div>
+                                        </>
                                     )}
                                 </div>
                             </div>
