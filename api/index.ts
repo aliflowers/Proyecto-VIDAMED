@@ -8,6 +8,7 @@ import { nextDay, format, isFuture, parseISO } from 'date-fns';
 import path from 'path';
 import notifyWhatsappHandler from './notify/whatsapp.js';
 import notifyEmailHandler from './notify/email.js';
+import { sendAppointmentConfirmationEmail, sendAppointmentReminderEmail } from './notify/appointment-email.js';
 
 async function startServer() {
     // Forzar la carga del archivo .env desde la raíz del proyecto
@@ -37,19 +38,181 @@ async function startServer() {
     app.use(cors());
     app.use(express.json());
 
+    // Endpoint para enviar recordatorios de citas del día siguiente
+    app.post('/api/reminders/send-next-day', async (req: Request, res: Response) => {
+        try {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const yyyy = tomorrow.getFullYear();
+            const mm = String(tomorrow.getMonth() + 1).padStart(2, '0');
+            const dd = String(tomorrow.getDate()).padStart(2, '0');
+            const tzDatePrefix = `${yyyy}-${mm}-${dd}`;
+
+            const { data: citas, error: citasErr } = await supabaseAdmin
+                .from('citas')
+                .select('id, paciente_id, fecha_cita, ubicacion, estudios_solicitados')
+                .like('fecha_cita', tzDatePrefix + '%');
+            if (citasErr) throw citasErr;
+
+            const results: Array<{ citaId: string; email?: string; sent?: boolean; error?: string }> = [];
+            for (const c of (citas || [])) {
+                try {
+                    const { data: paciente, error: pErr } = await supabaseAdmin
+                        .from('pacientes')
+                        .select('id, nombres, apellidos, email, telefono, cedula_identidad')
+                        .eq('id', c.paciente_id)
+                        .single();
+                    if (pErr) throw pErr;
+                    const email = (paciente as any)?.email;
+                    if (!email) {
+                        results.push({ citaId: c.id, email: undefined, sent: false, error: 'Paciente sin email' });
+                        continue;
+                    }
+                    await sendAppointmentReminderEmail({
+                        to: email,
+                        patientName: `${(paciente as any)?.nombres || ''} ${(paciente as any)?.apellidos || ''}`.trim(),
+                        location: c.ubicacion,
+                        studies: Array.isArray(c.estudios_solicitados) ? c.estudios_solicitados : [],
+                        dateIso: c.fecha_cita,
+                        phone: (paciente as any)?.telefono || undefined,
+                        cedula: (paciente as any)?.cedula_identidad || undefined,
+                    });
+                    results.push({ citaId: c.id, email, sent: true });
+                } catch (e: any) {
+                    results.push({ citaId: c.id, email: undefined, sent: false, error: e?.message || String(e) });
+                }
+            }
+
+            res.status(200).json({ ok: true, count: results.length, results });
+        } catch (e: any) {
+            console.error('Error en send-next-day reminders:', e);
+            res.status(500).json({ ok: false, error: e?.message || 'Error interno' });
+        }
+    });
+
+    // Endpoint para enviar confirmación de cita (usado por SchedulingPage)
+    app.post('/api/appointments/send-confirmation', async (req: Request, res: Response) => {
+        try {
+            const {
+                to,
+                patientName,
+                cedula,
+                phone,
+                location,
+                studies,
+                dateIso,
+                summaryText,
+            } = req.body || {};
+
+            if (!to || typeof to !== 'string') {
+                return res.status(400).json({ ok: false, error: 'Falta el correo del destinatario (to).' });
+            }
+
+            const info = await sendAppointmentConfirmationEmail({
+                to,
+                patientName,
+                cedula,
+                phone,
+                location,
+                studies,
+                dateIso,
+                summaryText,
+            });
+
+            return res.status(200).json({ ok: true, messageId: info.messageId });
+        } catch (error: any) {
+            console.error('Error enviando confirmación de cita:', error);
+            return res.status(500).json({ ok: false, error: error?.message || 'Error interno' });
+        }
+    });
+
     // --- INICIO DE LA ARQUITECTURA DE ENRUTADOR v2.0 ---
 
     const classifierSystemInstruction = `Tu única función es clasificar la intención del último mensaje del usuario en una de las siguientes categorías: CONSULTA_ESTUDIO, AGENDAR_CITA, SALUDO, DESCONOCIDO. Responde únicamente con la categoría.`;
     const entityExtractorSystemInstruction = `Tu única función es extraer el nombre del examen o estudio médico del texto del usuario. Si no hay un nombre de estudio claro, responde con "NO_ENCONTRADO". Responde únicamente con el nombre del estudio.`;
     
+    // Saneador robusto del nombre de estudio extraído desde la IA
+    const sanitizeExtractedStudyName = (raw: string): string | null => {
+        if (!raw) return null;
+        let s = String(raw).trim();
+        // Intentar extraer el último texto entre comillas
+        const quotedMatches = Array.from(s.matchAll(/"([^"]{3,})"/g));
+        if (quotedMatches.length > 0) {
+            const lastQuoted = quotedMatches[quotedMatches.length - 1][1].trim();
+            if (lastQuoted && lastQuoted.toUpperCase() !== 'NO_ENCONTRADO') return lastQuoted;
+        }
+        // Si hay múltiples líneas, tomar la última no vacía
+        const lines = s.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        if (lines.length > 0) s = lines[lines.length - 1];
+        // Separar por puntuación y tomar el último segmento con contenido
+        const segments = s.split(/[.:]/).map(seg => seg.trim()).filter(Boolean);
+        const lastSegment = segments.length ? segments[segments.length - 1] : s;
+        const cleaned = lastSegment.replace(/[“”"']+/g, '').replace(/[.,;:!?]+$/g, '').trim();
+        if (!cleaned || cleaned.toUpperCase() === 'NO_ENCONTRADO') return null;
+        return cleaned;
+    };
+    
     const conversationalSystemInstruction: Content = {
         role: 'user',
         parts: [{
             text: `
-            Eres VidaBot, un asistente de IA del Laboratorio Clínico VidaMed. Tu objetivo es guiar al usuario en el proceso de agendar una cita. Pide la información de forma secuencial, UNA PREGUNTA A LA VEZ. Usa las herramientas \`getAvailability\` y \`scheduleAppointment\` cuando sea necesario. Tu tono es amable y servicial.
+Eres VidaBot, asistente de VidaMed. Debes agendar citas siguiendo un flujo ESTRICTO de slot-filling, preguntando UNA sola cosa por turno.
+Orden de slots:
+1) Estudios solicitados (uno o varios). Si son varios, pide la lista completa.
+2) Fecha y hora: primero verifica fecha con getAvailability (acepta día de la semana o YYYY-MM-DD). Una vez confirmada la fecha, llama OBLIGATORIAMENTE a getAvailableHours para listar horas libres y pide elegir una hora (HH:mm 24h) de esa lista.
+3) Ubicación: normaliza y confirma una de estas opciones EXACTAS: "Sede Principal Maracay" | "Sede La Colonia Tovar" | "Servicio a Domicilio".
+   - Sinónimos: "domicilio", "a domicilio", "en casa" ⇒ "Servicio a Domicilio"; "Maracay"/"principal" ⇒ "Sede Principal Maracay"; "Colonia Tovar" ⇒ "Sede La Colonia Tovar".
+   - Si es "Servicio a Domicilio", exige dirección y ciudad_domicilio ("Maracay" o "La Colonia Tovar").
+4) Datos del paciente: primer_nombre, segundo_nombre (opcional), primer_apellido, segundo_apellido (opcional), cedula, telefono, email (opcional).
+    - Al confirmar cada dato, MUESTRA el valor exactamente UNA sola vez y no lo dupliques ni lo concatenes. Ejemplo correcto: "Ok, primer nombre: Bob". Evita respuestas como "BobBob", "GomezGomez" o "GuzmanGuzman".
+    - Validación de cédula: acepta únicamente dígitos entre 7 y 9 caracteres (inclusive). Si el número tiene 7, 8 o 9 dígitos, confírmalo sin advertencias. Solo pide corrección si está fuera de ese rango con el mensaje: "La cédula debe tener entre 7 y 9 dígitos".
+5) Confirmación final: recapitula todo y, tras confirmación, llama a scheduleAppointment.
+Responde breve, precisa y mantén el contexto sin reiniciar.
+
+Consultas de Estudios:
+- Si el usuario pregunta por un estudio, usa la herramienta getStudiesInfo con el nombre detectado.
+- Responde con: nombre del estudio, categoría, descripción, preparación, tipo de muestra, costo (USD y Bs), y tiempo de entrega (ELISA/Otros) tomando de "tiempo_entrega_elisa_otro" o, si falta, de "tiempo_entrega".
+- Si hay varios estudios similares, menciona los nombres adicionales y ofrece ayudar a elegir.
+- Mantén un tono conciso y técnico; ofrece agendar al final si aplica.
             `
         }]
     };
+
+    // Guardrails de salida: anti-duplicación y validación de cédula (7–9 dígitos)
+    const collapseInnerDupesInToken = (token: string): string => {
+        const t = token.trim();
+        if (t.length > 1 && t.length % 2 === 0) {
+            const half = t.slice(0, t.length / 2);
+            if (half && half.toLowerCase() === t.slice(t.length / 2).toLowerCase()) return half;
+        }
+        return token;
+    };
+
+    const fixEchoDupes = (text: string): string => {
+        // Colapsar palabras consecutivas duplicadas
+        let out = text.replace(/\b([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)\s+\1\b/g, '$1');
+        // Colapsar tokens concatenados duplicados en letras
+        out = out.replace(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{2,}/g, (m) => collapseInnerDupesInToken(m));
+        // Colapsar números telefónicos repetidos (con o sin separadores) adyacentes
+        out = out.replace(/(\+?\d[\d\s\-]{6,}\d)\s*\1/g, '$1');
+        // Colapsar correos electrónicos repetidos adyacentes, con o sin separadores
+        out = out.replace(/(\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b)(?:[\s,.;-]+)?\1/g, '$1');
+        return out;
+    };
+
+    const enforceCedulaRule = (text: string, userMsg?: string): string => {
+        const negativePattern = /(debe\s+tener|incorrect|inválid|inval|formato|ingresa\s+tu\s+número\s+de\s+c[ée]dula\s+correcto)/i;
+        const respNumMatch = text.match(/\b\d{7,9}\b/);
+        const userNumMatch = userMsg ? userMsg.match(/\b\d{7,9}\b/) : null;
+        const num = (respNumMatch && respNumMatch[0]) || (userNumMatch && userNumMatch[0]) || null;
+        if (!num) return text;
+        if (!negativePattern.test(text)) return text;
+        const lines = text.split(/\r?\n/);
+        const sanitized = lines.map((l) => (negativePattern.test(l) ? `Número de cédula confirmado: ${num}.` : l));
+        return sanitized.join('\n');
+    };
+
+    const applyOutputGuardrails = (text: string, userMsg?: string): string => enforceCedulaRule(fixEchoDupes(text), userMsg);
 
     // --- FUNCIONES DE HERRAMIENTAS ---
     const getNextDateForDay = (dayName: string): string => {
@@ -76,7 +239,7 @@ async function startServer() {
     const getAvailability = async (args: { date: string }): Promise<object> => {
         const { date } = args;
         const targetDate = getNextDateForDay(date);
-        if (targetDate === 'Día no válido') return { error: `Lo siento, "${date}" no es un día de la semana válido. Por favor, dime un día de lunes a sábado.`};
+        if (targetDate === 'Día no válido') return { error: `Lo siento, no pude entender la fecha "${date}". Indícame un día (lunes a sábado) o una fecha en formato YYYY-MM-DD.`, meta: { type: 'error', code: 'INVALID_DATE', slot: 'date', format: 'YYYY-MM-DD o lunes-sábado' }};
         try {
             const { data, error } = await supabaseAdmin.from('dias_no_disponibles').select('fecha').eq('fecha', targetDate);
             if (error) throw error;
@@ -90,10 +253,91 @@ async function startServer() {
         } catch (error: any) { console.error("Error fetching availability:", error); return { error: "Lo siento, hubo un error al verificar la disponibilidad.", details: error.message }; }
     };
 
-    const scheduleAppointment = async (args: { patientInfo: any, studies: string[], date: string, location: string }): Promise<object> => {
-        const { patientInfo, studies, date, location } = args;
+    // Horas disponibles para una fecha confirmada (HH:mm), evitando choques
+    const getAvailableHours = async (args: { date: string }): Promise<object> => {
+        const { date } = args;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) {
+            return { error: 'La fecha debe tener formato YYYY-MM-DD para listar horas.', meta: { type: 'error', code: 'INVALID_DATE_FORMAT', slot: 'date', format: 'YYYY-MM-DD' } };
+        }
         try {
-            if (!patientInfo || !patientInfo.cedula || !patientInfo.nombres || !patientInfo.apellidos || !studies || studies.length === 0 || !date || !location) return { error: "Faltan datos cruciales para agendar la cita." };
+            // Verificar si la fecha está bloqueada
+            const { data: blocked, error: blockedErr } = await supabaseAdmin
+                .from('dias_no_disponibles')
+                .select('fecha')
+                .eq('fecha', date);
+            if (blockedErr) throw blockedErr;
+            if (blocked && blocked.length > 0) {
+                return { error: `La fecha ${date} no está disponible. Indica otra fecha.`, meta: { type: 'error', code: 'DATE_BLOCKED', slot: 'date' } };
+            }
+
+            // Generar slots de 30 minutos entre 07:00 y 17:00
+            const startHour = 7, endHour = 17;
+            const slots: string[] = [];
+            for (let h = startHour; h < endHour; h++) {
+                slots.push(`${String(h).padStart(2,'0')}:00`);
+                slots.push(`${String(h).padStart(2,'0')}:30`);
+            }
+
+            // Obtener citas existentes para evitar choques
+            const tzDatePrefix = `${date}T`;
+            const { data: appointments, error: apErr } = await supabaseAdmin
+                .from('citas')
+                .select('fecha_cita')
+                .like('fecha_cita', tzDatePrefix + '%');
+            if (apErr) throw apErr;
+            const bookedTimes = new Set<string>((appointments || []).map((r: any) => String(r.fecha_cita).slice(11,16)));
+            const available = slots.filter(t => !bookedTimes.has(t));
+
+            return { result: `Horas disponibles para ${date}: ${available.join(', ')}`, hours: available };
+        } catch (e: any) {
+            console.error('Error getAvailableHours:', e);
+            return { error: 'No pude listar las horas disponibles. Intenta de nuevo.', details: e.message };
+        }
+    };
+
+    const scheduleAppointment = async (args: { patientInfo: any, studies: string[], date: string, time?: string, location: string }): Promise<object> => {
+        const { patientInfo, studies, date, time, location } = args;
+        try {
+            if (!Array.isArray(studies) || studies.length === 0) return { error: 'Debes indicar al menos un estudio.', meta: { type: 'error', code: 'MISSING_STUDIES', slot: 'studies' } };
+            if (!date) return { error: 'Falta la fecha de la cita (YYYY-MM-DD).', meta: { type: 'error', code: 'MISSING_DATE', slot: 'date', format: 'YYYY-MM-DD' } };
+            if (!patientInfo) return { error: 'Faltan los datos del paciente.', meta: { type: 'error', code: 'MISSING_PATIENT', slot: 'patientInfo' } };
+            const { primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, cedula, telefono, email, direccion, ciudad_domicilio } = patientInfo;
+            if (!primer_nombre) return { error: 'Falta el primer nombre del paciente.', meta: { type: 'error', code: 'MISSING_FIRST_NAME', slot: 'primer_nombre' } };
+            if (!primer_apellido) return { error: 'Falta el primer apellido del paciente.', meta: { type: 'error', code: 'MISSING_FIRST_LASTNAME', slot: 'primer_apellido' } };
+            if (!cedula) return { error: 'Falta el número de cédula del paciente.', meta: { type: 'error', code: 'MISSING_ID', slot: 'cedula' } };
+            if (!telefono) return { error: 'Falta el número telefónico del paciente.', meta: { type: 'error', code: 'MISSING_PHONE', slot: 'telefono' } };
+
+            // Normalizar ubicación enumerada
+            const normalizeLocation = (s: string): 'Sede Principal Maracay' | 'Sede La Colonia Tovar' | 'Servicio a Domicilio' | null => {
+                const t = String(s || '').toLowerCase();
+                if (!t.trim()) return null;
+                if (t.includes('domicilio') || t.includes('casa')) return 'Servicio a Domicilio';
+                if (t.includes('colonia') && t.includes('tovar')) return 'Sede La Colonia Tovar';
+                if (t.includes('maracay') || t.includes('principal') || t.includes('sede')) return 'Sede Principal Maracay';
+                return null;
+            };
+            const ubicacionEnum = normalizeLocation(String(location)) || (location as any);
+            if (!ubicacionEnum || !['Sede Principal Maracay','Sede La Colonia Tovar','Servicio a Domicilio'].includes(ubicacionEnum)) {
+                return { error: 'Ubicación inválida. Elige: "Sede Principal Maracay", "Sede La Colonia Tovar" o "Servicio a Domicilio".', meta: { type: 'error', code: 'INVALID_LOCATION', slot: 'location', options: ['Sede Principal Maracay','Sede La Colonia Tovar','Servicio a Domicilio'] } };
+            }
+            if (ubicacionEnum === 'Servicio a Domicilio') {
+                if (!direccion || !String(direccion).trim()) {
+                    return { error: 'La dirección es obligatoria para "Servicio a Domicilio".', meta: { type: 'error', code: 'MISSING_ADDRESS', slot: 'direccion' } };
+                }
+                const ciudadNorm = String(ciudad_domicilio || '').trim();
+                if (!ciudadNorm) {
+                    return { error: 'La ciudad del domicilio es obligatoria: Maracay o La Colonia Tovar.', meta: { type: 'error', code: 'MISSING_CITY', slot: 'ciudad_domicilio', options: ['Maracay','La Colonia Tovar'] } };
+                }
+                if (!['Maracay','La Colonia Tovar'].includes(ciudadNorm)) {
+                    return { error: 'Ciudad de domicilio no válida. Debe ser "Maracay" o "La Colonia Tovar".', meta: { type: 'error', code: 'INVALID_CITY', slot: 'ciudad_domicilio', options: ['Maracay','La Colonia Tovar'] } };
+                }
+            }
+
+            // Hora requerida y normalizada
+            const timeNorm = time && /^\d{2}:\d{2}$/.test(time) ? time : undefined;
+            if (!timeNorm) {
+                return { error: 'Falta la hora de la cita (HH:mm en formato 24h).', meta: { type: 'error', code: 'MISSING_TIME', slot: 'time', format: 'HH:mm' } };
+            }
             const cleanedCedula = String(patientInfo.cedula).replace(/\D/g, '');
             const cleanedTelefono = String(patientInfo.telefono).replace(/\D/g, '');
             let patientId: string;
@@ -107,27 +351,71 @@ async function startServer() {
                 if (rpcError) throw rpcError;
                 patientId = newId;
             }
-            const { data: patientData, error: patientError } = await supabaseAdmin.from('pacientes').upsert({ id: patientId, cedula_identidad: cleanedCedula, nombres: patientInfo.nombres, apellidos: patientInfo.apellidos, email: patientInfo.email || null, telefono: cleanedTelefono, direccion: location === 'domicilio' ? patientInfo.direccion : null }, { onConflict: 'id' }).select().single();
+            const nombres = `${primer_nombre}${segundo_nombre ? ' ' + segundo_nombre : ''}`;
+            const apellidos = `${primer_apellido}${segundo_apellido ? ' ' + segundo_apellido : ''}`;
+            const { data: patientData, error: patientError } = await supabaseAdmin.from('pacientes').upsert({ id: patientId, cedula_identidad: cleanedCedula, nombres, apellidos, email: email || null, telefono: cleanedTelefono, direccion: ubicacionEnum === 'Servicio a Domicilio' ? direccion : null, ciudad_domicilio: ubicacionEnum === 'Servicio a Domicilio' ? (ciudad_domicilio || null) : null }, { onConflict: 'id' }).select().single();
             if (patientError) throw patientError;
-            const { error: appointmentError } = await supabaseAdmin.from('citas').insert({ paciente_id: patientData.id, fecha_cita: date, estudios_solicitados: studies, ubicacion: location, status: 'agendada' });
-            if (appointmentError) throw appointmentError;
-            return { result: `¡Cita agendada con éxito para ${patientInfo.nombres} ${patientInfo.apellidos} el día ${date}! Su ID de paciente es ${patientData.id}.`};
+        const fechaCita = `${date}T${timeNorm}:00-04:00`;
+        const { error: appointmentError } = await supabaseAdmin.from('citas').insert({ paciente_id: patientData.id, fecha_cita: fechaCita, estudios_solicitados: studies, ubicacion: ubicacionEnum, status: 'agendada' });
+        if (appointmentError) throw appointmentError;
+
+            // Enviar email de confirmación si hay correo
+            if (email && String(email).trim()) {
+                try {
+                    await sendAppointmentConfirmationEmail({
+                        to: email,
+                        patientName: `${nombres} ${apellidos}`.trim(),
+                        cedula: cleanedCedula,
+                        phone: cleanedTelefono,
+                        location: ubicacionEnum,
+                        studies,
+                        dateIso: fechaCita,
+                        summaryText: undefined,
+                    });
+                } catch (e) {
+                    console.warn('[notify] Falló el envío de email de confirmación:', (e as any)?.message || e);
+                }
+            }
+        return { result: `¡Cita agendada con éxito para ${nombres} ${apellidos} el ${fechaCita}! Su ID de paciente es ${patientData.id}.` };
         } catch (error: any) { console.error("Error inesperado en scheduleAppointment:", error); return { error: "Lo siento, ocurrió un error interno inesperado.", details: error.message }; }
     };
     
     const tools: Tool[] = [{
         functionDeclarations: [
-          { name: 'getAvailability', description: 'Verifica disponibilidad de una fecha. Acepta días de la semana.', parameters: { type: SchemaType.OBJECT, properties: { date: { type: SchemaType.STRING, description: 'Día de la semana o fecha en formato AAAA-MM-DD.' } }, required: ['date'] } },
+          { name: 'getStudiesInfo', description: 'Obtiene información detallada de un estudio: categoría, descripción, preparación, precios USD/Bs, tiempo de entrega ELISA/Otros y tipo de muestra.', parameters: { type: SchemaType.OBJECT, properties: { studyName: { type: SchemaType.STRING, description: 'Nombre del estudio a consultar (texto libre).' } }, required: ['studyName'] } },
+          { name: 'getAvailability', description: 'Verifica disponibilidad de una fecha. Acepta días de la semana o fecha YYYY-MM-DD.', parameters: { type: SchemaType.OBJECT, properties: { date: { type: SchemaType.STRING, description: 'Día (lunes a sábado) o fecha YYYY-MM-DD.' } }, required: ['date'] } },
+          { name: 'getAvailableHours', description: 'Lista horas disponibles (HH:mm) para una fecha confirmada.', parameters: { type: SchemaType.OBJECT, properties: { date: { type: SchemaType.STRING, description: 'Fecha YYYY-MM-DD.' } }, required: ['date'] } },
           { name: 'scheduleAppointment', description: 'Crea la cita en la base de datos después de confirmar todos los datos.', parameters: {
-              type: SchemaType.OBJECT, properties: { patientInfo: { type: SchemaType.OBJECT, properties: { cedula: { type: SchemaType.STRING }, nombres: { type: SchemaType.STRING }, apellidos: { type: SchemaType.STRING }, email: { type: SchemaType.STRING }, telefono: { type: SchemaType.STRING }, direccion: { type: SchemaType.STRING } }, required: ['cedula', 'nombres', 'apellidos', 'telefono'] }, studies: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } }, date: { type: SchemaType.STRING }, location: { type: SchemaType.STRING }, },
-              required: ['patientInfo', 'studies', 'date', 'location'],
+              type: SchemaType.OBJECT,
+              properties: {
+                patientInfo: {
+                  type: SchemaType.OBJECT,
+                  properties: {
+                    primer_nombre: { type: SchemaType.STRING },
+                    segundo_nombre: { type: SchemaType.STRING },
+                    primer_apellido: { type: SchemaType.STRING },
+                    segundo_apellido: { type: SchemaType.STRING },
+                    cedula: { type: SchemaType.STRING },
+                    telefono: { type: SchemaType.STRING },
+                    email: { type: SchemaType.STRING },
+                    direccion: { type: SchemaType.STRING },
+                    ciudad_domicilio: { type: SchemaType.STRING, description: 'Requerida si ubicación es "Servicio a Domicilio". Valores: Maracay | La Colonia Tovar' },
+                  },
+                  required: ['primer_nombre','primer_apellido','cedula','telefono'],
+                },
+                studies: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+                date: { type: SchemaType.STRING },
+                time: { type: SchemaType.STRING, description: 'Hora de la cita en formato HH:mm (24h)' },
+                location: { type: SchemaType.STRING, description: 'Ubicación normalizada: "Sede Principal Maracay" | "Sede La Colonia Tovar" | "Servicio a Domicilio"' },
+              },
+              required: ['patientInfo','studies','date','time','location'],
             },
           },
         ],
     }];
     
-    const model = genAI.getGenerativeModel({ model: DEFAULT_GEMINI_MODEL });
-    const conversationalModel = genAI.getGenerativeModel({ model: DEFAULT_GEMINI_MODEL, systemInstruction: conversationalSystemInstruction, tools });
+    const model = genAI.getGenerativeModel({ model: DEFAULT_GEMINI_MODEL, generationConfig: { temperature: 0.2, topP: 0.9 } });
+    const conversationalModel = genAI.getGenerativeModel({ model: DEFAULT_GEMINI_MODEL, systemInstruction: conversationalSystemInstruction, tools, generationConfig: { temperature: 0.2, topP: 0.9 } });
 
     // --- LÓGICA DEL ENRUTADOR v2.0 (CORREGIDA) ---
     app.post('/api/chat', async (req: Request, res: Response) => {
@@ -149,7 +437,8 @@ async function startServer() {
             case 'CONSULTA_ESTUDIO': {
                 const extractorChat = model.startChat({ history: [{ role: 'user', parts: [{ text: entityExtractorSystemInstruction }] }] });
                 const extractorResult = await extractorChat.sendMessage(lastUserMessage);
-                const studyName = extractorResult.response.text().trim();
+                const rawExtracted = extractorResult.response.text().trim();
+                const studyName = sanitizeExtractedStudyName(rawExtracted) || rawExtracted;
 
                 if (studyName === 'NO_ENCONTRADO' || !studyName) {
                     return res.status(200).json({ response: "Claro, con gusto te ayudo. ¿Qué estudio o examen te gustaría consultar?" });
@@ -164,7 +453,23 @@ async function startServer() {
                 let responseText = "";
                 if (studyInfoResult.studies && studyInfoResult.studies.length > 0) {
                     const study = studyInfoResult.studies[0];
-                    responseText = `Aquí tienes la información sobre "${study.nombre}":\n- Descripción: ${study.descripcion}\n- Preparación: ${study.preparacion}\n- Costo: ${study.costo_usd} USD / ${study.costo_bs} Bs.\n- Tiempo de Entrega: ${study.tiempo_entrega}\n`;
+                    // Seleccionar el mejor tiempo de entrega disponible: preferir Quimioluminiscencia si no es 'N/A', si no, ELISA/Otros
+                    const tiempoEntregaBase = (study.tiempo_entrega_quimioluminiscencia && study.tiempo_entrega_quimioluminiscencia !== 'N/A') ? study.tiempo_entrega_quimioluminiscencia : study.tiempo_entrega_elisa_otro;
+                    const tiempoEntrega = tiempoEntregaBase || 'N/A';
+                    const muestra = study.tipo_de_muestra || 'N/A';
+                    const precioUsd = typeof study.costo_usd !== 'undefined' ? study.costo_usd : 'N/D';
+                    const precioBs = typeof study.costo_bs !== 'undefined' ? study.costo_bs : 'N/D';
+                    const descripcionValida = study.descripcion && String(study.descripcion).trim().toLowerCase() !== 'null';
+                    const preparacionValida = study.preparacion && String(study.preparacion).trim().toLowerCase() !== 'null';
+
+                    responseText = `Aquí tienes la información sobre "${study.nombre}":\n- Categoría: ${study.categoria}\n`;
+                    if (descripcionValida) {
+                        responseText += `- Descripción: ${study.descripcion}\n`;
+                    }
+                    if (preparacionValida) {
+                        responseText += `- Preparación: ${study.preparacion}\n`;
+                    }
+                    responseText += `- Tipo de muestra: ${muestra}\n- Costo: ${precioUsd} USD / ${precioBs} Bs.\n- Tiempo de Entrega: ${tiempoEntrega}\n`;
                     if (studyInfoResult.studies.length > 1) {
                         const otherNames = studyInfoResult.studies.slice(1).map((s: any) => s.nombre).join(', ');
                         responseText += `\nTambién encontré otros estudios similares: ${otherNames}.`;
@@ -174,7 +479,7 @@ async function startServer() {
                 }
                 
                 responseText += "\n\n¿Te gustaría agendar una cita para este estudio o consultar otro?";
-                return res.status(200).json({ response: responseText });
+                return res.status(200).json({ response: applyOutputGuardrails(responseText, lastUserMessage) });
             }
 
             case 'AGENDAR_CITA': {
@@ -185,19 +490,21 @@ async function startServer() {
 
                 if (conversationalFunctionCalls && conversationalFunctionCalls.length > 0) {
                     const toolResponses: Part[] = [];
+                    let metaPayload: any = null;
                     for (const call of conversationalFunctionCalls) {
                         const { name, args } = call;
                         let functionResult;
                         if (name === 'getAvailability') functionResult = await getAvailability(args as any);
+                        else if (name === 'getAvailableHours') functionResult = await getAvailableHours(args as any);
                         else if (name === 'scheduleAppointment') functionResult = await scheduleAppointment(args as any);
                         else functionResult = { error: `Función '${name}' no válida en este contexto.` };
-                        
+                        if ((functionResult as any)?.error && (functionResult as any)?.meta && !metaPayload) metaPayload = (functionResult as any).meta;
                         toolResponses.push({ functionResponse: { name, response: functionResult } });
                     }
                     const secondResult = await conversationalChat.sendMessage(toolResponses);
-                    return res.status(200).json({ response: secondResult.response.text() });
-                }
-                return res.status(200).json({ response: conversationalResponse.text() });
+                        return res.status(200).json({ response: applyOutputGuardrails(secondResult.response.text(), lastUserMessage), meta: metaPayload || undefined });
+                    }
+                    return res.status(200).json({ response: applyOutputGuardrails(conversationalResponse.text(), lastUserMessage) });
             }
 
             case 'SALUDO':
@@ -211,7 +518,7 @@ async function startServer() {
                     ]
                 });
                 const result = await simpleChat.sendMessage(lastUserMessage);
-                return res.status(200).json({ response: result.response.text() });
+                return res.status(200).json({ response: applyOutputGuardrails(result.response.text(), lastUserMessage) });
             }
         }
       } catch (error: any) {

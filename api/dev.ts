@@ -16,6 +16,7 @@ import tokenHandler from './voice/token.js';
 import interpretarHandler from './interpretar.js'; // Importar el nuevo manejador
 import notifyWhatsappHandler from './notify/whatsapp.js';
 import notifyEmailHandler from './notify/email.js';
+import { sendAppointmentConfirmationEmail } from './notify/appointment-email.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { DEFAULT_GEMINI_MODEL } from './config.js';
 
@@ -83,6 +84,42 @@ app.post('/api/notify/email', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('[dev-api] Uncaught error in /api/notify/email:', err);
     if (!res.headersSent) res.status(500).json({ error: 'Internal error in dev API. Check server logs.' });
+  }
+});
+
+// Confirmación de citas (mirror del endpoint de producción)
+app.post('/api/appointments/send-confirmation', async (req: Request, res: Response) => {
+  try {
+    const {
+      to,
+      patientName,
+      cedula,
+      phone,
+      location,
+      studies,
+      dateIso,
+      summaryText,
+    } = (req.body || {}) as any;
+
+    if (!to || typeof to !== 'string') {
+      return res.status(400).json({ ok: false, error: 'Falta el correo del destinatario (to).' });
+    }
+
+    const info = await sendAppointmentConfirmationEmail({
+      to,
+      patientName,
+      cedula,
+      phone,
+      location,
+      studies,
+      dateIso,
+      summaryText,
+    });
+
+    return res.status(200).json({ ok: true, messageId: info.messageId });
+  } catch (error: any) {
+    console.error('[dev-api] Error enviando confirmación de cita:', error);
+    return res.status(500).json({ ok: false, error: error?.message || 'Error interno' });
   }
 });
 

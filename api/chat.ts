@@ -2,6 +2,7 @@ import { GoogleGenerativeAI, type Content, type Part, SchemaType, type Tool } fr
 import { DEFAULT_GEMINI_MODEL } from './config.js';
 import { createClient } from '@supabase/supabase-js';
 import { nextDay, format, isFuture, parseISO, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
+import { sendAppointmentConfirmationEmail } from './notify/appointment-email.js';
 
 /**
  * Vercel Serverless Function: /api/chat
@@ -92,6 +93,24 @@ export default async function handler(req: any, res: any) {
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '');
 
+    // Saneador robusto del nombre de estudio extraído desde la IA
+    const sanitizeExtractedStudyName = (raw: string): string | null => {
+      if (!raw) return null;
+      let s = String(raw).trim();
+      const quotedMatches = Array.from(s.matchAll(/"([^"]{3,})"/g));
+      if (quotedMatches.length > 0) {
+        const lastQuoted = quotedMatches[quotedMatches.length - 1][1].trim();
+        if (lastQuoted && lastQuoted.toUpperCase() !== 'NO_ENCONTRADO') return lastQuoted;
+      }
+      const lines = s.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      if (lines.length > 0) s = lines[lines.length - 1];
+      const segments = s.split(/[.:]/).map(seg => seg.trim()).filter(Boolean);
+      const lastSegment = segments.length ? segments[segments.length - 1] : s;
+      const cleaned = lastSegment.replace(/[“”"']+/g, '').replace(/[.,;:!?]+$/g, '').trim();
+      if (!cleaned || cleaned.toUpperCase() === 'NO_ENCONTRADO') return null;
+      return cleaned;
+    };
+
     const dayTokens = ['lunes', 'martes', 'miercoles', 'miércoles', 'jueves', 'viernes', 'sabado', 'sábado', 'domingo', 'proximo', 'próximo', 'prox', 'siguiente'];
     const containsDateLike = (text: string): boolean => {
       const t = normalize(text);
@@ -112,7 +131,18 @@ Eres VidaBot, asistente de VidaMed. Tu objetivo es agendar citas con un flujo ES
 - Orden ESTRICTA de slots:
   1) Tipo(s) de estudio: pregunta si es un solo estudio o varios. Si son varios, solicita la lista completa (studies[]).
   2) Fecha y hora: primero la fecha (usa getAvailability si dan un día o fecha). Después de confirmar fecha disponible, OBLIGATORIAMENTE llama a getAvailableHours para listar horas libres de ese día y pide al paciente elegir una hora (HH:mm en 24h) de esa lista.
-  3) Ubicación: "sede" o "domicilio". Si "domicilio", más adelante requerirás dirección.
+  3) Ubicación: normaliza y confirma una de estas opciones EXACTAS:
+     - "Sede Principal Maracay"
+     - "Sede La Colonia Tovar"
+     - "Servicio a Domicilio"
+     Reglas de normalización de sinónimos:
+     - Cualquier mención de "domicilio", "a domicilio", "en casa", "ir a casa" ⇒ "Servicio a Domicilio".
+     - Menciones a "Maracay", "principal" o "la sede" ⇒ "Sede Principal Maracay".
+     - Menciones a "Colonia Tovar" ⇒ "Sede La Colonia Tovar".
+     Si el usuario dice solo "sede" sin especificar, pregunta: "¿Prefieres Sede Principal Maracay o Sede La Colonia Tovar?".
+     Si el usuario elige "Servicio a Domicilio", además DEBES pedir y confirmar:
+       • ciudad_domicilio: elige entre "Maracay" o "La Colonia Tovar".
+       • dirección exacta del domicilio.
   4) Datos del paciente, en este ORDEN exacto:
      - Primer nombre (obligatorio)
      - Segundo nombre (si el paciente dice que no tiene, omítelo)
@@ -121,14 +151,60 @@ Eres VidaBot, asistente de VidaMed. Tu objetivo es agendar citas con un flujo ES
      - Número de cédula (obligatorio)
      - Número telefónico (obligatorio)
      - Email (opcional; si no tiene, omítelo)
-     - Dirección del domicilio (solo si ubicación fue "domicilio"; en caso contrario, omítelo)
+     - Dirección del domicilio (solo si ubicación fue "Servicio a Domicilio"; en caso contrario, omítelo)
+     - Ciudad del domicilio (solo si ubicación fue "Servicio a Domicilio"; valores permitidos: "Maracay" o "La Colonia Tovar")
+     Reglas de eco y validación:
+     - Al confirmar cada dato, MUESTRA el valor exactamente UNA sola vez y no lo dupliques ni lo concatenes. Ejemplo correcto: "Ok, primer nombre: Bob". Evita respuestas como "BobBob", "GomezGomez" o "GuzmanGuzman".
+     - Validación de cédula: acepta únicamente dígitos entre 7 y 9 caracteres (inclusive). Si el número tiene 7, 8 o 9 dígitos, confírmalo sin advertencias. Solo pide corrección si está fuera de ese rango con el mensaje: "La cédula debe tener entre 7 y 9 dígitos".
   5) Resumen y confirmación: Muestra TODOS los datos recolectados y pregunta si son correctos. SOLO si el usuario confirma, llama a scheduleAppointment.
 - Llama scheduleAppointment únicamente cuando tengas TODOS los campos obligatorios del esquema, en especial: studies[], date (YYYY-MM-DD), time (HH:mm), location, y los datos obligatorios del paciente.
 - No inventes datos. No agregues temas ajenos. Mantén el tono profesional y conciso.
+
+Consultas de Estudios:
+- Si el usuario pregunta por un estudio, utiliza getStudiesInfo para obtener información exacta desde la base de datos.
+- Responde con: nombre, categoría, descripción, preparación, precios en USD y Bs, tiempo de entrega (ELISA/Otros) y tipo de muestra.
+- Si hay múltiples coincidencias, sugiere las opciones encontradas y pide aclaración.
+- Mantén respuestas breves, claras y útiles para el paciente.
           `,
         },
       ],
     };
+
+    // Guardrails de salida: anti-duplicación y validación de cédula (7–9 dígitos)
+    const collapseInnerDupesInToken = (token: string): string => {
+      const t = token.trim();
+      if (t.length > 1 && t.length % 2 === 0) {
+        const half = t.slice(0, t.length / 2);
+        if (half && half.toLowerCase() === t.slice(t.length / 2).toLowerCase()) return half;
+      }
+      return token;
+    };
+
+    const fixEchoDupes = (text: string): string => {
+      // Colapsar palabras repetidas consecutivas: "Bob Bob" -> "Bob"
+      let out = text.replace(/\b([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)\s+\1\b/g, '$1');
+      // Colapsar tokens repetidos por concatenación: "BobBob" -> "Bob"
+      out = out.replace(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{2,}/g, (m) => collapseInnerDupesInToken(m));
+      // Colapsar números telefónicos repetidos (con o sin separadores) adyacentes
+      out = out.replace(/(\+?\d[\d\s\-]{6,}\d)\s*\1/g, '$1');
+      // Colapsar correos electrónicos repetidos adyacentes, con o sin separadores (espacio, coma, punto, guion)
+      out = out.replace(/(\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b)(?:[\s,.;-]+)?\1/g, '$1');
+      return out;
+    };
+
+    const enforceCedulaRule = (text: string, userMsg?: string): string => {
+      const negativePattern = /(debe\s+tener|incorrect|inválid|inval|formato|ingresa\s+tu\s+número\s+de\s+c[ée]dula\s+correcto)/i;
+      const respNumMatch = text.match(/\b\d{7,9}\b/);
+      const userNumMatch = userMsg ? userMsg.match(/\b\d{7,9}\b/) : null;
+      const num = (respNumMatch && respNumMatch[0]) || (userNumMatch && userNumMatch[0]) || null;
+      if (!num) return text;
+      if (!negativePattern.test(text)) return text;
+      const lines = text.split(/\r?\n/);
+      const sanitized = lines.map((l) => (negativePattern.test(l) ? `Número de cédula confirmado: ${num}.` : l));
+      return sanitized.join('\n');
+    };
+
+    const applyOutputGuardrails = (text: string, userMsg?: string): string => enforceCedulaRule(fixEchoDupes(text), userMsg);
 
     // Utilidades de fechas
     const getNextDateForDay = (dayName: string): string => {
@@ -226,6 +302,7 @@ Eres VidaBot, asistente de VidaMed. Tu objetivo es agendar citas con un flujo ES
       if (targetDate === 'Día no válido') {
         return {
           error: `Lo siento, no pude entender la fecha "${date}". Indícame un día (lunes a sábado) o una fecha en formato AAAA-MM-DD.`,
+          meta: { type: 'error', code: 'INVALID_DATE', slot: 'date', format: 'YYYY-MM-DD o lunes-sábado' },
         };
       }
       try {
@@ -295,7 +372,7 @@ Eres VidaBot, asistente de VidaMed. Tu objetivo es agendar citas con un flujo ES
     const getAvailableHours = async (args: { date: string }): Promise<object> => {
       const { date } = args;
       if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        return { error: 'Debes indicar una fecha válida en formato YYYY-MM-DD.' };
+        return { error: 'Debes indicar una fecha válida en formato YYYY-MM-DD.', meta: { type: 'error', code: 'INVALID_DATE_FORMAT', slot: 'date', format: 'YYYY-MM-DD' } };
       }
       try {
         // Si el día está bloqueado, no ofrecer horas
@@ -305,7 +382,7 @@ Eres VidaBot, asistente de VidaMed. Tu objetivo es agendar citas con un flujo ES
           .eq('fecha', date);
         if (dayErr) throw dayErr;
         if (blockedDay && blockedDay.length > 0) {
-          return { error: `El día ${date} está bloqueado para agendamiento.` };
+          return { error: `El día ${date} está bloqueado para agendamiento.`, meta: { type: 'error', code: 'DATE_BLOCKED', slot: 'date' } };
         }
 
         const allSlots = generateDailySlots('07:00', '17:00', 30);
@@ -347,14 +424,41 @@ Eres VidaBot, asistente de VidaMed. Tu objetivo es agendar citas con un flujo ES
           telefono,
           email,
           direccion,
+          ciudad_domicilio,
         } = patientInfo;
 
         if (!primer_nombre) return { error: 'Falta el primer nombre del paciente.' };
         if (!primer_apellido) return { error: 'Falta el primer apellido del paciente.' };
         if (!cedula) return { error: 'Falta el número de cédula del paciente.' };
         if (!telefono) return { error: 'Falta el número telefónico del paciente.' };
-        if (String(location).toLowerCase() === 'domicilio' && !direccion) {
-          return { error: 'La dirección es obligatoria cuando la ubicación es domicilio.' };
+        // Normalizar ubicación a los valores permitidos por la BD
+        const locRaw = String(location || '').toLowerCase();
+        const normalizeLocation = (s: string): 'Sede Principal Maracay' | 'Sede La Colonia Tovar' | 'Servicio a Domicilio' | null => {
+          const t = s.trim();
+          if (!t) return null;
+          if (t.includes('domicilio') || t.includes('casa')) return 'Servicio a Domicilio';
+          if (t.includes('colonia') && t.includes('tovar')) return 'Sede La Colonia Tovar';
+          if (t.includes('maracay') || t.includes('principal') || t.includes('sede')) return 'Sede Principal Maracay';
+          return null;
+        };
+        const ubicacionEnum = normalizeLocation(locRaw) || (location as any);
+        if (!ubicacionEnum ||
+            !['Sede Principal Maracay','Sede La Colonia Tovar','Servicio a Domicilio'].includes(ubicacionEnum)) {
+          return { error: 'Ubicación inválida. Elige: "Sede Principal Maracay", "Sede La Colonia Tovar" o "Servicio a Domicilio".' };
+        }
+        // Reglas adicionales para Servicio a Domicilio
+        if (ubicacionEnum === 'Servicio a Domicilio') {
+          if (!direccion || !String(direccion).trim()) {
+            return { error: 'La dirección es obligatoria para "Servicio a Domicilio".' };
+          }
+          const ciudadNorm = String(ciudad_domicilio || '').trim();
+          if (!ciudadNorm) {
+            return { error: 'La ciudad del domicilio es obligatoria para "Servicio a Domicilio". Valores: Maracay o La Colonia Tovar.' };
+          }
+          const ciudadOk = ['Maracay', 'La Colonia Tovar'];
+          if (!ciudadOk.includes(ciudadNorm)) {
+            return { error: 'Ciudad de domicilio no válida. Debe ser "Maracay" o "La Colonia Tovar".' };
+          }
         }
 
         // Hora requerida y normalizada
@@ -406,7 +510,8 @@ Eres VidaBot, asistente de VidaMed. Tu objetivo es agendar citas con un flujo ES
               apellidos,
               email: email || null,
               telefono: cleanedTelefono,
-              direccion: String(location).toLowerCase() === 'domicilio' ? direccion : null,
+              direccion: ubicacionEnum === 'Servicio a Domicilio' ? direccion : null,
+              ciudad_domicilio: ubicacionEnum === 'Servicio a Domicilio' ? (ciudad_domicilio || null) : null,
             },
             { onConflict: 'id' }
           )
@@ -420,10 +525,28 @@ Eres VidaBot, asistente de VidaMed. Tu objetivo es agendar citas con un flujo ES
           paciente_id: (patientData as any).id,
           fecha_cita: fechaCita,
           estudios_solicitados: studies,
-          ubicacion: location,
+          ubicacion: ubicacionEnum,
           status: 'agendada',
         });
         if (appointmentError) throw appointmentError;
+
+        // Enviar email de confirmación si se proporcionó correo electrónico
+        if (email && String(email).trim()) {
+          try {
+            await sendAppointmentConfirmationEmail({
+              to: email,
+              patientName: `${nombres} ${apellidos}`.trim(),
+              cedula: cleanedCedula,
+              phone: cleanedTelefono,
+              location: ubicacionEnum,
+              studies,
+              dateIso: fechaCita,
+              summaryText: undefined,
+            });
+          } catch (e: any) {
+            console.warn('[notify] Falló envío de email de confirmación:', e?.message || e);
+          }
+        }
 
         return {
           result: `¡Cita agendada con éxito para ${nombres} ${apellidos} el ${fechaCita}! Su ID de paciente es ${(patientData as any).id}.`,
@@ -438,6 +561,17 @@ Eres VidaBot, asistente de VidaMed. Tu objetivo es agendar citas con un flujo ES
     const tools: Tool[] = [
       {
         functionDeclarations: [
+          {
+            name: 'getStudiesInfo',
+            description: 'Obtiene información detallada de un estudio: categoría, descripción, preparación, precios USD/Bs, tiempo de entrega ELISA/Otros y tipo de muestra.',
+            parameters: {
+              type: SchemaType.OBJECT,
+              properties: {
+                studyName: { type: SchemaType.STRING, description: 'Nombre del estudio a consultar (texto libre).' },
+              },
+              required: ['studyName'],
+            },
+          },
           {
             name: 'getAvailability',
             description: 'Verifica disponibilidad de una fecha. Acepta días de la semana o fecha YYYY-MM-DD. Devuelve días disponibles y, si el día está libre, horarios disponibles.',
@@ -476,14 +610,15 @@ Eres VidaBot, asistente de VidaMed. Tu objetivo es agendar citas con un flujo ES
                     cedula: { type: SchemaType.STRING, description: 'Número de cédula' },
                     telefono: { type: SchemaType.STRING, description: 'Número telefónico' },
                     email: { type: SchemaType.STRING, description: 'Correo electrónico (opcional)' },
-                    direccion: { type: SchemaType.STRING, description: 'Dirección del domicilio (requerida si location=domicilio)' },
+                    direccion: { type: SchemaType.STRING, description: 'Dirección del domicilio (requerida si location="Servicio a Domicilio")' },
+                    ciudad_domicilio: { type: SchemaType.STRING, description: 'Ciudad del domicilio: "Maracay" o "La Colonia Tovar" (requerida si location="Servicio a Domicilio")' },
                   },
                   required: ['primer_nombre', 'primer_apellido', 'cedula', 'telefono'],
                 },
                 studies: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: 'Lista de estudios' },
                 date: { type: SchemaType.STRING, description: 'Fecha en formato YYYY-MM-DD' },
                 time: { type: SchemaType.STRING, description: 'Hora en formato HH:mm (24h)' },
-                location: { type: SchemaType.STRING, description: 'sede | domicilio' },
+                location: { type: SchemaType.STRING, description: 'Ubicación normalizada: "Sede Principal Maracay" | "Sede La Colonia Tovar" | "Servicio a Domicilio"' },
               },
               required: ['patientInfo', 'studies', 'date', 'time', 'location'],
             },
@@ -492,11 +627,15 @@ Eres VidaBot, asistente de VidaMed. Tu objetivo es agendar citas con un flujo ES
       },
     ];
 
-    const model = genAI.getGenerativeModel({ model: DEFAULT_GEMINI_MODEL });
+    const model = genAI.getGenerativeModel({
+      model: DEFAULT_GEMINI_MODEL,
+      generationConfig: { temperature: 0.2, topP: 0.9 },
+    });
     const conversationalModel = genAI.getGenerativeModel({
       model: DEFAULT_GEMINI_MODEL,
       systemInstruction: conversationalSystemInstruction,
       tools,
+      generationConfig: { temperature: 0.2, topP: 0.9 },
     });
 
     // Intercepción temprana: si el usuario brinda un día/fecha, priorizar verificación de disponibilidad
@@ -538,7 +677,8 @@ Eres VidaBot, asistente de VidaMed. Tu objetivo es agendar citas con un flujo ES
           history: [{ role: 'user', parts: [{ text: entityExtractorSystemInstruction }] }],
         });
         const extractorResult = await extractorChat.sendMessage(lastUserMessage);
-        const studyName = extractorResult.response.text().trim();
+        const rawExtracted = extractorResult.response.text().trim();
+        const studyName = sanitizeExtractedStudyName(rawExtracted) || rawExtracted;
 
         if (studyName === 'NO_ENCONTRADO' || !studyName) {
           res.status(200).json({ response: 'Claro, con gusto te ayudo. ¿Qué estudio o examen te gustaría consultar?' });
@@ -555,7 +695,23 @@ Eres VidaBot, asistente de VidaMed. Tu objetivo es agendar citas con un flujo ES
         let responseText = '';
         if (studyInfoResult.studies && studyInfoResult.studies.length > 0) {
           const study = studyInfoResult.studies[0];
-          responseText = `Aquí tienes la información sobre "${study.nombre}":\n- Descripción: ${study.descripcion}\n- Preparación: ${study.preparacion}\n- Costo: ${study.costo_usd} USD / ${study.costo_bs} Bs.\n- Tiempo de Entrega: ${study.tiempo_entrega}\n`;
+          // Seleccionar el mejor tiempo de entrega disponible: preferir Quimioluminiscencia si no es 'N/A', si no, ELISA/Otros
+          const tiempoEntregaBase = (study.tiempo_entrega_quimioluminiscencia && study.tiempo_entrega_quimioluminiscencia !== 'N/A') ? study.tiempo_entrega_quimioluminiscencia : study.tiempo_entrega_elisa_otro;
+          const tiempoEntrega = tiempoEntregaBase || 'N/A';
+          const muestra = study.tipo_de_muestra || 'N/A';
+          const precioUsd = typeof study.costo_usd !== 'undefined' ? study.costo_usd : 'N/D';
+          const precioBs = typeof study.costo_bs !== 'undefined' ? study.costo_bs : 'N/D';
+          const descripcionValida = study.descripcion && String(study.descripcion).trim().toLowerCase() !== 'null';
+          const preparacionValida = study.preparacion && String(study.preparacion).trim().toLowerCase() !== 'null';
+
+          responseText = `Aquí tienes la información sobre "${study.nombre}":\n- Categoría: ${study.categoria}\n`;
+          if (descripcionValida) {
+            responseText += `- Descripción: ${study.descripcion}\n`;
+          }
+          if (preparacionValida) {
+            responseText += `- Preparación: ${study.preparacion}\n`;
+          }
+          responseText += `- Tipo de muestra: ${muestra}\n- Costo: ${precioUsd} USD / ${precioBs} Bs.\n- Tiempo de Entrega: ${tiempoEntrega}\n`;
           if (studyInfoResult.studies.length > 1) {
             const otherNames = studyInfoResult.studies.slice(1).map((s: any) => s.nombre).join(', ');
             responseText += `\nTambién encontré otros estudios similares: ${otherNames}.`;
@@ -565,7 +721,7 @@ Eres VidaBot, asistente de VidaMed. Tu objetivo es agendar citas con un flujo ES
         }
 
         responseText += '\n\n¿Te gustaría agendar una cita para este estudio o consultar otro?';
-        res.status(200).json({ response: responseText });
+        res.status(200).json({ response: applyOutputGuardrails(responseText, lastUserMessage) });
         return;
       }
 
@@ -577,6 +733,7 @@ Eres VidaBot, asistente de VidaMed. Tu objetivo es agendar citas con un flujo ES
 
         if (conversationalFunctionCalls && conversationalFunctionCalls.length > 0) {
           const toolResponses: Part[] = [];
+          let metaPayload: any = null;
           for (const call of conversationalFunctionCalls) {
             const { name, args } = call as any;
             let functionResult: any;
@@ -584,15 +741,15 @@ Eres VidaBot, asistente de VidaMed. Tu objetivo es agendar citas con un flujo ES
             else if (name === 'getAvailableHours') functionResult = await getAvailableHours(args as any);
             else if (name === 'scheduleAppointment') functionResult = await scheduleAppointment(args as any);
             else functionResult = { error: `Función '${name}' no válida en este contexto.` };
-
+            if ((functionResult as any)?.error && (functionResult as any)?.meta && !metaPayload) metaPayload = (functionResult as any).meta;
             toolResponses.push({ functionResponse: { name, response: functionResult } } as Part);
           }
           const secondResult = await conversationalChat.sendMessage(toolResponses);
-          res.status(200).json({ response: secondResult.response.text() });
+          res.status(200).json({ response: applyOutputGuardrails(secondResult.response.text(), lastUserMessage), meta: metaPayload || undefined });
           return;
         }
 
-        res.status(200).json({ response: conversationalResponse.text() });
+        res.status(200).json({ response: applyOutputGuardrails(conversationalResponse.text(), lastUserMessage) });
         return;
       }
 
@@ -638,11 +795,11 @@ Eres VidaBot, asistente de VidaMed. Tu objetivo es agendar citas con un flujo ES
               toolResponses.push({ functionResponse: { name, response: functionResult } } as Part);
             }
             const secondResult = await conversationalChat.sendMessage(toolResponses);
-            res.status(200).json({ response: secondResult.response.text() });
+            res.status(200).json({ response: applyOutputGuardrails(secondResult.response.text(), lastUserMessage) });
             return;
           }
 
-          res.status(200).json({ response: conversationalResponse.text() });
+          res.status(200).json({ response: applyOutputGuardrails(conversationalResponse.text(), lastUserMessage) });
           return;
         }
 
@@ -652,7 +809,7 @@ Eres VidaBot, asistente de VidaMed. Tu objetivo es agendar citas con un flujo ES
           Ofrece opciones: consultar estudios/precios o agendar una cita. 
           Mensaje: "${lastUserMessage}"`
         );
-        res.status(200).json({ response: concise.response.text().trim() });
+        res.status(200).json({ response: applyOutputGuardrails(concise.response.text(), lastUserMessage).trim() });
         return;
       }
     }

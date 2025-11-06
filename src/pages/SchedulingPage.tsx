@@ -105,19 +105,36 @@ const SchedulingPage: React.FC = () => {
             }
             const time24 = `${String(hour24).padStart(2, '0')}:${formData.minute}`;
 
+            // Validar fecha seleccionada antes de formatear
+            if (!formData.date) {
+                throw new Error('Debes seleccionar una fecha para la cita.');
+            }
+
+            // Normalizar datos críticos
+            const rawCedula = String(formData.cedula || '').trim();
+            const cedulaClean = rawCedula.replace(/\D/g, '');
+            const phoneClean = String(formData.phone || '').replace(/\D/g, '');
+
             const patientPayload: PatientPayload = {
-                cedula_identidad: formData.cedula,
+                cedula_identidad: cedulaClean,
                 nombres: formData.nombres,
                 apellidos: formData.apellidos,
                 email: formData.email,
-                telefono: formData.phone,
+                telefono: phoneClean,
             };
             if (formData.location === 'Servicio a Domicilio') {
                 patientPayload.direccion = formData.direccion;
                 patientPayload.ciudad_domicilio = formData.city || undefined;
             }
 
-            let patientResponse = await supabase.from('pacientes').select('id').eq('cedula_identidad', formData.cedula).single();
+            // Buscar paciente existente por variantes de cédula (normalizada y cruda) para evitar duplicados
+            const cedulaVariants = Array.from(new Set([cedulaClean, rawCedula].filter(Boolean)));
+            let patientResponse = await supabase
+                .from('pacientes')
+                .select('id, cedula_identidad')
+                .or(cedulaVariants.map(v => `cedula_identidad.eq.${v}`).join(','))
+                .limit(1)
+                .maybeSingle();
 
             if (!patientResponse.data) {
                 // Paciente no existe, generar ID y crear
@@ -127,13 +144,22 @@ const SchedulingPage: React.FC = () => {
                 });
                 if (rpcError) throw rpcError;
 
-                const { data: newPatient, error: insertError } = await supabase.from('pacientes').insert({ ...patientPayload, id: newId }).select().single();
+                const { data: newPatient, error: insertError } = await supabase
+                    .from('pacientes')
+                    .insert({ ...patientPayload, id: newId, cedula_identidad: cedulaClean })
+                    .select()
+                    .single();
                 if (insertError) throw insertError;
                 patientResponse.data = newPatient;
 
             } else {
-                // Paciente existe, actualizar
-                const { data: updatedPatient, error: updateError } = await supabase.from('pacientes').update(patientPayload).eq('cedula_identidad', formData.cedula).select().single();
+                // Paciente existe, actualizar por id y normalizar cédula en DB
+                const { data: updatedPatient, error: updateError } = await supabase
+                    .from('pacientes')
+                    .update({ ...patientPayload, cedula_identidad: cedulaClean })
+                    .eq('id', patientResponse.data.id)
+                    .select()
+                    .single();
                 if (updateError) throw updateError;
                 patientResponse.data = updatedPatient;
             }
@@ -142,13 +168,35 @@ const SchedulingPage: React.FC = () => {
                 throw new Error("No se pudo crear o encontrar al paciente.");
             }
 
+            const fechaCitaIso = `${format(formData.date!, 'yyyy-MM-dd')}T${time24}:00-04:00`;
             const { error: appointmentError } = await supabase.from('citas').insert({
                 paciente_id: patientResponse.data.id,
-                fecha_cita: `${format(formData.date!, 'yyyy-MM-dd')}T${time24}:00-04:00`,
+                fecha_cita: fechaCitaIso,
                 estudios_solicitados: formData.selectedStudies.map(s => s.label),
                 ubicacion: formData.location
             });
             if (appointmentError) throw appointmentError;
+
+            // Enviar correo de confirmación si el usuario ingresó email
+            if (formData.email && formData.email.includes('@')) {
+                try {
+                    await fetch('/api/appointments/send-confirmation', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            to: formData.email,
+                            patientName: `${formData.nombres} ${formData.apellidos}`.trim(),
+                            cedula: formData.cedula || undefined,
+                            phone: formData.phone || undefined,
+                            location: formData.location,
+                            studies: formData.selectedStudies.map(s => s.label),
+                            dateIso: fechaCitaIso,
+                        }),
+                    });
+                } catch (e) {
+                    console.warn('No se pudo enviar el correo de confirmación:', (e as any)?.message || e);
+                }
+            }
 
             setStatus({ type: 'success', message: '¡Tu cita ha sido agendada con éxito!' });
             // Reset form
