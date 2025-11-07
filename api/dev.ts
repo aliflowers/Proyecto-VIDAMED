@@ -17,6 +17,7 @@ import interpretarHandler from './interpretar.js'; // Importar el nuevo manejado
 import notifyWhatsappHandler from './notify/whatsapp.js';
 import notifyEmailHandler from './notify/email.js';
 import { sendAppointmentConfirmationEmail } from './notify/appointment-email.js';
+// Eliminado: nodemailer no es necesario para recuperación de contraseña en dev
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { DEFAULT_GEMINI_MODEL } from './config.js';
 import { createClient } from '@supabase/supabase-js';
@@ -136,6 +137,12 @@ app.post('/api/appointments/send-confirmation', async (req: Request, res: Respon
     return res.status(500).json({ ok: false, error: error?.message || 'Error interno' });
   }
 });
+
+// Flujo nativo de Supabase: recuperación de contraseña vía enlace (sin OTP en dev)
+
+// Eliminado: verificación de código OTP (dev)
+
+// Eliminado: confirmación OTP (dev)
 
 app.get('/api/voice/token', async (req: Request, res: Response) => {
   try {

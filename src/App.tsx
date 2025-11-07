@@ -17,6 +17,8 @@ import PrivacyPolicyPage from '@/pages/PrivacyPolicyPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 import ChatWidget from '@/components/ChatWidget';
 import LoginPage from '@/pages/LoginPage';
+import ForgotPasswordPage from '@/pages/ForgotPasswordPage';
+import NewPasswordPage from '@/pages/NewPasswordPage';
 import AdminLayout from '@/components/admin/AdminLayout';
 import ProtectedRoute from '@/components/admin/ProtectedRoute';
 import DashboardPage from '@/pages/admin/DashboardPage';
@@ -67,6 +69,8 @@ const App: React.FC = () => {
                     <Route path="/contacto" element={<ContactPage />} />
                     <Route path="/terminos-de-servicio" element={<TermsOfServicePage />} />
                     <Route path="/politica-de-privacidad" element={<PrivacyPolicyPage />} />
+                    <Route path="/recuperar-password" element={<ForgotPasswordPage />} />
+                    <Route path="/nueva-password" element={<NewPasswordPage />} />
                     
                     {/* Admin Routes */}
                     <Route path="/login" element={<LoginPage />} />

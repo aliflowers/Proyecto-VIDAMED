@@ -9,6 +9,7 @@ import path from 'path';
 import notifyWhatsappHandler from './notify/whatsapp.js';
 import notifyEmailHandler from './notify/email.js';
 import { sendAppointmentConfirmationEmail, sendAppointmentReminderEmail } from './notify/appointment-email.js';
+// Eliminado: nodemailer ya no es necesario para recuperación de contraseña
 
 async function startServer() {
     // Forzar la carga del archivo .env desde la raíz del proyecto
@@ -125,6 +126,12 @@ async function startServer() {
             return res.status(500).json({ ok: false, error: error?.message || 'Error interno' });
         }
     });
+
+    // Flujo nativo de Supabase: la recuperación de contraseña se gestiona vía enlace.
+
+    // Eliminado: verificación de código OTP (migrado al flujo nativo)
+
+    // Eliminado: confirmación OTP (migrado al flujo nativo)
 
     // --- INICIO DE LA ARQUITECTURA DE ENRUTADOR v2.0 ---
 
