@@ -35,6 +35,9 @@ const SchedulingPage: React.FC = () => {
     });
     const [isLoading, setIsLoading] = useState(false);
     const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+    const [slotsLoading, setSlotsLoading] = useState(false);
+    const [slotsError, setSlotsError] = useState<string | null>(null);
+    const [availableSlots, setAvailableSlots] = useState<string[]>([]);
 
     useEffect(() => {
         fetchStudies();
@@ -78,6 +81,36 @@ const SchedulingPage: React.FC = () => {
             setUnavailableDays(utcDates);
         }
     };
+
+    // Consultar horarios disponibles para la fecha/ubicación seleccionadas
+    useEffect(() => {
+        const fetchSlots = async () => {
+            if (!formData.date) {
+                setAvailableSlots([]);
+                setSlotsError(null);
+                setSlotsLoading(false);
+                return;
+            }
+            try {
+                setSlotsLoading(true);
+                setSlotsError(null);
+                const date = format(formData.date, 'yyyy-MM-dd');
+                const url = `/api/availability/slots?date=${encodeURIComponent(date)}&location=${encodeURIComponent(formData.location)}`;
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`Error consultando disponibilidad: ${res.status}`);
+                const json = await res.json();
+                setAvailableSlots(Array.isArray(json.available) ? json.available : []);
+            } catch (e: any) {
+                console.error('[scheduling] Error consultando horarios:', e);
+                setSlotsError(e?.message || 'No se pudieron cargar los horarios disponibles.');
+                setAvailableSlots([]);
+            } finally {
+                setSlotsLoading(false);
+            }
+        };
+        fetchSlots();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [formData.date, formData.location]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -166,6 +199,11 @@ const SchedulingPage: React.FC = () => {
 
             if (!patientResponse.data) {
                 throw new Error("No se pudo crear o encontrar al paciente.");
+            }
+
+            // Validar que el horario esté disponible
+            if (!availableSlots.includes(time24)) {
+                throw new Error(`El horario ${time24} no está disponible para la fecha seleccionada.`);
             }
 
             const fechaCitaIso = `${format(formData.date!, 'yyyy-MM-dd')}T${time24}:00-04:00`;
@@ -287,6 +325,50 @@ const SchedulingPage: React.FC = () => {
                                                 <option value="AM">AM</option>
                                                 <option value="PM">PM</option>
                                             </select>
+                                        </div>
+                                        {/* Sugerencia visual de horarios disponibles */}
+                                        <div className="mt-2">
+                                            {formData.date && (
+                                                <>
+                                                    {slotsLoading && (
+                                                        <div className="flex items-center text-gray-600 text-sm"><Loader className="animate-spin mr-2" />Cargando horarios disponibles...</div>
+                                                    )}
+                                                    {slotsError && (
+                                                        <div className="text-red-600 text-sm">{slotsError}</div>
+                                                    )}
+                                                    {!slotsLoading && !slotsError && availableSlots.length > 0 && (
+                                                        <div>
+                                                            <div className="text-xs text-gray-600 mb-1">Horarios disponibles:</div>
+                                                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                                                {availableSlots.map((s) => (
+                                                                    <button
+                                                                        type="button"
+                                                                        key={s}
+                                                                        className="px-2 py-1 text-xs rounded border bg-green-50 border-green-300 text-green-800 hover:bg-green-100"
+                                                                        onClick={() => {
+                                                                            // Asignar selección a los pickers (formato 24h -> AM/PM)
+                                                                            const [hh, mm] = s.split(':').map(Number);
+                                                                            const isPM = hh >= 12;
+                                                                            const hour12 = hh % 12 === 0 ? 12 : hh % 12;
+                                                                            setFormData(prev => ({
+                                                                                ...prev,
+                                                                                hour: String(hour12).padStart(2,'0'),
+                                                                                minute: String(mm).padStart(2,'0'),
+                                                                                period: isPM ? 'PM' : 'AM',
+                                                                            }));
+                                                                        }}
+                                                                    >
+                                                                        {s}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {!slotsLoading && !slotsError && formData.date && availableSlots.length === 0 && (
+                                                        <div className="text-sm text-gray-600">No hay horarios disponibles para la fecha seleccionada.</div>
+                                                    )}
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

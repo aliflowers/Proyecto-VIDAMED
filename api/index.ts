@@ -286,7 +286,17 @@ Consultas de Estudios:
                 .like('fecha_cita', tzDatePrefix + '%');
             if (apErr) throw apErr;
             const bookedTimes = new Set<string>((appointments || []).map((r: any) => String(r.fecha_cita).slice(11,16)));
-            const available = slots.filter(t => !bookedTimes.has(t));
+            
+            // Excluir horarios bloqueados manualmente (horarios_no_disponibles) por ubicación por defecto
+            const DEFAULT_LOCATION = 'Sede Principal Maracay';
+            const { data: blockedSlots, error: bsErr } = await supabaseAdmin
+                .from('horarios_no_disponibles')
+                .select('hora, ubicacion')
+                .eq('fecha', date)
+                .eq('ubicacion', DEFAULT_LOCATION);
+            if (bsErr) throw bsErr;
+            const blockedSet = new Set<string>((blockedSlots || []).map((r: any) => String(r.hora)));
+            const available = slots.filter(t => !bookedTimes.has(t) && !blockedSet.has(t));
 
             return { result: `Horas disponibles para ${date}: ${available.join(', ')}`, hours: available };
         } catch (e: any) {

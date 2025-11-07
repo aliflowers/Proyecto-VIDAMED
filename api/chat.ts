@@ -335,7 +335,16 @@ Consultas de Estudios:
         if (availableDates.includes(targetDate)) {
           const allSlots = generateDailySlots('07:00', '17:00', 30);
           const bookedSet = await getBookedTimesForDate(targetDate);
-          const freeSlots = allSlots.filter((s) => !bookedSet.has(s));
+          // Excluir horarios bloqueados manualmente por ubicación por defecto
+          const DEFAULT_LOCATION = 'Sede Principal Maracay';
+          const { data: blockedSlots, error: bsErr } = await supabaseAdmin
+            .from('horarios_no_disponibles')
+            .select('hora, ubicacion')
+            .eq('fecha', targetDate)
+            .eq('ubicacion', DEFAULT_LOCATION);
+          if (bsErr) throw bsErr;
+          const blockedSlotsSet = new Set<string>((blockedSlots || []).map((r: any) => String(r.hora)));
+          const freeSlots = allSlots.filter((s) => !bookedSet.has(s) && !blockedSlotsSet.has(s));
 
           if (freeSlots.length === 0) {
             return {
@@ -387,7 +396,16 @@ Consultas de Estudios:
 
         const allSlots = generateDailySlots('07:00', '17:00', 30);
         const booked = await getBookedTimesForDate(date);
-        const available = allSlots.filter((s) => !booked.has(s));
+        // Excluir horarios bloqueados manualmente (horarios_no_disponibles) por ubicación por defecto
+        const DEFAULT_LOCATION = 'Sede Principal Maracay';
+        const { data: blockedSlots, error: bsErr } = await supabaseAdmin
+          .from('horarios_no_disponibles')
+          .select('hora, ubicacion')
+          .eq('fecha', date)
+          .eq('ubicacion', DEFAULT_LOCATION);
+        if (bsErr) throw bsErr;
+        const blockedSlotsSet = new Set<string>((blockedSlots || []).map((r: any) => String(r.hora)));
+        const available = allSlots.filter((s) => !booked.has(s) && !blockedSlotsSet.has(s));
         return { date, availableHours: available };
       } catch (e: any) {
         console.error('Error fetching available hours:', e);
