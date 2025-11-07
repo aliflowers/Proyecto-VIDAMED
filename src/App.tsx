@@ -30,6 +30,7 @@ import StatisticsPage from '@/pages/admin/StatisticsPage';
 import SiteConfigPage from '@/pages/admin/SiteConfigPage';
 import InventoryPage from '@/pages/admin/InventoryPage';
 import ResultsPage from '@/pages/admin/ResultsPage';
+import UsersManagementPage from '@/pages/admin/UsersManagementPage';
 
 // Componente para renderizar el layout principal
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -80,6 +81,7 @@ const App: React.FC = () => {
                             <Route path="patients" element={<PatientsAdminPage />} />
                         <Route path="patients/:id" element={<PatientDetailPage />} />
                         <Route path="statistics" element={<StatisticsPage />} />
+                        <Route path="gestion_usuarios" element={<UsersManagementPage />} />
                         <Route path="config" element={<SiteConfigPage />} />
                         <Route path="inventory" element={<InventoryPage />} />
                         <Route path="results" element={<ResultsPage />} />

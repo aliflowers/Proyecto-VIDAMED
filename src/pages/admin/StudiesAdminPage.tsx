@@ -3,6 +3,7 @@ import { supabase } from '@/services/supabaseClient';
 import { Study } from '@/types';
 import { Loader, Plus, Edit, Trash2, Search, ArrowUp, ArrowDown, ArrowUpDown, Save, Trash } from 'lucide-react';
 import StudyForm from '@/components/admin/StudyForm';
+import { hasPermission } from '@/utils/permissions';
 
 type SortOption = 'nombre' | 'costo_usd' | 'veces_realizado';
 
@@ -20,6 +21,17 @@ const StudiesAdminPage: React.FC = () => {
     const [tasaBcvGlobal, setTasaBcvGlobal] = useState(0);
     const [tasaInput, setTasaInput] = useState('');
     const [selectedStudies, setSelectedStudies] = useState<Set<string>>(new Set());
+
+    // Estado de permisos
+    const [currentUserRole, setCurrentUserRole] = useState<string>('Asistente');
+    const [currentUserOverrides, setCurrentUserOverrides] = useState<Record<string, Record<string, boolean>>>({});
+    const can = (action: string) => hasPermission({ role: currentUserRole || 'Asistente', overrides: currentUserOverrides }, 'ESTUDIOS', action);
+    const [showCreateDenied, setShowCreateDenied] = useState<boolean>(false);
+    const [denied, setDenied] = useState<Record<string, Record<string, boolean>>>({});
+    const markDenied = (id: string, action: string) => {
+        setDenied(prev => ({ ...prev, [id]: { ...(prev[id] || {}), [action]: true } }));
+        setTimeout(() => setDenied(prev => ({ ...prev, [id]: { ...(prev[id] || {}), [action]: false } })), 2500);
+    };
 
     const fetchStudiesAndCategories = useCallback(async () => {
         setIsLoading(true);
@@ -93,6 +105,7 @@ const StudiesAdminPage: React.FC = () => {
                     veces_realizado: item.veces_realizado,
                     metodo: item.metodo,
                     tipo_de_muestra: item.tipo_de_muestra,
+                    background_url: item.background_url,
                 };
             });
             setStudies(formattedData);
@@ -103,6 +116,42 @@ const StudiesAdminPage: React.FC = () => {
     useEffect(() => {
         fetchStudiesAndCategories();
     }, [fetchStudiesAndCategories]);
+
+    // Cargar rol y overrides del usuario para aplicar permisos sobre ESTUDIOS
+    useEffect(() => {
+        const loadUserPermissions = async () => {
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                const userId = user?.id;
+                let roleFromDB = 'Asistente';
+                if (userId) {
+                    const { data: profile } = await supabase
+                        .from('user_profiles')
+                        .select('rol')
+                        .eq('user_id', userId)
+                        .maybeSingle();
+                    roleFromDB = profile?.rol || 'Asistente';
+                }
+                setCurrentUserRole(roleFromDB);
+                // Overrides (si existen en API interna)
+                try {
+                    const base = import.meta.env.VITE_API_BASE;
+                    if (base) {
+                        const resp = await fetch(`${base}/permissions/overrides`);
+                        if (resp.ok) {
+                            const json = await resp.json();
+                            setCurrentUserOverrides(json?.overrides || {});
+                        }
+                    }
+                } catch (e) {
+                    // Silenciar errores de overrides
+                }
+            } catch (e) {
+                console.error('[StudiesAdmin] Error cargando permisos de usuario', e);
+            }
+        };
+        loadUserPermissions();
+    }, []);
 
     const filteredStudies = useMemo(() => {
         if (!searchTerm) return studies;
@@ -154,6 +203,11 @@ const StudiesAdminPage: React.FC = () => {
     };
 
     const handleSave = async (studyData: Partial<Study>, materials: { material_id: number; cantidad_usada: number }[], file?: File) => {
+        const isUpdate = Boolean(studyData.id);
+        if (!can(isUpdate ? 'editar' : 'crear')) {
+            alert('No está autorizado para realizar esta acción.');
+            return;
+        }
         setIsLoading(true);
         let backgroundUrl = studyData.background_url;
 
@@ -238,6 +292,10 @@ const StudiesAdminPage: React.FC = () => {
     };
 
     const handleDelete = async (studyId: string) => {
+        if (!can('eliminar')) {
+            alert('No está autorizado para eliminar estudios.');
+            return;
+        }
         if (window.confirm('¿Estás seguro de que quieres eliminar este estudio?')) {
             setIsLoading(true);
             const { error } = await supabase.from('estudios').delete().eq('id', studyId);
@@ -272,6 +330,10 @@ const StudiesAdminPage: React.FC = () => {
     };
 
     const handleDeleteSelected = async () => {
+        if (!can('eliminar')) {
+            alert('No está autorizado para eliminar estudios.');
+            return;
+        }
         if (selectedStudies.size === 0) {
             alert('Por favor, selecciona al menos un estudio para eliminar.');
             return;
@@ -351,10 +413,14 @@ const StudiesAdminPage: React.FC = () => {
                         <Save size={16} className="mr-1" />
                         Guardar Tasa
                     </button>
-                    <button onClick={() => { setEditingStudy(null); setIsModalOpen(true); }} className="bg-primary text-white px-3 py-2 rounded-md hover:bg-primary-dark flex items-center justify-center text-sm whitespace-nowrap">
+                    <button
+                        onClick={() => { if (!can('crear')) { setShowCreateDenied(true); setTimeout(() => setShowCreateDenied(false), 2500); return; } setEditingStudy(null); setIsModalOpen(true); }}
+                        className={`bg-primary text-white px-3 py-2 rounded-md flex items-center justify-center text-sm whitespace-nowrap ${!can('crear') ? 'opacity-50 cursor-not-allowed' : 'hover:bg-primary-dark'}`}
+                    >
                         <Plus size={16} className="mr-1" />
                         Crear Estudio
                     </button>
+                    {showCreateDenied && <span className="text-xs text-red-600">No está autorizado</span>}
                 </div>
             </div>
 
@@ -389,8 +455,8 @@ const StudiesAdminPage: React.FC = () => {
                         </span>
                         <button
                             onClick={handleDeleteSelected}
-                            className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 flex items-center text-sm"
-                            disabled={isLoading}
+                            className={`bg-red-600 text-white px-4 py-2 rounded-md flex items-center text-sm ${!can('eliminar') ? 'opacity-50 cursor-not-allowed' : 'hover:bg-red-700'}`}
+                            disabled={isLoading || !can('eliminar')}
                         >
                             <Trash size={16} className="mr-2" />
                             Eliminar Seleccionados
@@ -442,12 +508,20 @@ const StudiesAdminPage: React.FC = () => {
                                     <td className="py-1 px-1 text-center font-bold text-gray-700">{study.veces_realizado || 0}</td>
                                     <td className="py-1 px-1 text-right">
                                         <div className="flex justify-end gap-0.5">
-                                            <button onClick={() => { setEditingStudy(study); setIsModalOpen(true); }} className="text-indigo-600 hover:text-indigo-900 p-0.5">
+                                            <button
+                                                onClick={() => { if (!can('editar')) { markDenied(study.id, 'editar'); return; } setEditingStudy(study); setIsModalOpen(true); }}
+                                                className={`p-0.5 ${!can('editar') ? 'text-indigo-300 cursor-not-allowed' : 'text-indigo-600 hover:text-indigo-900'}`}
+                                            >
                                                 <Edit size={14} />
                                             </button>
-                                            <button onClick={() => handleDelete(study.id)} className="text-red-600 hover:text-red-900 p-0.5">
+                                            {denied[study.id]?.editar && <span className="ml-1 text-[10px] text-red-600">No está autorizado</span>}
+                                            <button
+                                                onClick={() => { if (!can('eliminar')) { markDenied(study.id, 'eliminar'); return; } handleDelete(study.id); }}
+                                                className={`p-0.5 ${!can('eliminar') ? 'text-red-300 cursor-not-allowed' : 'text-red-600 hover:text-red-900'}`}
+                                            >
                                                 <Trash2 size={14} />
                                             </button>
+                                            {denied[study.id]?.eliminar && <span className="ml-1 text-[10px] text-red-600">No está autorizado</span>}
                                         </div>
                                     </td>
                                 </tr>

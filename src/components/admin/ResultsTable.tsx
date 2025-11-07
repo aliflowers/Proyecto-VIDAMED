@@ -27,6 +27,7 @@ interface ResultsTableProps {
   isLoading?: boolean;
   generatingInterpretationId?: number | null;
   onResultUpdated?: (updated: GlobalResult) => void;
+  can?: (action: string) => boolean;
 }
 
 const ResultsTable: React.FC<ResultsTableProps> = ({
@@ -36,7 +37,8 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   onGenerateInterpretation,
   isLoading,
   generatingInterpretationId,
-  onResultUpdated
+  onResultUpdated,
+  can
 }) => {
   // Estado local para reflejar cambios inmediatos en la UI
   const [localResults, setLocalResults] = useState<GlobalResult[]>(results);
@@ -57,6 +59,20 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   const [editMotivo, setEditMotivo] = useState<string>(''); // <- NUEVO estado
   const [sendingWhatsappId, setSendingWhatsappId] = useState<number | null>(null);
   const [sendingEmailId, setSendingEmailId] = useState<number | null>(null);
+  const [denied, setDenied] = useState<Record<number, Record<string, boolean>>>({});
+
+  const markDenied = (id: number, action: string) => {
+    setDenied(prev => ({
+      ...prev,
+      [id]: { ...(prev[id] || {}), [action]: true }
+    }));
+    setTimeout(() => {
+      setDenied(prev => ({
+        ...prev,
+        [id]: { ...(prev[id] || {}), [action]: false }
+      }));
+    }, 3000);
+  };
 
   const notifyWhatsapp = async (resultId: number) => {
     setSendingWhatsappId(resultId);
@@ -349,14 +365,17 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                   ) : (
                     <button
                       onClick={() => {
-                        console.log('🖱️ Click en "Generar IA" en ResultsTable para resultado:', result);
+                        if (can && !can('editar')) { markDenied(result.id, 'generar_ia'); return; }
                         onGenerateInterpretation(result);
                       }}
-                      className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 transition-all duration-200 shadow-sm hover:shadow-md"
+                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 transition-all duration-200 shadow-sm ${can && !can('editar') ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-200 hover:shadow-md'}`}
                     >
                       <BrainCircuit className="mr-1 h-3 w-3 animate-pulse" />
                       Generar IA
                     </button>
+                  )}
+                  {denied[result.id]?.generar_ia && (
+                    <span className="ml-2 text-[10px] text-red-600">No está autorizado</span>
                   )}
                 </td>
 
@@ -364,26 +383,43 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                   <div className="flex items-center justify-center space-x-2">
                     {/* Botón de ver resultado en visor modal (lupa) */}
                     <button
-                      onClick={() => onViewResult(result)}
-                      className="p-1 text-gray-600 hover:text-gray-900 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
+                      onClick={() => {
+                        if (can && !can('ver')) { markDenied(result.id, 'ver'); return; }
+                        onViewResult(result);
+                      }}
+                      className={`p-1 border border-gray-200 rounded-md transition-colors ${can && !can('ver') ? 'opacity-50 cursor-not-allowed text-gray-400' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
                       title="Ver resultado"
                     >
                       <Search className="h-4 w-4" />
                     </button>
+                    {denied[result.id]?.ver && (
+                      <span className="ml-1 text-[10px] text-red-600">No está autorizado</span>
+                    )}
                     {result.resultado_data?.url && (
-                      <button
-                        onClick={() => window.open(result.resultado_data.url, '_blank', 'noopener,noreferrer')}
-                        className="p-1 text-blue-600 hover:text-blue-900 border border-blue-200 rounded-md hover:bg-blue-50 transition-colors"
-                        title="Ver archivo"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
+                      <>
+                        <button
+                          onClick={() => {
+                            if (can && !can('ver')) { markDenied(result.id, 'ver_archivo'); return; }
+                            window.open(result.resultado_data.url, '_blank', 'noopener,noreferrer');
+                          }}
+                          className={`p-1 border border-blue-200 rounded-md transition-colors ${can && !can('ver') ? 'opacity-50 cursor-not-allowed text-blue-300' : 'text-blue-600 hover:text-blue-900 hover:bg-blue-50'}`}
+                          title="Ver archivo"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                        {denied[result.id]?.ver_archivo && (
+                          <span className="ml-1 text-[10px] text-red-600">No está autorizado</span>
+                        )}
+                      </>
                     )}
 
                     {/* Notificar por WhatsApp */}
                     <button
-                      onClick={() => notifyWhatsapp(result.id)}
-                      className="p-1 text-green-600 hover:text-green-900 border border-green-200 rounded-md hover:bg-green-50 transition-colors disabled:opacity-50"
+                      onClick={() => {
+                        if (can && !can('enviar_whatsapp')) { markDenied(result.id, 'whatsapp'); return; }
+                        notifyWhatsapp(result.id);
+                      }}
+                      className={`p-1 border border-green-200 rounded-md transition-colors ${can && !can('enviar_whatsapp') ? 'opacity-50 cursor-not-allowed text-green-300' : 'text-green-600 hover:text-green-900 hover:bg-green-50'}`}
                       title="Enviar notificación por WhatsApp"
                       disabled={sendingWhatsappId === result.id}
                     >
@@ -396,11 +432,17 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                         <FaWhatsapp className="h-4 w-4" />
                       )}
                     </button>
+                    {denied[result.id]?.whatsapp && (
+                      <span className="ml-1 text-[10px] text-red-600">No está autorizado</span>
+                    )}
 
                     {/* Notificar por Email (requiere interpretación aprobada) */}
                     <button
-                      onClick={() => notifyEmail(result.id)}
-                      className="p-1 text-emerald-600 hover:text-emerald-900 border border-emerald-200 rounded-md hover:bg-emerald-50 transition-colors disabled:opacity-50"
+                      onClick={() => {
+                        if (can && !can('enviar_email')) { markDenied(result.id, 'email'); return; }
+                        notifyEmail(result.id);
+                      }}
+                      className={`p-1 border border-emerald-200 rounded-md transition-colors ${can && !can('enviar_email') ? 'opacity-50 cursor-not-allowed text-emerald-300' : 'text-emerald-600 hover:text-emerald-900 hover:bg-emerald-50'}`}
                       title={result.analisis_estado?.toLowerCase() === 'aprobado' ? 'Enviar resultado por Email' : 'Aprueba la interpretación IA para habilitar el envío'}
                       disabled={sendingEmailId === result.id || !(result.analisis_estado && result.analisis_estado.toLowerCase() === 'aprobado')}
                     >
@@ -413,77 +455,98 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                         <Mail className="h-4 w-4" />
                       )}
                     </button>
+                    {denied[result.id]?.email && (
+                      <span className="ml-1 text-[10px] text-red-600">No está autorizado</span>
+                    )}
 
                     {result.resultado_data?.tipo === 'manual' && (
-                      <button
-                        onClick={async () => {
-                          setFormError(null);
-                          setEditingResult(result);
-                          setIsEditOpen(true);
-                          // Cargar campos del estudio
-                          const { data, error } = await supabase
-                            .from('estudios')
-                            .select('campos_formulario, nombre')
-                            .eq('id', result.estudio_id)
-                            .single();
-                          if (error) {
-                            console.error('Error cargando campos del estudio:', error);
-                            toast.error('Error al cargar campos del estudio');
-                            setStudyFields([]);
-                          } else {
-                            const campos = Array.isArray(data?.campos_formulario)
-                              ? data.campos_formulario.map((campo: any) => ({
-                                  name: campo.name || campo.nombre,
-                                  label: campo.etiqueta || campo.label || campo.name || campo.nombre,
-                                  unit: campo.unit || campo.unidad,
-                                  reference: campo.reference || campo.valor_referencial,
-                                }))
-                              : [];
-                            setStudyFields(campos);
-                          }
-                          // Prefill valores
-                          try {
-                            const raw = typeof result.resultado_data === 'string'
-                              ? JSON.parse(result.resultado_data as any)
-                              : result.resultado_data;
-                            const valores = raw?.valores && typeof raw.valores === 'object' ? raw.valores : {};
-                            setEditValues(valores);
-                            const motivoValue = raw?.motivo_estudio;
-                            setEditMotivo(typeof motivoValue === 'string' ? motivoValue : ''); // <- NUEVO: precargar motivo
-                          } catch (e) {
-                            console.warn('No se pudieron pre-cargar valores del resultado');
-                            setEditValues({});
-                            setEditMotivo(''); // <- NUEVO: reset motivo
-                          }
-                        }}
-                        className="p-1 text-blue-600 hover:text-blue-900 border border-blue-200 rounded-md hover:bg-blue-50 transition-colors"
-                        title="Editar parámetros del estudio"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
+                      <>
+                        <button
+                          onClick={async () => {
+                            if (can && !can('editar')) { markDenied(result.id, 'editar'); return; }
+                            setFormError(null);
+                            setEditingResult(result);
+                            setIsEditOpen(true);
+                            // Cargar campos del estudio
+                            const { data, error } = await supabase
+                              .from('estudios')
+                              .select('campos_formulario, nombre')
+                              .eq('id', result.estudio_id)
+                              .single();
+                            if (error) {
+                              console.error('Error cargando campos del estudio:', error);
+                              toast.error('Error al cargar campos del estudio');
+                              setStudyFields([]);
+                            } else {
+                              const campos = Array.isArray(data?.campos_formulario)
+                                ? data.campos_formulario.map((campo: any) => ({
+                                    name: campo.name || campo.nombre,
+                                    label: campo.etiqueta || campo.label || campo.name || campo.nombre,
+                                    unit: campo.unit || campo.unidad,
+                                    reference: campo.reference || campo.valor_referencial,
+                                  }))
+                                : [];
+                              setStudyFields(campos);
+                            }
+                            // Prefill valores
+                            try {
+                              const raw = typeof result.resultado_data === 'string'
+                                ? JSON.parse(result.resultado_data as any)
+                                : result.resultado_data;
+                              const valores = raw?.valores && typeof raw.valores === 'object' ? raw.valores : {};
+                              setEditValues(valores);
+                              const motivoValue = raw?.motivo_estudio;
+                              setEditMotivo(typeof motivoValue === 'string' ? motivoValue : ''); // <- NUEVO: precargar motivo
+                            } catch (e) {
+                              console.warn('No se pudieron pre-cargar valores del resultado');
+                              setEditValues({});
+                              setEditMotivo(''); // <- NUEVO: reset motivo
+                            }
+                          }}
+                          className={`p-1 border border-blue-200 rounded-md transition-colors ${can && !can('editar') ? 'opacity-50 cursor-not-allowed text-blue-300' : 'text-blue-600 hover:text-blue-900 hover:bg-blue-50'}`}
+                          title="Editar parámetros del estudio"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        {denied[result.id]?.editar && (
+                          <span className="ml-1 text-[10px] text-red-600">No está autorizado</span>
+                        )}
+                      </>
                     )}
 
                     {!!result.analisis_ia && (
-                      <button
-                        onClick={() => onGenerateInterpretation(result)}
-                        className="p-1 text-indigo-600 hover:text-indigo-900 border border-indigo-200 rounded-md hover:bg-indigo-50 transition-colors"
-                        title="Ver/editar análisis IA"
-                      >
-                        <BrainCircuit className="h-4 w-4" />
-                      </button>
+                      <>
+                        <button
+                          onClick={() => {
+                            if (can && !can('editar')) { markDenied(result.id, 'ia_detalle'); return; }
+                            onGenerateInterpretation(result);
+                          }}
+                          className={`p-1 border border-indigo-200 rounded-md transition-colors ${can && !can('editar') ? 'opacity-50 cursor-not-allowed text-indigo-300' : 'text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50'}`}
+                          title="Ver/editar análisis IA"
+                        >
+                          <BrainCircuit className="h-4 w-4" />
+                        </button>
+                        {denied[result.id]?.ia_detalle && (
+                          <span className="ml-1 text-[10px] text-red-600">No está autorizado</span>
+                        )}
+                      </>
                     )}
 
                     <button
                       onClick={() => {
+                        if (can && !can('eliminar')) { markDenied(result.id, 'eliminar'); return; }
                         if (window.confirm('¿Estás seguro de querer eliminar este resultado?')) {
                           onDeleteResult(result.id);
                         }
                       }}
-                      className="p-1 text-red-600 hover:text-red-900 border border-red-200 rounded-md hover:bg-red-50 transition-colors"
+                      className={`p-1 border border-red-200 rounded-md transition-colors ${can && !can('eliminar') ? 'opacity-50 cursor-not-allowed text-red-300' : 'text-red-600 hover:text-red-900 hover:bg-red-50'}`}
                       title="Eliminar resultado"
                     >
                       <Trash className="h-4 w-4" />
                     </button>
+                    {denied[result.id]?.eliminar && (
+                      <span className="ml-1 text-[10px] text-red-600">No está autorizado</span>
+                    )}
                   </div>
                 </td>
               </tr>

@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import PatientForm from '@/components/admin/PatientForm';
 import { Patient } from '@/types';
 import { useStatistics } from '@/context/StatisticsContext';
+import { hasPermission } from '@/utils/permissions';
 
 const PatientsAdminPage: React.FC = () => {
     const [allPatients, setAllPatients] = useState<Patient[]>([]);
@@ -12,10 +13,39 @@ const PatientsAdminPage: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
+    const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+    const [currentUserOverrides, setCurrentUserOverrides] = useState<Record<string, Record<string, boolean>>>({});
+    const can = (action: string) => hasPermission({ role: currentUserRole || 'Asistente', overrides: currentUserOverrides }, 'PACIENTES', action);
     const { refreshStats } = useStatistics();
 
     useEffect(() => {
         fetchPatients();
+    }, []);
+
+    useEffect(() => {
+        // Cargar rol del usuario actual y overrides de permisos
+        const loadAuth = async () => {
+            const { data: auth } = await supabase.auth.getUser();
+            const user = auth?.user;
+            if (!user) return;
+            const { data: profile } = await supabase
+                .from('user_profiles')
+                .select('rol')
+                .eq('user_id', user.id)
+                .maybeSingle();
+            setCurrentUserRole(profile?.rol || null);
+            try {
+                const base = (import.meta as any).env?.VITE_API_BASE || '';
+                const res = await fetch(`${base}/api/permissions/overrides?user_id=${user.id}`);
+                if (res.ok) {
+                    const json = await res.json();
+                    setCurrentUserOverrides(json || {});
+                }
+            } catch (e) {
+                console.warn('No se pudieron cargar overrides de permisos', e);
+            }
+        };
+        loadAuth();
     }, []);
 
     const fetchPatients = async () => {
@@ -116,7 +146,18 @@ const PatientsAdminPage: React.FC = () => {
                                     <td className="py-4 px-6 max-w-xs truncate">{patient.direccion}</td>
                                     <td className="py-4 px-6">
                                         <div className="flex items-center justify-center gap-4">
-                                            <button onClick={() => { setEditingPatient(patient); setIsModalOpen(true); }} className="text-indigo-600 hover:text-indigo-900"><Edit size={18} /></button>
+                                            <button
+                                                onClick={() => {
+                                                    if (!can('editar')) return;
+                                                    setEditingPatient(patient);
+                                                    setIsModalOpen(true);
+                                                }}
+                                                className={`${!can('editar') ? 'text-indigo-300 cursor-not-allowed' : 'text-indigo-600 hover:text-indigo-900'}`}
+                                                title={can('editar') ? 'Editar' : 'No autorizado'}
+                                                disabled={!can('editar')}
+                                            >
+                                                <Edit size={18} />
+                                            </button>
                                             <Link to={`/admin/patients/${patient.id}`} className="text-blue-600 hover:text-blue-900">
                                                 <Eye size={18} />
                                             </Link>

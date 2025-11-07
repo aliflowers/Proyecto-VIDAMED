@@ -15,6 +15,7 @@
     "@supabase/supabase-js": "^2.51.0",
     "@types/react-select": "^5.0.0",
     "@types/showdown": "^2.0.6",
+    "browser-image-compression": "^2.0.2",
     "date-fns": "^4.1.0",
     "dotenv": "^16.6.1",
     "embla-carousel-autoplay": "^8.6.0",

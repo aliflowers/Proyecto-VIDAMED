@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { FaEdit, FaBox } from 'react-icons/fa';
 import { InventoryItem } from '@/types';
 import { formatCurrency, formatDate } from '@/utils/formatters';
@@ -7,9 +7,11 @@ interface InventoryCardProps {
   item: InventoryItem;
   onEdit: (item: InventoryItem) => void;
   index?: number; // Para generar SKUs temporales
+  canEdit?: boolean;
 }
 
-const InventoryCard: React.FC<InventoryCardProps> = ({ item, onEdit, index = 0 }) => {
+const InventoryCard: React.FC<InventoryCardProps> = ({ item, onEdit, index = 0, canEdit = true }) => {
+  const [denied, setDenied] = useState(false);
 
   // Función para generar SKUs basados en nombre del material
   const generateSKU = (nombre: string, sequence: number = 1): string => {
@@ -56,10 +58,19 @@ const InventoryCard: React.FC<InventoryCardProps> = ({ item, onEdit, index = 0 }
         </div>
         {item.notas && <p className="text-sm text-gray-600 mt-2"><strong>Notas:</strong> {item.notas}</p>}
       </div>
-      <div className="mt-4 flex justify-end">
-        <button onClick={() => onEdit(item)} className="text-blue-500 hover:text-blue-700">
+      <div className="mt-4 flex justify-end items-center gap-2">
+        <button
+          onClick={() => {
+            if (!canEdit) { setDenied(true); setTimeout(() => setDenied(false), 3000); return; }
+            onEdit(item);
+          }}
+          className={`${!canEdit ? 'text-blue-300 cursor-not-allowed' : 'text-blue-500 hover:text-blue-700'}`}
+        >
           <FaEdit className="text-xl" />
         </button>
+        {denied && (
+          <span className="text-[10px] text-red-600">No está autorizado</span>
+        )}
       </div>
     </div>
   );

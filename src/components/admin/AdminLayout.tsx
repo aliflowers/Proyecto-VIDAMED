@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { supabase } from '@/services/supabaseClient';
-import { LayoutDashboard, FlaskConical, Newspaper, MessageSquare, Calendar, Users, BarChart2, Settings, LogOut, Package, Menu, FileText } from 'lucide-react';
+import { LayoutDashboard, FlaskConical, Newspaper, MessageSquare, Calendar, Users, BarChart2, Settings, LogOut, Package, Menu, FileText, UserCog } from 'lucide-react';
 import Logo from '@/components/Logo';
 import { StatisticsProvider } from '@/context/StatisticsContext';
 import { ToastContainer } from 'react-toastify';
@@ -9,6 +9,41 @@ import { ToastContainer } from 'react-toastify';
 const AdminLayout: React.FC = () => {
     const navigate = useNavigate();
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [userName, setUserName] = useState<string>('');
+    const [userRole, setUserRole] = useState<string>('');
+
+    // Cargar nombre completo y rol del usuario autenticado
+    useEffect(() => {
+        (async () => {
+            try {
+                const { data: auth } = await supabase.auth.getUser();
+                const uid = auth?.user?.id || null;
+                let rol: string | null = null;
+                let nombre = '';
+                let apellido = '';
+
+                if (uid) {
+                    const { data: profile, error } = await supabase
+                        .from('user_profiles')
+                        .select('nombre, apellido, rol')
+                        .eq('user_id', uid)
+                        .single();
+
+                    if (!error && profile) {
+                        nombre = (profile as any).nombre || '';
+                        apellido = (profile as any).apellido || '';
+                        rol = (profile as any).rol || null;
+                    }
+                }
+
+                setUserName([nombre, apellido].filter(Boolean).join(' '));
+                setUserRole(rol ? rol : (auth?.user?.user_metadata?.rol ? String(auth.user.user_metadata.rol) : ''));
+            } catch (e) {
+                setUserName('');
+                setUserRole('');
+            }
+        })();
+    }, []);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -25,6 +60,8 @@ const AdminLayout: React.FC = () => {
         { to: "/admin/inventory", icon: Package, label: "Inventario" },
         { to: "/admin/results", icon: FileText, label: "Resultados" },
         { to: "/admin/statistics", icon: BarChart2, label: "Estadísticas" },
+        // Enlace al módulo de Gestión de Usuarios (por encima de Configuración y debajo del panel de estadísticas)
+        { to: "/admin/gestion_usuarios", icon: UserCog, label: "Gestión de Usuarios" },
         { to: "/admin/config", icon: Settings, label: "Configuración" },
     ];
 
@@ -109,6 +146,17 @@ const AdminLayout: React.FC = () => {
 
                 {/* Content */}
                 <div className="p-4 sm:p-6 lg:p-8 overflow-y-auto bg-light min-h-screen lg:h-screen">
+                    {/* Mensaje de bienvenida con nombre y rol */}
+                    {(userName || userRole) && (
+                        <div className="mb-4 bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between">
+                            <div>
+                                <p className="text-gray-800 font-semibold">Bienvenido(a) {userName || 'Usuario'}</p>
+                                {userRole && (
+                                    <p className="text-sm text-gray-600">Rol: {userRole}</p>
+                                )}
+                            </div>
+                        </div>
+                    )}
                     <StatisticsProvider>
                         <Outlet />
                     </StatisticsProvider>

@@ -12,6 +12,7 @@ import { Modal } from '@/components/common/Modal';
 import { Pagination } from '@/components/common/Pagination';
 import { EmptyState } from '@/components/common/EmptyState';
 import { InventoryItem } from '@/types';
+import { hasPermission } from '@/utils/permissions';
 
 type ViewMode = 'cards' | 'table';
 
@@ -50,6 +51,7 @@ const InventoryPage = () => {
 
   // Estados para eliminación múltiple
   const [selectedForDeletion, setSelectedForDeletion] = useState<Set<number>>(new Set());
+  const [deniedBulkDelete, setDeniedBulkDelete] = useState<boolean>(false);
 
   // Función para manejar selección múltiple desde el componente hijo
   const handleSelectionChange = (selectedIds: number[]) => {
@@ -176,6 +178,47 @@ const InventoryPage = () => {
 
   const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
 
+  // Permisos (INVENTARIO)
+  const [currentUserRole, setCurrentUserRole] = useState<string>('Asistente');
+  const [currentUserOverrides, setCurrentUserOverrides] = useState<Record<string, string[]>>({});
+  const API_BASE = import.meta.env.VITE_API_BASE || '';
+  const can = (action: string) => hasPermission(currentUserRole, 'INVENTARIO', action, currentUserOverrides);
+
+  useEffect(() => {
+    const fetchRoleAndOverrides = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const userId = user?.id;
+        let roleFromDB = 'Asistente';
+        if (userId) {
+          const { data: profile } = await supabase
+            .from('user_profiles')
+            .select('role')
+            .eq('user_id', userId)
+            .maybeSingle();
+          roleFromDB = profile?.role || 'Asistente';
+        }
+        setCurrentUserRole(roleFromDB);
+        if (API_BASE) {
+          try {
+            const resp = await fetch(`${API_BASE}/permissions/overrides`);
+            if (resp.ok) {
+              const json = await resp.json();
+              setCurrentUserOverrides(json?.overrides || {});
+            }
+          } catch {
+            // Ignorar errores de overrides
+          }
+        }
+      } catch (e) {
+        console.error('[INVENTARIO] Error cargando permisos:', e);
+      }
+    };
+    fetchRoleAndOverrides();
+  }, []);
+
+  const [showCreateDenied, setShowCreateDenied] = useState<boolean>(false);
+
   // Función de eliminación múltiple segura
   const handleBulkDelete = async (selectedIds: number[]) => {
     if (selectedIds.length === 0) return;
@@ -262,20 +305,32 @@ const InventoryPage = () => {
           {/* Botón rojo de eliminación múltiple - solo mostrar si hay selecciones */}
           {currentView === 'table' && selectedForDeletion.size > 0 && (
             <button
-              onClick={() => handleBulkDelete(Array.from(selectedForDeletion))}
-              className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg flex items-center"
+              onClick={() => {
+                if (!can('eliminar')) { setDeniedBulkDelete(true); setTimeout(() => setDeniedBulkDelete(false), 3000); return; }
+                handleBulkDelete(Array.from(selectedForDeletion));
+              }}
+              className={`text-white font-bold py-2 px-4 rounded-lg flex items-center ${!can('eliminar') ? 'bg-red-300 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}`}
             >
               <FaTrash className="mr-2" />
               Eliminar Materiales ({selectedForDeletion.size})
             </button>
           )}
+          {deniedBulkDelete && (
+            <span className="text-[10px] text-red-600">No está autorizado</span>
+          )}
 
           <button
-            onClick={() => handleOpenModal()}
-            className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg flex items-center"
+            onClick={() => {
+              if (!can('crear')) { setShowCreateDenied(true); setTimeout(() => setShowCreateDenied(false), 3000); return; }
+              handleOpenModal();
+            }}
+            className={`text-white font-bold py-2 px-4 rounded-lg flex items-center ${!can('crear') ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'}`}
           >
             <FaPlus className="mr-2" /> Nuevo Material
           </button>
+          {showCreateDenied && (
+            <span className="text-[10px] text-red-600">No está autorizado</span>
+          )}
         </div>
       </div>
 
@@ -310,7 +365,13 @@ const InventoryPage = () => {
           {currentView === 'cards' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {inventory.map((item, index) => (
-                <InventoryCard key={item.id} item={item} onEdit={() => handleOpenModal(item)} index={index} />
+                <InventoryCard
+                  key={item.id}
+                  item={item}
+                  onEdit={() => handleOpenModal(item)}
+                  index={index}
+                  canEdit={can('editar')}
+                />
               ))}
             </div>
           ) : (
@@ -319,6 +380,7 @@ const InventoryPage = () => {
               onEdit={handleOpenModal}
               onBulkDelete={handleSelectionChange}
               isLoading={loading}
+              canEdit={can('editar')}
             />
           )}
         </div>

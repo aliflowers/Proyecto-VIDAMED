@@ -8,17 +8,25 @@ interface InventoryTableProps {
   onEdit: (item: InventoryItem) => void;
   onBulkDelete?: (selectedIds: number[]) => void;
   isLoading?: boolean;
+  canEdit?: boolean;
 }
 
 const InventoryTable: React.FC<InventoryTableProps> = ({
   items,
   onEdit,
   onBulkDelete,
-  isLoading = false
+  isLoading = false,
+  canEdit = true
 }) => {
   // Estado para selección múltiple
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
+  const [deniedEdit, setDeniedEdit] = useState<Record<number, boolean>>({});
+
+  const markDenied = (id: number) => {
+    setDeniedEdit(prev => ({ ...prev, [id]: true }));
+    setTimeout(() => setDeniedEdit(prev => ({ ...prev, [id]: false })), 3000);
+  };
 
   // Propagar selecciones al parent - SIEMPRE, incluso cuando está vacío
   useEffect(() => {
@@ -264,13 +272,21 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
 
                 {/* Acciones */}
                 <td className="px-6 py-4 text-center">
-                  <button
-                    onClick={() => onEdit(item)}
-                    className="text-blue-600 hover:text-blue-900 transition-colors"
-                    title="Editar material"
-                  >
-                    <FaEdit className="text-lg" />
-                  </button>
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      onClick={() => {
+                        if (!canEdit) { markDenied(item.id); return; }
+                        onEdit(item);
+                      }}
+                      className={`${!canEdit ? 'text-blue-300 cursor-not-allowed' : 'text-blue-600 hover:text-blue-900'} transition-colors`}
+                      title="Editar material"
+                    >
+                      <FaEdit className="text-lg" />
+                    </button>
+                    {deniedEdit[item.id] && (
+                      <span className="text-[10px] text-red-600">No está autorizado</span>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

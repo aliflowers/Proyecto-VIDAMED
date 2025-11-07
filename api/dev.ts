@@ -378,6 +378,199 @@ app.post('/api/generate-blog-post', async (req: Request, res: Response) => {
   }
 });
 
+// --- Gestión de Usuarios (CRUD + permisos granulares) ---
+// Nota: Estos endpoints requieren que supabaseAdmin esté configurado con Service Role.
+// En producción, deben protegerse para sólo permitir acceso a administradores autenticados.
+
+// Listar perfiles de usuarios
+app.get('/api/users', async (_req: Request, res: Response) => {
+  try {
+    if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
+    const { data, error } = await supabaseAdmin
+      .from('user_profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    res.status(200).json({ users: data || [] });
+  } catch (e: any) {
+    console.error('[dev-api] Error en GET /api/users:', e);
+    res.status(500).json({ error: e.message || 'Error interno' });
+  }
+});
+
+// Crear un nuevo usuario (auth + perfil + permisos opcionales)
+app.post('/api/users', async (req: Request, res: Response) => {
+  try {
+    if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
+    const { nombre, apellido, cedula, email, password, sede, rol, permissions } = req.body || {};
+    if (!nombre || !apellido || !cedula || !email || !password || !sede || !rol) {
+      return res.status(400).json({ error: 'Campos requeridos: nombre, apellido, cedula, email, password, sede, rol' });
+    }
+
+    const created = await (supabaseAdmin as any).auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { nombre, apellido, cedula, sede, rol },
+    });
+    if (created.error) throw created.error;
+    const userId = created.data.user?.id;
+    if (!userId) throw new Error('No se obtuvo el ID de usuario tras la creación.');
+
+    const { error: profErr } = await supabaseAdmin
+      .from('user_profiles')
+      .insert({ user_id: userId, nombre, apellido, cedula, email, sede, rol });
+    if (profErr) throw profErr;
+
+    if (Array.isArray(permissions) && permissions.length > 0) {
+      const toInsert = permissions.map((p: any) => ({
+        user_id: userId,
+        module: String(p.module),
+        action: String(p.action),
+        allowed: Boolean(p.allowed),
+      }));
+      const { error: permErr } = await supabaseAdmin.from('user_permissions').insert(toInsert);
+      if (permErr) throw permErr;
+    }
+
+    res.status(201).json({ ok: true, user_id: userId });
+  } catch (e: any) {
+    console.error('[dev-api] Error en POST /api/users:', e);
+    res.status(500).json({ error: e.message || 'Error interno' });
+  }
+});
+
+// Actualizar usuario (auth + perfil); admite reemplazo de permisos
+app.put('/api/users/:id', async (req: Request, res: Response) => {
+  try {
+    if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
+    const userId = String(req.params.id);
+    const { nombre, apellido, cedula, email, password, sede, rol, permissions } = req.body || {};
+    if (!userId) return res.status(400).json({ error: 'Falta id de usuario' });
+
+    // Actualizar auth (email/contraseña/metadatos si fueron provistos)
+    const updatePayload: any = {};
+    if (email) updatePayload.email = String(email);
+    if (password) updatePayload.password = String(password);
+    const meta: any = {};
+    if (nombre) meta.nombre = String(nombre);
+    if (apellido) meta.apellido = String(apellido);
+    if (cedula) meta.cedula = String(cedula);
+    if (sede) meta.sede = String(sede);
+    if (rol) meta.rol = String(rol);
+    if (Object.keys(meta).length > 0) updatePayload.user_metadata = meta;
+
+    if (Object.keys(updatePayload).length > 0) {
+      const upd = await (supabaseAdmin as any).auth.admin.updateUserById(userId, updatePayload);
+      if (upd.error) throw upd.error;
+    }
+
+    // Actualizar perfil
+    const profileUpdate: any = {};
+    if (nombre) profileUpdate.nombre = String(nombre);
+    if (apellido) profileUpdate.apellido = String(apellido);
+    if (cedula) profileUpdate.cedula = String(cedula);
+    if (email) profileUpdate.email = String(email);
+    if (sede) profileUpdate.sede = String(sede);
+    if (rol) profileUpdate.rol = String(rol);
+    if (Object.keys(profileUpdate).length > 0) {
+      const { error: profErr } = await supabaseAdmin
+        .from('user_profiles')
+        .update({ ...profileUpdate, updated_at: new Date().toISOString() })
+        .eq('user_id', userId);
+      if (profErr) throw profErr;
+    }
+
+    // Reemplazar permisos si fueron enviados
+    if (Array.isArray(permissions)) {
+      const { error: delErr } = await supabaseAdmin
+        .from('user_permissions')
+        .delete()
+        .eq('user_id', userId);
+      if (delErr) throw delErr;
+      if (permissions.length > 0) {
+        const toInsert = permissions.map((p: any) => ({
+          user_id: userId,
+          module: String(p.module),
+          action: String(p.action),
+          allowed: Boolean(p.allowed),
+        }));
+        const { error: permErr } = await supabaseAdmin.from('user_permissions').insert(toInsert);
+        if (permErr) throw permErr;
+      }
+    }
+
+    res.status(200).json({ ok: true });
+  } catch (e: any) {
+    console.error('[dev-api] Error en PUT /api/users/:id:', e);
+    res.status(500).json({ error: e.message || 'Error interno' });
+  }
+});
+
+// Eliminar usuario (auth + cascade DB)
+app.delete('/api/users/:id', async (req: Request, res: Response) => {
+  try {
+    if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
+    const userId = String(req.params.id);
+    if (!userId) return res.status(400).json({ error: 'Falta id de usuario' });
+
+    const del = await (supabaseAdmin as any).auth.admin.deleteUser(userId);
+    if (del.error) throw del.error;
+    // user_profiles y user_permissions se eliminarán por cascade.
+    res.status(200).json({ ok: true });
+  } catch (e: any) {
+    console.error('[dev-api] Error en DELETE /api/users/:id:', e);
+    res.status(500).json({ error: e.message || 'Error interno' });
+  }
+});
+
+// Permisos granulares: obtener overrides del usuario
+app.get('/api/users/:id/permissions', async (req: Request, res: Response) => {
+  try {
+    if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
+    const userId = String(req.params.id);
+    const { data, error } = await supabaseAdmin
+      .from('user_permissions')
+      .select('module, action, allowed')
+      .eq('user_id', userId);
+    if (error) throw error;
+    res.status(200).json({ permissions: data || [] });
+  } catch (e: any) {
+    console.error('[dev-api] Error en GET /api/users/:id/permissions:', e);
+    res.status(500).json({ error: e.message || 'Error interno' });
+  }
+});
+
+// Permisos granulares: reemplazar overrides del usuario
+app.put('/api/users/:id/permissions', async (req: Request, res: Response) => {
+  try {
+    if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
+    const userId = String(req.params.id);
+    const { permissions } = req.body || {};
+    if (!Array.isArray(permissions)) return res.status(400).json({ error: 'permissions debe ser un arreglo' });
+
+    const { error: delErr } = await supabaseAdmin
+      .from('user_permissions')
+      .delete()
+      .eq('user_id', userId);
+    if (delErr) throw delErr;
+    if (permissions.length > 0) {
+      const toInsert = permissions.map((p: any) => ({
+        user_id: userId,
+        module: String(p.module),
+        action: String(p.action),
+        allowed: Boolean(p.allowed),
+      }));
+      const { error: permErr } = await supabaseAdmin.from('user_permissions').insert(toInsert);
+      if (permErr) throw permErr;
+    }
+    res.status(200).json({ ok: true });
+  } catch (e: any) {
+    console.error('[dev-api] Error en PUT /api/users/:id/permissions:', e);
+    res.status(500).json({ error: e.message || 'Error interno' });
+  }
+});
+
 // Fallback error handler
 app.use((err: any, _req: Request, res: Response, _next: any) => {
   console.error('[dev-api] Error middleware:', err);

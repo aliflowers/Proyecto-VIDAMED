@@ -6,6 +6,7 @@ import { DayPicker, SelectMultipleEventHandler } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import { format, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { hasPermission } from '@/utils/permissions';
 
 const RescheduleModal: React.FC<{ appointment: Appointment, onSave: (id: number, newDate: string) => void, onCancel: () => void }> = ({ appointment, onSave, onCancel }) => {
     const [newDateTime, setNewDateTime] = useState(appointment.fecha_cita.substring(0, 16));
@@ -57,6 +58,76 @@ const AppointmentsAdminPage: React.FC = () => {
     const [unavailableSlots, setUnavailableSlots] = useState<string[]>([]);
     const [isDayBlocked, setIsDayBlocked] = useState<boolean>(false);
     const [togglingSlot, setTogglingSlot] = useState<string | null>(null);
+
+    // Permisos (CITAS)
+    const [currentUserRole, setCurrentUserRole] = useState<string>('Asistente');
+    const [currentUserOverrides, setCurrentUserOverrides] = useState<Record<string, Record<string, boolean>>>({});
+    const [currentUserSede, setCurrentUserSede] = useState<string | null>(null);
+    const API_BASE = import.meta.env.VITE_API_BASE || '';
+    const can = (action: string) => hasPermission({ role: currentUserRole || 'Asistente', overrides: currentUserOverrides }, 'CITAS', action);
+
+    useEffect(() => {
+        const fetchRoleAndOverrides = async () => {
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                const userId = user?.id;
+                let roleFromDB = 'Asistente';
+                if (userId) {
+                    const { data: profile } = await supabase
+                        .from('user_profiles')
+                        .select('rol, sede')
+                        .eq('user_id', userId)
+                        .maybeSingle();
+                    roleFromDB = profile?.rol || 'Asistente';
+                    setCurrentUserSede(profile?.sede || null);
+                }
+                setCurrentUserRole(roleFromDB);
+                if (API_BASE) {
+                    try {
+                        const resp = await fetch(`${API_BASE}/permissions/overrides`);
+                        if (resp.ok) {
+                            const json = await resp.json();
+                            setCurrentUserOverrides(json?.overrides || {});
+                        }
+                    } catch {
+                        // Ignorar errores de overrides
+                    }
+                }
+            } catch (e) {
+                console.error('[CITAS] Error cargando permisos:', e);
+            }
+        };
+        fetchRoleAndOverrides();
+    }, []);
+
+    // Restricción por sede: Lic. y Asistente solo pueden actuar sobre citas de su sede
+    const isBranchAllowedForAppointment = (app: Appointment) => {
+        if (currentUserRole === 'Lic.' || currentUserRole === 'Asistente') {
+            if (!currentUserSede) return false;
+            return app.ubicacion === currentUserSede;
+        }
+        return true;
+    };
+
+    // Permiso efectivo por acción considerando sede y rol
+    const isAppointmentActionAllowed = (app: Appointment, action: string) => {
+        if (currentUserRole === 'Lic.') {
+            return can(action) && isBranchAllowedForAppointment(app);
+        }
+        if (currentUserRole === 'Asistente') {
+            // Para asistentes, permitir si es su sede, aunque el permiso global esté desmarcado
+            return isBranchAllowedForAppointment(app);
+        }
+        return can(action);
+    };
+
+    // Mensajes “No autorizado”
+    const [denied, setDenied] = useState<Record<number, Record<string, boolean>>>({});
+    const markDenied = (id: number, action: string) => {
+        setDenied(prev => ({ ...prev, [id]: { ...(prev[id] || {}), [action]: true } }));
+        setTimeout(() => setDenied(prev => ({ ...prev, [id]: { ...(prev[id] || {}), [action]: false } })), 3000);
+    };
+    const [deniedAvailability, setDeniedAvailability] = useState<boolean>(false);
 
     useEffect(() => {
         fetchAppointments();
@@ -281,9 +352,45 @@ const AppointmentsAdminPage: React.FC = () => {
                                         </span>
                                     </td>
                                     <td className="py-4 px-6 text-right">
-                                        <button onClick={() => setEditingAppointment(app)} className="text-indigo-600 hover:text-indigo-900 mr-4" title="Reagendar"><Edit size={18} /></button>
-                                        <button onClick={() => handleUpdateStatus(app.id, 'Confirmada')} className="text-green-600 hover:text-green-900 mr-4" title="Confirmar"><CheckSquare size={18} /></button>
-                                        <button onClick={() => handleUpdateStatus(app.id, 'Cancelada')} className="text-red-600 hover:text-red-900" title="Cancelar"><XSquare size={18} /></button>
+                                        <button
+                                            onClick={() => {
+                                                if (!isAppointmentActionAllowed(app, 'reagendar')) { markDenied(app.id, 'reagendar'); return; }
+                                                setEditingAppointment(app);
+                                            }}
+                                            className={`mr-4 ${!isAppointmentActionAllowed(app, 'reagendar') ? 'text-indigo-300 cursor-not-allowed' : 'text-indigo-600 hover:text-indigo-900'}`}
+                                            title="Reagendar"
+                                        >
+                                            <Edit size={18} />
+                                        </button>
+                                        {denied[app.id]?.reagendar && (
+                                            <span className="ml-1 text-[10px] text-red-600">No está autorizado</span>
+                                        )}
+                                        <button
+                                            onClick={() => {
+                                                if (!isAppointmentActionAllowed(app, 'confirmar')) { markDenied(app.id, 'confirmar'); return; }
+                                                handleUpdateStatus(app.id, 'Confirmada');
+                                            }}
+                                            className={`mr-4 ${!isAppointmentActionAllowed(app, 'confirmar') ? 'text-green-300 cursor-not-allowed' : 'text-green-600 hover:text-green-900'}`}
+                                            title="Confirmar"
+                                        >
+                                            <CheckSquare size={18} />
+                                        </button>
+                                        {denied[app.id]?.confirmar && (
+                                            <span className="ml-1 text-[10px] text-red-600">No está autorizado</span>
+                                        )}
+                                        <button
+                                            onClick={() => {
+                                                if (!isAppointmentActionAllowed(app, 'cancelar')) { markDenied(app.id, 'cancelar'); return; }
+                                                handleUpdateStatus(app.id, 'Cancelada');
+                                            }}
+                                            className={`${!isAppointmentActionAllowed(app, 'cancelar') ? 'text-red-300 cursor-not-allowed' : 'text-red-600 hover:text-red-900'}`}
+                                            title="Cancelar"
+                                        >
+                                            <XSquare size={18} />
+                                        </button>
+                                        {denied[app.id]?.cancelar && (
+                                            <span className="ml-1 text-[10px] text-red-600">No está autorizado</span>
+                                        )}
                                     </td>
                                 </tr>
                             ))}
@@ -322,6 +429,7 @@ const AppointmentsAdminPage: React.FC = () => {
                                 {isDayBlocked ? (
                                     <div className="text-red-600 text-sm">Este día está bloqueado completamente.</div>
                                 ) : (
+                                    <>
                                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
                                         {[...availableSlots, ...unavailableSlots]
                                             .sort((a, b) => a.localeCompare(b))
@@ -336,15 +444,22 @@ const AppointmentsAdminPage: React.FC = () => {
                                                 return (
                                                     <button
                                                         key={slot}
-                                                        className={`${baseClasses} ${stateClasses} ${disabled ? 'opacity-60 pointer-events-none' : ''}`}
+                                                        className={`${baseClasses} ${stateClasses} ${disabled ? 'opacity-60 pointer-events-none' : ''} ${!can('gestionar_disponibilidad') ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                         title={isAvailable ? 'Disponible: clic para bloquear' : (isBusy ? 'No disponible: clic para desbloquear' : 'Clic para cambiar estado')}
-                                                        onClick={() => toggleSlotAvailability(slot)}
+                                                        onClick={() => {
+                                                            if (!can('gestionar_disponibilidad')) { setDeniedAvailability(true); setTimeout(() => setDeniedAvailability(false), 3000); return; }
+                                                            toggleSlotAvailability(slot);
+                                                        }}
                                                     >
                                                         {slot}
                                                     </button>
                                                 );
                                             })}
                                     </div>
+                                    {deniedAvailability && (
+                                        <div className="mt-2 text-[10px] text-red-600">No está autorizado para gestionar disponibilidad</div>
+                                    )}
+                                    </>
                                 )}
                             </>
                         )}
