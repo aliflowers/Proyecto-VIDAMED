@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { createClient } from '@supabase/supabase-js';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { DEFAULT_GEMINI_MODEL } from './config.js';
+import { bedrockChat } from './bedrock.js';
+import { DEFAULT_BEDROCK_MODEL } from './config.js';
 
 function buildMedicalAnalysisPrompt(patientName: string, studyName: string, results: Record<string, any>, motivoEstudio?: string): string {
   const resultsText = Object.entries(results)
@@ -36,15 +36,14 @@ export default async function interpretarHandler(req: Request, res: Response) {
       // --- Inicialización y validación de variables de entorno --- 
       const supabaseUrl = process.env.SUPABASE_URL;
       const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE || process.env.PRIVATE_SUPABASE_SERVICE_ROLE_KEY;
-      const geminiApiKey = process.env.GEMINI_API_KEY;
+      const bedrockToken = process.env.AWS_BEARER_TOKEN_BEDROCK;
 
-      if (!supabaseUrl || !supabaseServiceRoleKey || !geminiApiKey) {
-        console.error('INTERPRETAR_HANDLER: Faltan variables de entorno críticas. Se requieren SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY y GEMINI_API_KEY.');
+      if (!supabaseUrl || !supabaseServiceRoleKey || !bedrockToken) {
+        console.error('INTERPRETAR_HANDLER: Faltan variables de entorno críticas. Se requieren SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY y AWS_BEARER_TOKEN_BEDROCK.');
         return res.status(500).json({ error: 'El servidor no tiene configuradas las variables de entorno necesarias.' });
       }
 
       const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
-      const genAI = new GoogleGenerativeAI(geminiApiKey);
       // ----------------------------------------------------------
 
       const { result_id } = req.body;
@@ -124,13 +123,20 @@ export default async function interpretarHandler(req: Request, res: Response) {
       const prompt = buildMedicalAnalysisPrompt(patientName, studyName, resultValues, motivoEstudio);
       console.log('📝 Prompt generado (primeros 200 caracteres):', prompt.substring(0, 200));
 
-      console.log('🤖 Llamando a la API de Gemini...');
-      const model = genAI.getGenerativeModel({ model: DEFAULT_GEMINI_MODEL });
-      const generationResult = await model.generateContent(prompt);
-      const response = await generationResult.response;
-      const interpretation = await response.text();
+      console.log('🤖 Llamando a la API de Bedrock (OpenAI-compatible)...');
+      const bedrockResp = await bedrockChat({
+        model: DEFAULT_BEDROCK_MODEL,
+        messages: [
+          { role: 'system', content: 'Eres un asistente de laboratorio clínico experto en interpretación de resultados. Responde solo con la interpretación solicitada, siguiendo las instrucciones.' },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.2,
+        top_p: 0.9,
+        max_completion_tokens: 1024,
+      });
+      const interpretation = stripReasoningBlocks(bedrockResp.text);
 
-      console.log('✅ Respuesta recibida de Gemini.');
+      console.log('✅ Respuesta recibida de Bedrock.');
 
       console.log('✔️ Enviando respuesta exitosa al cliente.');
       res.json({ success: true, interpretation });
@@ -139,4 +145,10 @@ export default async function interpretarHandler(req: Request, res: Response) {
       console.error('💥 Ocurrió un error catastrófico en /api/interpretar:', error);
       res.status(500).json({ error: 'Ocurrió un error interno en el servidor.', details: error instanceof Error ? error.message : String(error) });
     }
+}
+
+function stripReasoningBlocks(s: string): string {
+  if (!s) return s;
+  const cleaned = s.replace(/<(reasoning|think|thinking)>[\s\S]*?<\/(reasoning|think|thinking)>/gi, '').trim();
+  return cleaned.replace(/^\s*Reasoning:\s*[\s\S]*$/im, (m) => '').trim();
 }

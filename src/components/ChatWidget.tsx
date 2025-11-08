@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { useChat } from '../hooks/useChat';
 import { MessageCircle, Send, X, Bot, User, Loader, Phone, MessageSquare } from 'lucide-react';
 import VoiceChat from './VoiceChat'; // Crearemos este componente a continuación
@@ -36,7 +37,11 @@ const ChatInterface: React.FC = () => {
                                 </div>
                             )}
                             <div className={`px-4 py-2 rounded-lg max-w-xs md:max-w-sm ${msg.sender === 'user' ? 'bg-secondary text-white rounded-br-none' : 'bg-gray-200 text-gray-800 rounded-bl-none'}`}>
-                                <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                                <div className="text-sm whitespace-pre-wrap">
+                                    <ReactMarkdown>
+                                        {msg.text}
+                                    </ReactMarkdown>
+                                </div>
                             </div>
                             {msg.sender === 'user' && (
                                 <div className="flex-shrink-0 bg-secondary text-white rounded-full h-8 w-8 flex items-center justify-center">

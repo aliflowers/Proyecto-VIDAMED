@@ -1,5 +1,5 @@
-import { GoogleGenerativeAI, type Content, type Part, SchemaType, type Tool } from '@google/generative-ai';
-import { DEFAULT_GEMINI_MODEL } from './config.js';
+import { bedrockChat, type BedrockTool } from './bedrock.js';
+import { DEFAULT_BEDROCK_MODEL } from './config.js';
 import { createClient } from '@supabase/supabase-js';
 import { nextDay, format, isFuture, parseISO, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { sendAppointmentConfirmationEmail } from './notify/appointment-email.js';
@@ -21,16 +21,16 @@ export default async function handler(req: any, res: any) {
     }
 
     // Variables de entorno requeridas (solo privadas en backend)
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+    const AWS_BEARER_TOKEN_BEDROCK = process.env.AWS_BEARER_TOKEN_BEDROCK;
     const SUPABASE_URL = process.env.SUPABASE_URL;
     const SUPABASE_SERVICE_ROLE_KEY =
       process.env.SUPABASE_SERVICE_ROLE_KEY ||
       process.env.SUPABASE_SERVICE_ROLE ||
       process.env.PRIVATE_SUPABASE_SERVICE_ROLE_KEY;
 
-    if (!GEMINI_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    if (!AWS_BEARER_TOKEN_BEDROCK || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       const missing = [
-        !GEMINI_API_KEY ? 'GEMINI_API_KEY' : null,
+        !AWS_BEARER_TOKEN_BEDROCK ? 'AWS_BEARER_TOKEN_BEDROCK' : null,
         !SUPABASE_URL ? 'SUPABASE_URL' : null,
         !SUPABASE_SERVICE_ROLE_KEY ? 'SUPABASE_SERVICE_ROLE_KEY (o SUPABASE_SERVICE_ROLE o PRIVATE_SUPABASE_SERVICE_ROLE_KEY)' : null,
       ].filter(Boolean);
@@ -39,7 +39,7 @@ export default async function handler(req: any, res: any) {
     }
 
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    const bedrockConfig = { model: DEFAULT_BEDROCK_MODEL, temperature: 0.2, top_p: 0.9 };
 
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     const { history } = body || {};
@@ -59,10 +59,20 @@ export default async function handler(req: any, res: any) {
     const strip = (t: any) => String(t ?? '').trim();
     const toText = (msg: any) => strip(msg?.parts?.[0]?.text);
     const buildTranscript = (hist: any[]) => {
-      const lines = (hist || []).slice(-12).map((m: any) => `${m.role}: ${toText(m)}`);
+      const lines = (hist || []).slice(-40).map((m: any) => `${m.role}: ${toText(m)}`);
       let txt = lines.join('\n');
-      if (txt.length > 4000) txt = txt.slice(-4000);
+      if (txt.length > 8000) txt = txt.slice(-8000);
       return txt;
+    };
+    const toBedrockMessages = (hist: any[]): Array<{ role: 'user'|'assistant'; content: string }> => {
+      const recent = (hist || []).slice(-40);
+      return recent
+        .map((m: any): { role: 'user'|'assistant'; content: string } => {
+          const role: 'user'|'assistant' = m.role === 'model' ? 'assistant' : (m.role === 'assistant' ? 'assistant' : 'user');
+          const content = toText(m);
+          return { role, content };
+        })
+        .filter((m: { role: 'user'|'assistant'; content: string }) => m.content && String(m.content).trim().length > 0);
     };
     const confirmWords = ['si','sí','claro','dale','ok','okay','de acuerdo','correcto','confirmo','para ese estudio','para ese','ese','está bien','esta bien','vale'];
     const schedulingHints = ['agendar','agenda','cita','reserv','disponible','programar','turno','fecha','horario','confirmo esta fecha','confirmo la fecha'];
@@ -84,7 +94,7 @@ export default async function handler(req: any, res: any) {
 
     const classifierSystemInstruction = `Clasifica la intención conversacional ACTUAL considerando TODO el historial y el último mensaje. Responde exactamente una de: CONSULTA_ESTUDIO, AGENDAR_CITA, SALUDO, DESCONOCIDO. Si el historial muestra que el usuario está agendando y el último mensaje es una confirmación breve como "sí", clasifica como AGENDAR_CITA.`;
 
-    const entityExtractorSystemInstruction = `Tu única función es extraer el nombre del examen o estudio médico del texto del usuario. Si no hay un nombre de estudio claro, responde con "NO_ENCONTRADO". Responde únicamente con el nombre del estudio.`;
+    const entityExtractorSystemInstruction = `Tu única función es extraer el nombre del examen o estudio médico del texto del usuario. Devuelve SOLO un nombre de estudio, sin comas ni texto extra. Si el texto menciona varios estudios, devuelve el más claro (idealmente el último mencionado). Si no hay un nombre de estudio claro, responde con "NO_ENCONTRADO". Responde únicamente con el nombre del estudio.`;
 
     // Normalizador y detección de fechas/días
     const normalize = (s: string) =>
@@ -111,6 +121,31 @@ export default async function handler(req: any, res: any) {
       return cleaned;
     };
 
+    // Mapeo de sinónimos comunes a nombres canónicos de BD
+    const toCanonicalStudyName = (raw: string): string => {
+      const t = normalize(String(raw || ''));
+      const noAccents = t; // ya normalizado sin acentos
+      // Hematología completa
+      if (/(hemograma|hematologia\s+completa)/.test(noAccents)) return 'HEMATOLOGIA COMPLETA CON PLAQUETAS';
+      // Examen de orina (evitando catecolaminas/citrato/oxalato/cocaina en orina)
+      if (/(examen|analisis|an[aá]lisis).*orina/.test(noAccents)) {
+        if (!/(catecolaminas|citrato|oxalato|cocaina)/.test(noAccents)) return 'EXAMEN DE ORINA';
+      }
+      // Perfil lipídico
+      if (/(perfil\s+lipidico|lipidico)/.test(noAccents)) return 'PERFIL LIPIDICO';
+      return raw;
+    };
+
+    // Parseo de múltiples estudios en una sola frase: comas y conectores "y", "e"
+    const splitStudyQueries = (text: string): string[] => {
+      if (!text) return [];
+      let s = String(text);
+      s = s.replace(/\s+y\s+/gi, ',').replace(/\s+e\s+/gi, ',');
+      const parts = s.split(/[,\n]/).map(p => p.trim()).filter(Boolean);
+      // Filtrar fragmentos demasiado cortos
+      return parts.filter(p => p.length >= 3);
+    };
+
     const dayTokens = ['lunes', 'martes', 'miercoles', 'miércoles', 'jueves', 'viernes', 'sabado', 'sábado', 'domingo', 'proximo', 'próximo', 'prox', 'siguiente'];
     const containsDateLike = (text: string): boolean => {
       const t = normalize(text);
@@ -119,13 +154,10 @@ export default async function handler(req: any, res: any) {
       return dayTokens.some((d) => t.includes(normalize(d)));
     };
 
-    const conversationalSystemInstruction: Content = {
-      role: 'user',
-      parts: [
-        {
-          text: `
+    const conversationalSystemInstructionText = `
 Eres VidaBot, asistente de VidaMed. Tu objetivo es agendar citas con un flujo ESTRICTO de slot-filling. Reglas obligatorias:
 - Mantén el contexto del historial. NO reinicies ni cambies de tema salvo que el usuario lo pida expresamente.
+- No retrocedas a slots ya confirmados: si ya tienes studies[], fecha, hora o ubicación, NO los vuelvas a pedir; conserva y usa esos valores del historial. Si el usuario dice "ya te dije cuáles son", utiliza la lista previa.
 - UNA sola pregunta por turno, breve y concreta.
 - Si el usuario confirma con "sí/ok/bien", interpreta como confirmación del paso actual y avanza al SIGUIENTE slot.
 - Orden ESTRICTA de slots:
@@ -165,10 +197,7 @@ Consultas de Estudios:
 - Responde con: nombre, categoría, descripción, preparación, precios en USD y Bs, tiempo de entrega (ELISA/Otros) y tipo de muestra.
 - Si hay múltiples coincidencias, sugiere las opciones encontradas y pide aclaración.
 - Mantén respuestas breves, claras y útiles para el paciente.
-          `,
-        },
-      ],
-    };
+    `;
 
     // Guardrails de salida: anti-duplicación y validación de cédula (7–9 dígitos)
     const collapseInnerDupesInToken = (token: string): string => {
@@ -204,7 +233,17 @@ Consultas de Estudios:
       return sanitized.join('\n');
     };
 
-    const applyOutputGuardrails = (text: string, userMsg?: string): string => enforceCedulaRule(fixEchoDupes(text), userMsg);
+    const stripReasoningBlocks = (s: string): string => {
+      if (!s) return s;
+      const cleaned = s.replace(/<(reasoning|think|thinking)>[\s\S]*?<\/(reasoning|think|thinking)>/gi, '').trim();
+      return cleaned.replace(/^\s*Reasoning:\s*[\s\S]*$/im, (m) => '').trim();
+    };
+
+    const applyOutputGuardrails = (text: string, userMsg?: string): string => {
+      const noDupes = fixEchoDupes(text);
+      const noReasoning = stripReasoningBlocks(noDupes);
+      return enforceCedulaRule(noReasoning, userMsg);
+    };
 
     // Utilidades de fechas
     const getNextDateForDay = (dayName: string): string => {
@@ -575,89 +614,160 @@ Consultas de Estudios:
       }
     };
 
-    // Declaración de herramientas para el modelo
-    const tools: Tool[] = [
+
+    // Herramientas para Bedrock (OpenAI-compatible)
+    const bedrockTools: BedrockTool[] = [
       {
-        functionDeclarations: [
-          {
-            name: 'getStudiesInfo',
-            description: 'Obtiene información detallada de un estudio: categoría, descripción, preparación, precios USD/Bs, tiempo de entrega ELISA/Otros y tipo de muestra.',
-            parameters: {
-              type: SchemaType.OBJECT,
-              properties: {
-                studyName: { type: SchemaType.STRING, description: 'Nombre del estudio a consultar (texto libre).' },
-              },
-              required: ['studyName'],
+        type: 'function',
+        function: {
+          name: 'getStudiesInfo',
+          description:
+            'Obtiene información detallada de un estudio: categoría, descripción, preparación, precios USD/Bs, tiempo de entrega ELISA/Otros y tipo de muestra.',
+          parameters: {
+            type: 'object',
+            properties: {
+              studyName: { type: 'string', description: 'Nombre del estudio a consultar (texto libre).' },
             },
+            required: ['studyName'],
           },
-          {
-            name: 'getAvailability',
-            description: 'Verifica disponibilidad de una fecha. Acepta días de la semana o fecha YYYY-MM-DD. Devuelve días disponibles y, si el día está libre, horarios disponibles.',
-            parameters: {
-              type: SchemaType.OBJECT,
-              properties: {
-                date: { type: SchemaType.STRING, description: 'Día (lunes a sábado) o fecha en formato YYYY-MM-DD.' },
-              },
-              required: ['date'],
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'getAvailability',
+          description:
+            'Verifica disponibilidad de una fecha. Acepta días de la semana o fecha YYYY-MM-DD. Devuelve días disponibles y, si el día está libre, horarios disponibles.',
+          parameters: {
+            type: 'object',
+            properties: {
+              date: { type: 'string', description: 'Día (lunes a sábado) o fecha en formato YYYY-MM-DD.' },
             },
+            required: ['date'],
           },
-          {
-            name: 'getAvailableHours',
-            description: 'Devuelve las horas disponibles (HH:mm) para una fecha confirmada, evitando choques con citas existentes.',
-            parameters: {
-              type: SchemaType.OBJECT,
-              properties: {
-                date: { type: SchemaType.STRING, description: 'Fecha en formato YYYY-MM-DD' },
-              },
-              required: ['date'],
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'getAvailableHours',
+          description: 'Devuelve las horas disponibles (HH:mm) para una fecha confirmada, evitando choques con citas existentes.',
+          parameters: {
+            type: 'object',
+            properties: {
+              date: { type: 'string', description: 'Fecha en formato YYYY-MM-DD' },
             },
+            required: ['date'],
           },
-          {
-            name: 'scheduleAppointment',
-            description: 'Crea la cita en la base de datos después de confirmar todos los datos.',
-            parameters: {
-              type: SchemaType.OBJECT,
-              properties: {
-                patientInfo: {
-                  type: SchemaType.OBJECT,
-                  properties: {
-                    primer_nombre: { type: SchemaType.STRING, description: 'Primer nombre del paciente' },
-                    segundo_nombre: { type: SchemaType.STRING, description: 'Segundo nombre del paciente (opcional)' },
-                    primer_apellido: { type: SchemaType.STRING, description: 'Primer apellido del paciente' },
-                    segundo_apellido: { type: SchemaType.STRING, description: 'Segundo apellido del paciente (opcional)' },
-                    cedula: { type: SchemaType.STRING, description: 'Número de cédula' },
-                    telefono: { type: SchemaType.STRING, description: 'Número telefónico' },
-                    email: { type: SchemaType.STRING, description: 'Correo electrónico (opcional)' },
-                    direccion: { type: SchemaType.STRING, description: 'Dirección del domicilio (requerida si location="Servicio a Domicilio")' },
-                    ciudad_domicilio: { type: SchemaType.STRING, description: 'Ciudad del domicilio: "Maracay" o "La Colonia Tovar" (requerida si location="Servicio a Domicilio")' },
-                  },
-                  required: ['primer_nombre', 'primer_apellido', 'cedula', 'telefono'],
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'scheduleAppointment',
+          description: 'Crea la cita en la base de datos después de confirmar todos los datos.',
+          parameters: {
+            type: 'object',
+            properties: {
+              patientInfo: {
+                type: 'object',
+                properties: {
+                  primer_nombre: { type: 'string', description: 'Primer nombre del paciente' },
+                  segundo_nombre: { type: 'string', description: 'Segundo nombre del paciente (opcional)' },
+                  primer_apellido: { type: 'string', description: 'Primer apellido del paciente' },
+                  segundo_apellido: { type: 'string', description: 'Segundo apellido del paciente (opcional)' },
+                  cedula: { type: 'string', description: 'Número de cédula' },
+                  telefono: { type: 'string', description: 'Número telefónico' },
+                  email: { type: 'string', description: 'Correo electrónico (opcional)' },
+                  direccion: { type: 'string', description: 'Dirección del domicilio (requerida si location="Servicio a Domicilio")' },
+                  ciudad_domicilio: { type: 'string', description: 'Ciudad del domicilio: "Maracay" o "La Colonia Tovar" (requerida si location="Servicio a Domicilio")' },
                 },
-                studies: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: 'Lista de estudios' },
-                date: { type: SchemaType.STRING, description: 'Fecha en formato YYYY-MM-DD' },
-                time: { type: SchemaType.STRING, description: 'Hora en formato HH:mm (24h)' },
-                location: { type: SchemaType.STRING, description: 'Ubicación normalizada: "Sede Principal Maracay" | "Sede La Colonia Tovar" | "Servicio a Domicilio"' },
               },
-              required: ['patientInfo', 'studies', 'date', 'time', 'location'],
+              studies: { type: 'array', items: { type: 'string' }, description: 'Lista de estudios' },
+              date: { type: 'string', description: 'Fecha en formato YYYY-MM-DD' },
+              time: { type: 'string', description: 'Hora en formato HH:mm (24h)' },
+              location: {
+                type: 'string',
+                description: 'Ubicación normalizada: "Sede Principal Maracay" | "Sede La Colonia Tovar" | "Servicio a Domicilio"',
+              },
             },
+            required: ['patientInfo', 'studies', 'date', 'time', 'location'],
           },
-        ],
+        },
       },
     ];
 
-    const model = genAI.getGenerativeModel({
-      model: DEFAULT_GEMINI_MODEL,
-      generationConfig: { temperature: 0.2, topP: 0.9 },
-    });
-    const conversationalModel = genAI.getGenerativeModel({
-      model: DEFAULT_GEMINI_MODEL,
-      systemInstruction: conversationalSystemInstruction,
-      tools,
-      generationConfig: { temperature: 0.2, topP: 0.9 },
-    });
+    const buildAssistantToolCallMessage = (raw: any, toolCalls: any[]) => {
+      const incomingCalls: any[] =
+        (raw?.choices?.[0]?.message?.tool_calls as any[]) || toolCalls || [];
+
+      const normalizedCalls = incomingCalls.map((tc: any) => {
+        const name = tc?.function?.name ?? tc?.name ?? '';
+        const rawArgs = tc?.function?.arguments ?? tc?.arguments ?? {};
+        let argsString: string;
+        if (typeof rawArgs === 'string') {
+          // Si ya es string, intentar parsear y re-serializar para asegurar JSON válido
+          try {
+            const parsed = JSON.parse(rawArgs);
+            argsString = JSON.stringify(parsed ?? {});
+          } catch {
+            // Mantener el string tal como viene si no es JSON válido
+            argsString = rawArgs;
+          }
+        } else {
+          // Serializar objeto/array a string JSON
+          try {
+            argsString = JSON.stringify(rawArgs ?? {});
+          } catch {
+            argsString = '{}';
+          }
+        }
+
+        return {
+          id: tc?.id,
+          type: 'function',
+          function: {
+            name,
+            arguments: argsString,
+          },
+        };
+      });
+
+      return {
+        role: 'assistant' as const,
+        tool_calls: normalizedCalls,
+      } as any;
+    };
+
+    const runBedrockToolCalls = async (
+      calls: Array<{ id?: string; name: string; arguments: any }>
+    ): Promise<{ toolMsgs: any[]; metaPayload?: any }> => {
+      const toolMsgs: any[] = [];
+      let metaPayload: any = null;
+      for (const call of calls) {
+        let functionResult: any;
+        try {
+          if (call.name === 'getAvailability') functionResult = await getAvailability(call.arguments as any);
+          else if (call.name === 'getAvailableHours') functionResult = await getAvailableHours(call.arguments as any);
+          else if (call.name === 'scheduleAppointment') functionResult = await scheduleAppointment(call.arguments as any);
+          else if (call.name === 'getStudiesInfo') functionResult = await getStudiesInfo(call.arguments as any);
+          else functionResult = { error: `Función '${call.name}' no válida en este contexto.` };
+        } catch (e: any) {
+          functionResult = { error: e?.message || 'Error interno ejecutando herramienta.' };
+        }
+        if ((functionResult as any)?.error && (functionResult as any)?.meta && !metaPayload) metaPayload = (functionResult as any).meta;
+        const msg: any = { role: 'tool', content: JSON.stringify(functionResult) };
+        if (call.id) (msg as any).tool_call_id = call.id;
+        toolMsgs.push(msg);
+      }
+      return { toolMsgs, metaPayload };
+    };
+
+    // Configuración Bedrock ya definida en bedrockConfig. Usaremos mensajes compatibles OpenAI.
 
     // Intercepción temprana: si el usuario brinda un día/fecha, priorizar verificación de disponibilidad
-    if (containsDateLike(lastUserMessage)) {
+    // Solo aplica cuando NO estamos ya en contexto de agendamiento para evitar cortar el flujo de herramientas.
+    if (!detectSchedulingContext(history) && containsDateLike(lastUserMessage)) {
       try {
         const availability = (await getAvailability({ date: lastUserMessage })) as any;
         const text =
@@ -678,25 +788,75 @@ Consultas de Estudios:
     if (heuristic) {
       intent = heuristic;
     } else {
-      const classifierPrompt =
-        `${classifierSystemInstruction}\n\n` +
-        `--- Historial ---\n${transcript}\n--- Fin ---\n\n` +
-        `Último mensaje del usuario: "${lastUserMessage}"\n` +
-        `Categoría:`;
-      const intentResult = await model.generateContent(classifierPrompt);
-      intent = intentResult.response.text().trim();
+      const intentResult = await bedrockChat({
+        model: bedrockConfig.model,
+        temperature: bedrockConfig.temperature,
+        top_p: bedrockConfig.top_p,
+        max_completion_tokens: 256,
+        messages: [
+          { role: 'system', content: classifierSystemInstruction },
+          { role: 'user', content: `--- Historial ---\n${transcript}\n--- Fin ---\n\nÚltimo mensaje del usuario: "${lastUserMessage}"\nCategoría:` },
+        ],
+      });
+      intent = intentResult.text.trim();
     }
     console.log(`Intención Detectada: ${intent}`);
 
     // 2) Ejecutar flujo según intención
     switch (intent) {
       case 'CONSULTA_ESTUDIO': {
-        const extractorChat = model.startChat({
-          history: [{ role: 'user', parts: [{ text: entityExtractorSystemInstruction }] }],
+        // 1) Intentar parseo directo de múltiples estudios en el mensaje del usuario
+        const requested = splitStudyQueries(lastUserMessage).map(toCanonicalStudyName);
+        if (requested.length >= 2) {
+          const pieces: string[] = [];
+          for (const name of requested) {
+            const studyInfoResult = (await getStudiesInfo({ studyName: name })) as any;
+            if (studyInfoResult.error) {
+              pieces.push(studyInfoResult.error);
+              continue;
+            }
+            if (studyInfoResult.studies && studyInfoResult.studies.length > 0) {
+              const study = studyInfoResult.studies[0];
+              const tiempoEntregaBase = (study.tiempo_entrega_quimioluminiscencia && study.tiempo_entrega_quimioluminiscencia !== 'N/A') ? study.tiempo_entrega_quimioluminiscencia : study.tiempo_entrega_elisa_otro;
+              const tiempoEntrega = tiempoEntregaBase || 'N/A';
+              const muestra = study.tipo_de_muestra || 'N/A';
+              const precioUsd = typeof study.costo_usd !== 'undefined' ? study.costo_usd : 'N/D';
+              const precioBs = typeof study.costo_bs !== 'undefined' ? study.costo_bs : 'N/D';
+              const descripcionValida = study.descripcion && String(study.descripcion).trim().toLowerCase() !== 'null';
+              const preparacionValida = study.preparacion && String(study.preparacion).trim().toLowerCase() !== 'null';
+              let block = `Aquí tienes la información sobre "${study.nombre}":\n- Categoría: ${study.categoria}\n`;
+              if (descripcionValida) block += `- Descripción: ${study.descripcion}\n`;
+              if (preparacionValida) block += `- Preparación: ${study.preparacion}\n`;
+              block += `- Tipo de muestra: ${muestra}\n- Costo: ${precioUsd} USD / ${precioBs} Bs.\n- Tiempo de Entrega: ${tiempoEntrega}`;
+              if (studyInfoResult.studies.length > 1) {
+                const otherNames = studyInfoResult.studies.slice(1).map((s: any) => s.nombre).join(', ');
+                block += `\nTambién encontré otros estudios similares: ${otherNames}.`;
+              }
+              pieces.push(block);
+            } else {
+              pieces.push(studyInfoResult.result || `No se encontró información para "${name}".`);
+            }
+          }
+          const header = 'Sí, claro. Aquí te muestro la información de los estudios que me preguntaste:';
+          const responseText = header + '\n\n' + pieces.join('\n\n') + '\n\n¿Te gustaría agendar una cita para alguno de estos estudios o consultar otro?';
+          res.status(200).json({ response: applyOutputGuardrails(responseText, lastUserMessage) });
+          return;
+        }
+
+        // 2) Flujo estándar: extracción de un único estudio, con mapeo de sinónimos
+        const extractorResult = await bedrockChat({
+          model: bedrockConfig.model,
+          temperature: bedrockConfig.temperature,
+          top_p: bedrockConfig.top_p,
+          max_completion_tokens: 256,
+          messages: [
+            { role: 'system', content: entityExtractorSystemInstruction },
+            { role: 'user', content: lastUserMessage },
+          ],
         });
-        const extractorResult = await extractorChat.sendMessage(lastUserMessage);
-        const rawExtracted = extractorResult.response.text().trim();
-        const studyName = sanitizeExtractedStudyName(rawExtracted) || rawExtracted;
+        const rawExtracted = extractorResult.text.trim();
+        const studyNameRaw = sanitizeExtractedStudyName(rawExtracted) || rawExtracted;
+        const studyName = toCanonicalStudyName(studyNameRaw);
 
         if (studyName === 'NO_ENCONTRADO' || !studyName) {
           res.status(200).json({ response: 'Claro, con gusto te ayudo. ¿Qué estudio o examen te gustaría consultar?' });
@@ -713,7 +873,6 @@ Consultas de Estudios:
         let responseText = '';
         if (studyInfoResult.studies && studyInfoResult.studies.length > 0) {
           const study = studyInfoResult.studies[0];
-          // Seleccionar el mejor tiempo de entrega disponible: preferir Quimioluminiscencia si no es 'N/A', si no, ELISA/Otros
           const tiempoEntregaBase = (study.tiempo_entrega_quimioluminiscencia && study.tiempo_entrega_quimioluminiscencia !== 'N/A') ? study.tiempo_entrega_quimioluminiscencia : study.tiempo_entrega_elisa_otro;
           const tiempoEntrega = tiempoEntregaBase || 'N/A';
           const muestra = study.tipo_de_muestra || 'N/A';
@@ -721,14 +880,10 @@ Consultas de Estudios:
           const precioBs = typeof study.costo_bs !== 'undefined' ? study.costo_bs : 'N/D';
           const descripcionValida = study.descripcion && String(study.descripcion).trim().toLowerCase() !== 'null';
           const preparacionValida = study.preparacion && String(study.preparacion).trim().toLowerCase() !== 'null';
-
-          responseText = `Aquí tienes la información sobre "${study.nombre}":\n- Categoría: ${study.categoria}\n`;
-          if (descripcionValida) {
-            responseText += `- Descripción: ${study.descripcion}\n`;
-          }
-          if (preparacionValida) {
-            responseText += `- Preparación: ${study.preparacion}\n`;
-          }
+          const header = 'Sí, claro. Aquí te muestro la información del estudio que me preguntaste:';
+          responseText = `${header}\n\nAquí tienes la información sobre "${study.nombre}":\n- Categoría: ${study.categoria}\n`;
+          if (descripcionValida) responseText += `- Descripción: ${study.descripcion}\n`;
+          if (preparacionValida) responseText += `- Preparación: ${study.preparacion}\n`;
           responseText += `- Tipo de muestra: ${muestra}\n- Costo: ${precioUsd} USD / ${precioBs} Bs.\n- Tiempo de Entrega: ${tiempoEntrega}\n`;
           if (studyInfoResult.studies.length > 1) {
             const otherNames = studyInfoResult.studies.slice(1).map((s: any) => s.nombre).join(', ');
@@ -744,38 +899,42 @@ Consultas de Estudios:
       }
 
       case 'AGENDAR_CITA': {
-        const conversationalChat = conversationalModel.startChat({ history });
-        const conversationalResult = await conversationalChat.sendMessage(lastUserMessage);
-        const conversationalResponse = conversationalResult.response;
-        const conversationalFunctionCalls = conversationalResponse.functionCalls();
-
-        if (conversationalFunctionCalls && conversationalFunctionCalls.length > 0) {
-          const toolResponses: Part[] = [];
-          let metaPayload: any = null;
-          for (const call of conversationalFunctionCalls) {
-            const { name, args } = call as any;
-            let functionResult: any;
-            if (name === 'getAvailability') functionResult = await getAvailability(args as any);
-            else if (name === 'getAvailableHours') functionResult = await getAvailableHours(args as any);
-            else if (name === 'scheduleAppointment') functionResult = await scheduleAppointment(args as any);
-            else functionResult = { error: `Función '${name}' no válida en este contexto.` };
-            if ((functionResult as any)?.error && (functionResult as any)?.meta && !metaPayload) metaPayload = (functionResult as any).meta;
-            toolResponses.push({ functionResponse: { name, response: functionResult } } as Part);
-          }
-          const secondResult = await conversationalChat.sendMessage(toolResponses);
-          res.status(200).json({ response: applyOutputGuardrails(secondResult.response.text(), lastUserMessage), meta: metaPayload || undefined });
+        const convInstructionText = conversationalSystemInstructionText;
+        const baseMessages: any[] = [
+          { role: 'system', content: convInstructionText },
+          ...toBedrockMessages(history),
+          { role: 'user', content: lastUserMessage },
+        ];
+        const first = await bedrockChat({
+          model: bedrockConfig.model,
+          temperature: bedrockConfig.temperature,
+          top_p: bedrockConfig.top_p,
+          max_completion_tokens: 512,
+          messages: baseMessages,
+          tools: bedrockTools,
+        });
+        if (first.toolCalls && first.toolCalls.length > 0) {
+          const { toolMsgs, metaPayload } = await runBedrockToolCalls(first.toolCalls);
+          const assistantToolCallMsg = buildAssistantToolCallMessage(first.raw, first.toolCalls);
+          const second = await bedrockChat({
+            model: bedrockConfig.model,
+            temperature: bedrockConfig.temperature,
+            top_p: bedrockConfig.top_p,
+            max_completion_tokens: 512,
+            messages: [...baseMessages, assistantToolCallMsg, ...toolMsgs],
+            tools: bedrockTools,
+          });
+          res.status(200).json({ response: applyOutputGuardrails(second.text, lastUserMessage), meta: metaPayload || undefined });
           return;
         }
-
-        res.status(200).json({ response: applyOutputGuardrails(conversationalResponse.text(), lastUserMessage) });
+        res.status(200).json({ response: applyOutputGuardrails(first.text, lastUserMessage) });
         return;
       }
 
       case 'SALUDO': {
-        // Saludo fijo y breve, centrado en el dominio (sin riesgo de alucinación)
+        // Saludo breve y humano, manteniendo foco en el dominio
         res.status(200).json({
-          response:
-            '¡Hola! Soy VidaBot. Puedo ayudarte a consultar estudios y precios o agendar una cita. ¿Qué necesitas?',
+          response: 'Hola, soy VidaBot de VidaMed. ¿Prefieres consultar estudios y precios o agendar una cita?',
         });
         return;
       }
@@ -795,39 +954,50 @@ Consultas de Estudios:
             return;
           }
 
-          const conversationalChat = conversationalModel.startChat({ history });
-          const conversationalResult = await conversationalChat.sendMessage(lastUserMessage);
-          const conversationalResponse = conversationalResult.response;
-          const conversationalFunctionCalls = conversationalResponse.functionCalls();
-
-          if (conversationalFunctionCalls && conversationalFunctionCalls.length > 0) {
-            const toolResponses: Part[] = [];
-            for (const call of conversationalFunctionCalls) {
-              const { name, args } = call as any;
-              let functionResult: any;
-              if (name === 'getAvailability') functionResult = await getAvailability(args as any);
-              else if (name === 'getAvailableHours') functionResult = await getAvailableHours(args as any);
-              else if (name === 'scheduleAppointment') functionResult = await scheduleAppointment(args as any);
-              else functionResult = { error: `Función '${name}' no válida en este contexto.` };
-
-              toolResponses.push({ functionResponse: { name, response: functionResult } } as Part);
-            }
-            const secondResult = await conversationalChat.sendMessage(toolResponses);
-            res.status(200).json({ response: applyOutputGuardrails(secondResult.response.text(), lastUserMessage) });
+          const convInstructionText = conversationalSystemInstructionText;
+          const baseMessages: any[] = [
+            { role: 'system', content: convInstructionText },
+            ...toBedrockMessages(history),
+            { role: 'user', content: lastUserMessage },
+          ];
+          const first = await bedrockChat({
+            model: bedrockConfig.model,
+            temperature: bedrockConfig.temperature,
+            top_p: bedrockConfig.top_p,
+            max_completion_tokens: 512,
+            messages: baseMessages,
+            tools: bedrockTools,
+          });
+          if (first.toolCalls && first.toolCalls.length > 0) {
+            const { toolMsgs } = await runBedrockToolCalls(first.toolCalls);
+            const assistantToolCallMsg = buildAssistantToolCallMessage(first.raw, first.toolCalls);
+            const second = await bedrockChat({
+              model: bedrockConfig.model,
+              temperature: bedrockConfig.temperature,
+              top_p: bedrockConfig.top_p,
+              max_completion_tokens: 512,
+              messages: [...baseMessages, assistantToolCallMsg, ...toolMsgs],
+              tools: bedrockTools,
+            });
+            res.status(200).json({ response: applyOutputGuardrails(second.text, lastUserMessage) });
             return;
           }
-
-          res.status(200).json({ response: applyOutputGuardrails(conversationalResponse.text(), lastUserMessage) });
+          res.status(200).json({ response: applyOutputGuardrails(first.text, lastUserMessage) });
           return;
         }
 
         // Mensaje corto y directo para entradas fuera de flujo
-        const concise = await model.generateContent(
-          `Responde en una sola frase, breve y directa, a este mensaje de un paciente de laboratorio, evitando informalidades y sin cambiar de tema. 
-          Ofrece opciones: consultar estudios/precios o agendar una cita. 
-          Mensaje: "${lastUserMessage}"`
-        );
-        res.status(200).json({ response: applyOutputGuardrails(concise.response.text(), lastUserMessage).trim() });
+        const concise = await bedrockChat({
+          model: bedrockConfig.model,
+          temperature: bedrockConfig.temperature,
+          top_p: bedrockConfig.top_p,
+          max_completion_tokens: 128,
+          messages: [
+            { role: 'system', content: 'Responde en español con tono cercano, espontáneo y amable. Mantén el tema del laboratorio. Ofrece según corresponda: consultar estudios/precios o agendar una cita. Usa 1–2 frases y evita mensajes rígidos o repetitivos.' },
+            { role: 'user', content: `Mensaje: "${lastUserMessage}"` },
+          ],
+        });
+        res.status(200).json({ response: applyOutputGuardrails(concise.text, lastUserMessage).trim() });
         return;
       }
     }

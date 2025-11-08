@@ -18,8 +18,8 @@ import notifyWhatsappHandler from './notify/whatsapp.js';
 import notifyEmailHandler from './notify/email.js';
 import { sendAppointmentConfirmationEmail } from './notify/appointment-email.js';
 // Eliminado: nodemailer no es necesario para recuperación de contraseña en dev
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { DEFAULT_GEMINI_MODEL } from './config.js';
+import { bedrockChat } from './bedrock.js';
+import { DEFAULT_BEDROCK_MODEL } from './config.js';
 import { createClient } from '@supabase/supabase-js';
 
 // Configuración Supabase admin (para consultar y bloquear horarios)
@@ -158,8 +158,8 @@ app.get('/api/health', (_req: Request, res: Response) => {
 });
 
 app.get('/api/diag', (_req: Request, res: Response) => {
-  const hasGemini =
-    Boolean(process.env.GEMINI_API_KEY) || Boolean(process.env.VITE_GEMINI_API_KEY);
+  const hasBedrockToken = Boolean(process.env.AWS_BEARER_TOKEN_BEDROCK);
+  const hasBedrockModel = Boolean(process.env.BEDROCK_DEFAULT_MODEL);
   const hasSupabaseUrl =
     Boolean(process.env.SUPABASE_URL) || Boolean(process.env.VITE_SUPABASE_URL);
   const hasServiceRole =
@@ -175,7 +175,8 @@ app.get('/api/diag', (_req: Request, res: Response) => {
   res.status(200).json({
     ok: true,
     env: {
-      GEMINI_API_KEY: hasGemini,
+      AWS_BEARER_TOKEN_BEDROCK: hasBedrockToken,
+      BEDROCK_DEFAULT_MODEL: hasBedrockModel,
       SUPABASE_URL: hasSupabaseUrl,
       SUPABASE_SERVICE_ROLE: hasServiceRole,
       ELEVENLABS_API_KEY: hasElevenApi,
@@ -316,10 +317,10 @@ app.delete('/api/availability/block', async (req: Request, res: Response) => {
 // Blog post generator (dev mirror)
 app.post('/api/generate-blog-post', async (req: Request, res: Response) => {
   try {
-    const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY no configurada en entorno de desarrollo.' });
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: DEFAULT_GEMINI_MODEL });
+    const BEDROCK_MODEL = process.env.BEDROCK_DEFAULT_MODEL || DEFAULT_BEDROCK_MODEL;
+    if (!process.env.AWS_BEARER_TOKEN_BEDROCK) {
+      return res.status(500).json({ error: 'AWS_BEARER_TOKEN_BEDROCK no configurado en entorno de desarrollo.' });
+    }
 
     const { topic, postType, categories, tone, targetAudience } = req.body || {};
     if (!topic || typeof topic !== 'string') {
@@ -352,8 +353,16 @@ app.post('/api/generate-blog-post', async (req: Request, res: Response) => {
       `  }\n` +
       `- No incluyas comentarios, explicaciones adicionales, ni bloques de código triple.\n`;
 
-    const genResult = await model.generateContent(prompt);
-    const rawText = genResult.response.text();
+    const genResult = await bedrockChat({
+      model: BEDROCK_MODEL,
+      messages: [
+        { role: 'system', content: 'Eres un generador de artículos para el Blog del Laboratorio Clínico VidaMed.' },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.2,
+      top_p: 0.9,
+    });
+    const rawText = genResult.text;
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     let parsed: any;
     try {

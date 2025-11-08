@@ -1,13 +1,12 @@
 import type { Request, Response } from 'express';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { DEFAULT_GEMINI_MODEL } from './config.js';
+import { bedrockChat } from './bedrock.js';
 
 /**
  * Vercel Serverless Function: /api/generate-blog-post
- * Genera contenido de blog usando Gemini y devuelve un objeto JSON estructurado.
+ * Genera contenido de blog usando Amazon Bedrock (API compatible con OpenAI) y devuelve un objeto JSON estructurado.
  *
  * Env requeridas (backend en Vercel):
- * - GEMINI_API_KEY
+ * - AWS_BEARER_TOKEN_BEDROCK
  */
 export default async function handler(req: Request, res: Response) {
   try {
@@ -15,13 +14,10 @@ export default async function handler(req: Request, res: Response) {
       return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: 'Falta GEMINI_API_KEY en entorno del servidor.' });
+    const apiToken = process.env.AWS_BEARER_TOKEN_BEDROCK;
+    if (!apiToken) {
+      return res.status(500).json({ error: 'Falta AWS_BEARER_TOKEN_BEDROCK en entorno del servidor.' });
     }
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: DEFAULT_GEMINI_MODEL });
 
     const { topic, postType, categories, tone, targetAudience } = (typeof req.body === 'string' ? JSON.parse(req.body) : req.body) || {};
     if (!topic || typeof topic !== 'string') {
@@ -55,8 +51,13 @@ export default async function handler(req: Request, res: Response) {
       `  }\n` +
       `- No incluyas comentarios, explicaciones adicionales, ni bloques de código triple.\n`;
 
-    const genResult = await model.generateContent(prompt);
-    const rawText = genResult.response.text();
+    const genResult = await bedrockChat({
+      model: process.env.BEDROCK_DEFAULT_MODEL || 'amazon.nova-micro-v1:0',
+      messages: [{ role: 'system', content: 'Eres un generador de artículos para el Blog del Laboratorio Clínico VidaMed.' }, { role: 'user', content: prompt }],
+      temperature: 0.2,
+      top_p: 0.9,
+    });
+    const rawText = genResult.text;
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
 
     let parsed: any;
