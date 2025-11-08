@@ -464,12 +464,20 @@ export default async function notifyEmailHandler(req: Request, res: Response) {
       return res.status(400).json({ ok: false, code: 'NO_EMAIL', message: 'Este paciente no tiene email registrado.' });
     }
 
-    // Validar estado de interpretación aprobada
-    const estado = (data as any).analisis_estado || '';
-    const normalized = String(estado).trim().toLowerCase();
-    const approvedStates = new Set(['aprobado', 'aprobada', 'completado', 'completada']);
-    if (!approvedStates.has(normalized)) {
-      return res.status(400).json({ ok: false, code: 'INTERPRETATION_NOT_APPROVED', message: 'La interpretación IA no está aprobada (se requiere Aprobado/Completado).' });
+    // Determinar tipo de resultado (manual vs archivo)
+    const raw = typeof (data as any).resultado_data === 'string'
+      ? JSON.parse((data as any).resultado_data)
+      : ((data as any).resultado_data || {});
+    const isArchivo = raw?.tipo === 'archivo';
+
+    // Validar estado de interpretación aprobada SOLO para resultados manuales
+    if (!isArchivo) {
+      const estado = (data as any).analisis_estado || '';
+      const normalized = String(estado).trim().toLowerCase();
+      const approvedStates = new Set(['aprobado', 'aprobada', 'completado', 'completada']);
+      if (!approvedStates.has(normalized)) {
+        return res.status(400).json({ ok: false, code: 'INTERPRETATION_NOT_APPROVED', message: 'La interpretación IA no está aprobada (se requiere Aprobado/Completado).' });
+      }
     }
 
     const smtpHost = getEnv('SMTP_HOST');
@@ -483,7 +491,26 @@ export default async function notifyEmailHandler(req: Request, res: Response) {
       return res.status(500).json({ ok: false, code: 'ENV_MISSING', message: 'Config SMTP incompleta: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS.' });
     }
 
-    const pdfBuffer = await buildResultPdf(data);
+    // Construir adjunto: si es "archivo", adjuntar el PDF subido; si es manual, generar PDF
+    let pdfBuffer: Buffer;
+    if (isArchivo) {
+      const fileUrl = String(raw?.url || '').trim();
+      if (!fileUrl) {
+        return res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'El resultado tipo archivo no tiene URL disponible para adjunto.' });
+      }
+      try {
+        const resp = await fetch(fileUrl);
+        if (!resp.ok) {
+          return res.status(500).json({ ok: false, code: 'FILE_FETCH_ERROR', message: `No se pudo descargar el archivo (${resp.status}).` });
+        }
+        const ab = await resp.arrayBuffer();
+        pdfBuffer = Buffer.from(ab);
+      } catch (e: any) {
+        return res.status(500).json({ ok: false, code: 'FILE_FETCH_ERROR', message: e?.message || 'Error descargando el archivo para adjuntar.' });
+      }
+    } else {
+      pdfBuffer = await buildResultPdf(data);
+    }
 
     const transporter = nodemailer.createTransport({
       host: smtpHost,
@@ -519,7 +546,16 @@ export default async function notifyEmailHandler(req: Request, res: Response) {
       subject,
       html,
       attachments: (() => {
-        const atts: any[] = [{ filename: 'resultado-vidamed.pdf', content: pdfBuffer }];
+        const defaultName = 'resultado-vidamed.pdf';
+        const fileNameFromUrl = () => {
+          try {
+            const u = String(raw?.url || '');
+            if (!u) return defaultName;
+            const last = u.split('?')[0].split('/').pop() || '';
+            return last.endsWith('.pdf') ? last : defaultName;
+          } catch { return defaultName; }
+        };
+        const atts: any[] = [{ filename: isArchivo ? fileNameFromUrl() : defaultName, content: pdfBuffer }];
         if (hasLogo) atts.push({ filename: 'vidamed_logo.png', path: logoPath, cid: logoCid });
         return atts;
       })(),

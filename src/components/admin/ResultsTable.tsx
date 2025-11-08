@@ -381,19 +381,23 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
 
                 <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-center">
                   <div className="flex items-center justify-center space-x-2">
-                    {/* Botón de ver resultado en visor modal (lupa) */}
-                    <button
-                      onClick={() => {
-                        if (can && !can('ver')) { markDenied(result.id, 'ver'); return; }
-                        onViewResult(result);
-                      }}
-                      className={`p-1 border border-gray-200 rounded-md transition-colors ${can && !can('ver') ? 'opacity-50 cursor-not-allowed text-gray-400' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
-                      title="Ver resultado"
-                    >
-                      <Search className="h-4 w-4" />
-                    </button>
-                    {denied[result.id]?.ver && (
-                      <span className="ml-1 text-[10px] text-red-600">No está autorizado</span>
+                    {/* Botón de ver resultado en visor modal (lupa) - oculto si es tipo archivo */}
+                    {result.resultado_data?.tipo !== 'archivo' && (
+                      <>
+                        <button
+                          onClick={() => {
+                            if (can && !can('ver')) { markDenied(result.id, 'ver'); return; }
+                            onViewResult(result);
+                          }}
+                          className={`p-1 border border-gray-200 rounded-md transition-colors ${can && !can('ver') ? 'opacity-50 cursor-not-allowed text-gray-400' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                          title="Ver resultado"
+                        >
+                          <Search className="h-4 w-4" />
+                        </button>
+                        {denied[result.id]?.ver && (
+                          <span className="ml-1 text-[10px] text-red-600">No está autorizado</span>
+                        )}
+                      </>
                     )}
                     {result.resultado_data?.url && (
                       <>
@@ -436,15 +440,25 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                       <span className="ml-1 text-[10px] text-red-600">No está autorizado</span>
                     )}
 
-                    {/* Notificar por Email (requiere interpretación aprobada) */}
+                    {/* Notificar por Email: para tipo archivo se habilita sin exigir interpretación aprobada */}
                     <button
                       onClick={() => {
                         if (can && !can('enviar_email')) { markDenied(result.id, 'email'); return; }
                         notifyEmail(result.id);
                       }}
                       className={`p-1 border border-emerald-200 rounded-md transition-colors ${can && !can('enviar_email') ? 'opacity-50 cursor-not-allowed text-emerald-300' : 'text-emerald-600 hover:text-emerald-900 hover:bg-emerald-50'}`}
-                      title={result.analisis_estado?.toLowerCase() === 'aprobado' ? 'Enviar resultado por Email' : 'Aprueba la interpretación IA para habilitar el envío'}
-                      disabled={sendingEmailId === result.id || !(result.analisis_estado && result.analisis_estado.toLowerCase() === 'aprobado')}
+                      title={
+                        result.resultado_data?.tipo === 'archivo'
+                          ? 'Enviar archivo por Email'
+                          : (result.analisis_estado?.toLowerCase() === 'aprobado'
+                              ? 'Enviar resultado por Email'
+                              : 'Aprueba la interpretación IA para habilitar el envío')
+                      }
+                      disabled={
+                        sendingEmailId === result.id || (
+                          result.resultado_data?.tipo !== 'archivo' && !(result.analisis_estado && result.analisis_estado.toLowerCase() === 'aprobado')
+                        )
+                      }
                     >
                       {sendingEmailId === result.id ? (
                         <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

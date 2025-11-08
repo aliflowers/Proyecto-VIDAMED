@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { SchedulingStudy } from '@/types';
-import { Upload, X } from 'lucide-react';
+import { Upload, X, ChevronDown } from 'lucide-react';
 
 interface FileUploadModalProps {
     file: File;
@@ -12,6 +12,16 @@ interface FileUploadModalProps {
 
 const FileUploadModal: React.FC<FileUploadModalProps> = ({ file, studies, onNeedPatientSelection, onCancel, isLoading }) => {
     const [selectedStudyId, setSelectedStudyId] = useState<string>('');
+    const [isOpen, setIsOpen] = useState<boolean>(false);
+    const [studySearch, setStudySearch] = useState<string>('');
+
+    const filteredStudies = studies.filter(s =>
+        s.name.toLowerCase().includes(studySearch.trim().toLowerCase())
+    );
+
+    useEffect(() => {
+        if (!isOpen) setStudySearch('');
+    }, [isOpen]);
 
     const handleSubmit = () => {
         const selectedStudy = studies.find(s => s.id === selectedStudyId);
@@ -32,16 +42,56 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ file, studies, onNeed
                 <div className="p-8 space-y-4">
                     <p><strong>Archivo a subir:</strong> {file.name}</p>
                     <div>
-                        <label htmlFor="study-select" className="block text-sm font-medium text-gray-700 mb-1">Seleccione el estudio correspondiente:</label>
-                        <select
-                            id="study-select"
-                            value={selectedStudyId}
-                            onChange={(e) => setSelectedStudyId(e.target.value)}
-                            className="w-full p-2 border rounded-md"
-                        >
-                            <option value="">Seleccione un estudio...</option>
-                            {studies.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Seleccione el estudio correspondiente:</label>
+                        <div className="relative">
+                            <button
+                                type="button"
+                                onClick={() => setIsOpen(v => !v)}
+                                className="w-full p-2 border rounded-md flex items-center justify-between"
+                                aria-haspopup="listbox"
+                                aria-expanded={isOpen}
+                            >
+                                <span className="truncate text-left">
+                                    {selectedStudyId
+                                        ? (studies.find(s => s.id === selectedStudyId)?.name || 'Seleccionar estudio...')
+                                        : 'Seleccione un estudio...'}
+                                </span>
+                                <ChevronDown className="h-4 w-4 text-gray-500" />
+                            </button>
+
+                            {isOpen && (
+                                <div className="absolute z-50 mt-1 w-full rounded-md border bg-white shadow-lg">
+                                    <div className="p-2 border-b">
+                                        <input
+                                            type="text"
+                                            value={studySearch}
+                                            onChange={(e) => setStudySearch(e.target.value)}
+                                            placeholder="Buscar estudio..."
+                                            className="w-full p-2 border rounded-md"
+                                            autoFocus
+                                        />
+                                    </div>
+                                    <ul role="listbox" className="max-h-60 overflow-y-auto">
+                                        {filteredStudies.length === 0 && (
+                                            <li className="px-3 py-2 text-sm text-gray-500">No hay estudios que coincidan.</li>
+                                        )}
+                                        {filteredStudies.map(s => (
+                                            <li key={s.id}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setSelectedStudyId(s.id); setIsOpen(false); }}
+                                                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${selectedStudyId === s.id ? 'bg-gray-50' : ''}`}
+                                                    role="option"
+                                                    aria-selected={selectedStudyId === s.id}
+                                                >
+                                                    {s.name}
+                                                </button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
                 <div className="flex justify-end space-x-4 p-6 border-t bg-gray-50 rounded-b-lg">
