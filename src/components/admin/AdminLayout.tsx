@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { supabase } from '@/services/supabaseClient';
-import { LayoutDashboard, FlaskConical, Newspaper, MessageSquare, Calendar, Users, BarChart2, Settings, LogOut, Package, Menu, FileText, UserCog } from 'lucide-react';
+import { LayoutDashboard, FlaskConical, Newspaper, MessageSquare, Calendar, Users, BarChart2, Settings, LogOut, Package, Menu, FileText, UserCog, Banknote } from 'lucide-react';
 import Logo from '@/components/Logo';
 import { StatisticsProvider } from '@/context/StatisticsContext';
 import { ToastContainer } from 'react-toastify';
@@ -11,6 +11,7 @@ const AdminLayout: React.FC = () => {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [userName, setUserName] = useState<string>('');
     const [userRole, setUserRole] = useState<string>('');
+    const [userEmail, setUserEmail] = useState<string>('');
 
     // Cargar nombre completo y rol del usuario autenticado
     useEffect(() => {
@@ -38,9 +39,11 @@ const AdminLayout: React.FC = () => {
 
                 setUserName([nombre, apellido].filter(Boolean).join(' '));
                 setUserRole(rol ? rol : (auth?.user?.user_metadata?.rol ? String(auth.user.user_metadata.rol) : ''));
+                setUserEmail(auth?.user?.email || '');
             } catch (e) {
                 setUserName('');
                 setUserRole('');
+                setUserEmail('');
             }
         })();
     }, []);
@@ -62,6 +65,10 @@ const AdminLayout: React.FC = () => {
         { to: "/admin/statistics", icon: BarChart2, label: "Estadísticas" },
         // Enlace al módulo de Gestión de Usuarios (por encima de Configuración y debajo del panel de estadísticas)
         { to: "/admin/gestion_usuarios", icon: UserCog, label: "Gestión de Usuarios" },
+        // Módulo de Control de Gastos (visible solo para la usuaria principal)
+        ...(userEmail === 'anamariaprieto@labvidamed.com' ? [
+            { to: "/admin/expenses", icon: Banknote, label: "Control de Gastos" },
+        ] : []),
         { to: "/admin/config", icon: Settings, label: "Configuración" },
     ];
 
