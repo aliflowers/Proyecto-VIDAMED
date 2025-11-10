@@ -1162,10 +1162,10 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
                     <th className="py-3 px-6 text-left">Fecha</th>
                     <th className="py-3 px-6 text-left">Cuenta por Pagar</th>
                     <th className="py-3 px-6 text-left">Moneda</th>
-                    <th className="py-3 px-6 text-right">Monto USD</th>
-                    <th className="py-3 px-6 text-right">Monto Bs</th>
                     <th className="py-3 px-6 text-left">Método de Pago</th>
                     <th className="py-3 px-6 text-left">Referencia</th>
+                    <th className="py-3 px-6 text-right">Monto USD</th>
+                    <th className="py-3 px-6 text-right">Monto Bs</th>
                     <th className="py-3 px-2 text-left">Acciones</th>
                   </tr>
                 </thead>
@@ -1176,10 +1176,10 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
                       <td className="py-3 px-6">{formatDate(row.fecha_pago)}</td>
                       <td className="py-3 px-6">{row.cuentas_por_pagar?.observaciones || '-'}</td>
                       <td className="py-3 px-6">{row.moneda}</td>
-                      <td className="py-3 px-6 text-right">{row.monto_usd != null ? formatCurrency(row.monto_usd, 'usd') : '-'}</td>
-                      <td className="py-3 px-6 text-right">{formatCurrency(row.monto_bs)}</td>
                       <td className="py-3 px-6">{row.metodo_pago || '-'}</td>
                       <td className="py-3 px-6">{row.referencia || '-'}</td>
+                      <td className="py-3 px-6 text-right">{row.monto_usd != null ? formatCurrency(row.monto_usd, 'usd') : '-'}</td>
+                      <td className="py-3 px-6 text-right">{formatCurrency(row.monto_bs)}</td>
                       <td className="py-3 px-2">
                         <div className="flex gap-1">
                           <button className="px-2 py-1 text-xs border rounded-md" onClick={() => { setEditPagoId(row.id!); setNewPago({ cxp_id: row.cxp_id, fecha_pago: row.fecha_pago, moneda: row.moneda, monto_bs: row.monto_bs ?? 0, tasa_usd_bs: row.tasa_usd_bs ?? null, monto_usd: row.monto_usd ?? null, referencia: row.referencia || '', observaciones: row.observaciones || '', metodo_pago: row.metodo_pago || '' }); setShowPagoModal(true); }}>Editar</button>
@@ -1190,7 +1190,7 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
                   ))}
                   <tr>
                     <td></td>
-                    <td className="py-3 px-6 font-semibold" colSpan={3}>Totales</td>
+                    <td className="py-3 px-6 font-semibold" colSpan={5}>Totales</td>
                     <td className="py-3 px-6 text-right font-semibold">{
                       formatCurrency(
                         filteredPagos.reduce((acc:number, r:any) => {
@@ -1204,8 +1204,6 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
                       )
                     }</td>
                     <td className="py-3 px-6 text-right font-semibold">{formatCurrency(filteredPagos.reduce((acc:number, r:any) => acc + (r.monto_bs || 0), 0))}</td>
-                    <td></td>
-                    <td></td>
                     <td></td>
                   </tr>
                 </tbody>
