@@ -13,6 +13,78 @@ export interface HasPermissionUser {
   overrides?: PermissionOverrides | null;
 }
 
+/**
+ * Normaliza el nombre del módulo recibido desde el frontend o API.
+ * - Insensible a mayúsculas/minúsculas
+ * - Reemplaza guiones/espacios por guiones bajos
+ * - Aplica alias comunes para mantener consistencia con las claves internas
+ */
+export function normalizeModuleName(moduloInput: string | null | undefined): string {
+  // Normalización base: minúsculas y reemplazo de espacios/guiones por guion bajo
+  const rawUnderscored = (moduloInput || '').toString().trim().toLowerCase().replace(/[\s-]+/g, '_');
+
+  // Mapa de alias ampliado para cubrir variantes usadas en el frontend
+  const aliases: Record<string, string> = {
+    // Inventario
+    inventario: 'inventario',
+    inventarios: 'inventario',
+    inventory: 'inventario',
+    materiales: 'inventario',
+    // Pacientes
+    pacientes: 'pacientes',
+    paciente: 'pacientes',
+    patients: 'pacientes',
+    // Resultados
+    resultados: 'resultados',
+    resultado: 'resultados',
+    results: 'resultados',
+    // Citas y bloqueos
+    citas: 'citas',
+    cita: 'citas',
+    appointments: 'citas',
+    'citas_admin': 'citas',
+    dias_no_disponibles: 'dias_no_disponibles',
+    diasnodisponibles: 'dias_no_disponibles',
+    bloqueos: 'dias_no_disponibles',
+    // Estudios
+    estudios: 'estudios',
+    studies: 'estudios',
+    // Configuración del sitio
+    site_config: 'site_config',
+    settings: 'site_config',
+    // Blog y testimonios
+    publicaciones_blog: 'publicaciones_blog',
+    blog: 'publicaciones_blog',
+    posts: 'publicaciones_blog',
+    testimonios: 'testimonios',
+    testimonials: 'testimonios'
+  };
+
+  // Intento directo con versión subrayada
+  if (aliases[rawUnderscored]) return aliases[rawUnderscored];
+
+  // Intento con versión simplificada sin espacios/guiones/guiones bajos
+  const simplified = rawUnderscored.replace(/[_\s-]+/g, '');
+  return aliases[simplified] || rawUnderscored;
+}
+
+// Eliminado duplicado de normalizeModuleName; usar la versión exportada arriba
+
+// Normaliza el objeto de overrides proveniente de API (posibles claves en mayúsculas)
+function normalizeOverrides(overrides: PermissionOverrides | null | undefined): PermissionOverrides | null {
+  if (!overrides) return null;
+  const norm: PermissionOverrides = {};
+  Object.keys(overrides).forEach((mod) => {
+    const modNorm = normalizeModuleName(mod);
+    norm[modNorm] = norm[modNorm] || {};
+    const actions = overrides[mod] || {};
+    Object.keys(actions).forEach((act) => {
+      norm[modNorm][act] = Boolean(actions[act]);
+    });
+  });
+  return norm;
+}
+
 // Mapa por defecto alineado con la matriz de permisos de frontend
 const defaultPermissions: Record<Rol, Record<string, Record<string, boolean>>> = {
   Administrador: new Proxy({}, {
@@ -20,12 +92,12 @@ const defaultPermissions: Record<Rol, Record<string, Record<string, boolean>>> =
   }) as Record<string, Record<string, boolean>>, // Admin: todo permitido
 
   'Lic.': {
-    // INVENTARIO: ver y eliminar_material
+    // INVENTARIO: ver y eliminar; sin crear ni editar
     inventario: {
       ver: true,
-      eliminar_material: true,
       crear: false,
       editar: false,
+      eliminar: true,
     },
     // RESULTADOS: todo menos eliminar
     resultados: {
@@ -34,7 +106,8 @@ const defaultPermissions: Record<Rol, Record<string, Record<string, boolean>>> =
       editar: true,
       eliminar: false,
       imprimir: true,
-      enviar: true,
+      enviar_whatsapp: true,
+      enviar_email: true,
     },
     // PACIENTES: ver y editar
     pacientes: {
@@ -102,16 +175,17 @@ export function hasPermission(
   accion: string
 ): boolean {
   const role = normalizeRole(user?.role || null);
-  const userOverrides = user?.overrides || null;
+  const userOverrides = normalizeOverrides(user?.overrides || null);
+  const moduloNorm = normalizeModuleName(modulo);
 
   // 1) Overrides explícitos del usuario tienen prioridad
-  if (userOverrides && userOverrides[modulo] && typeof userOverrides[modulo][accion] === 'boolean') {
-    return Boolean(userOverrides[modulo][accion]);
+  if (userOverrides && userOverrides[moduloNorm] && typeof userOverrides[moduloNorm][accion] === 'boolean') {
+    return Boolean(userOverrides[moduloNorm][accion]);
   }
 
   // 2) Permisos por defecto del rol
   const defaults = defaultPermissions[role] || {};
-  const mod = defaults[modulo];
+  const mod = defaults[moduloNorm];
 
   if (!mod) {
     // Módulo no definido para el rol: por defecto false, excepto Admin que permite todo
@@ -124,5 +198,7 @@ export function hasPermission(
   if (typeof allowed === 'boolean') return allowed;
   return role === 'Administrador';
 }
+
+// Nota: normalizeRole ya existe más arriba en este archivo. Se evita duplicado.
 
 export default hasPermission;
