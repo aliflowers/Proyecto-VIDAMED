@@ -20,12 +20,13 @@ type PermOverride = { module: string; action: string; allowed: boolean };
 
 const MODULES: Record<string, string[]> = {
   RESULTADOS: ['ver', 'imprimir', 'enviar_whatsapp', 'enviar_email', 'crear', 'editar', 'eliminar'],
-  INVENTARIO: ['ver', 'crear_material', 'editar_material', 'eliminar_material'],
+  INVENTARIO: ['ver', 'crear', 'editar', 'eliminar'],
   PACIENTES: ['ver', 'editar'],
-  CITAS: ['ver', 'gestionar', 'cancelar', 'confirmar', 'reagendar', 'bloquear_dias', 'desbloquear_dias'],
+  CITAS: ['ver', 'reprogramar', 'confirmar', 'cancelar', 'gestionar_disponibilidad'],
   TESTIMONIOS: ['ver', 'aprobar', 'eliminar', 'cancelar'],
   BLOG: ['ver', 'crear', 'editar', 'eliminar'],
-  ESTUDIOS: ['ver', 'crear', 'editar', 'eliminar', 'actualizar_tasa_cambio'],
+  ESTUDIOS: ['ver', 'crear', 'editar', 'eliminar'],
+  SITE_CONFIG: ['ver', 'actualizar_tasa_cambio'],
 };
 
 function getDefaultAllowed(rol: Rol, module: string, action: string): boolean {
@@ -38,13 +39,15 @@ function getDefaultAllowed(rol: Rol, module: string, action: string): boolean {
         if (action === 'eliminar') return false;
         return true;
       case 'INVENTARIO':
-        if (action === 'crear_material' || action === 'editar_material') return false;
-        // Puede ver, y eliminar_material lo determinamos como permitido por defecto
+        if (action === 'crear' || action === 'editar') return false;
+        // Puede ver, y eliminar lo determinamos como permitido por defecto
         return true;
       case 'CITAS':
         // Restricción por sede se valida en capa de negocio: aquí permisos globales
         return true;
       case 'ESTUDIOS':
+        return action === 'ver' ? true : false;
+      case 'SITE_CONFIG':
         if (action === 'actualizar_tasa_cambio') return true;
         return action === 'ver' ? true : false;
       default:
@@ -68,6 +71,8 @@ function getDefaultAllowed(rol: Rol, module: string, action: string): boolean {
       case 'BLOG':
         return true;
       case 'ESTUDIOS':
+        return action === 'ver';
+      case 'SITE_CONFIG':
         return action === 'actualizar_tasa_cambio' || action === 'ver';
       default:
         return false;

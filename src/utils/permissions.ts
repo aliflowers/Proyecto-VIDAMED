@@ -68,6 +68,56 @@ export function normalizeModuleName(moduloInput: string | null | undefined): str
   return aliases[simplified] || rawUnderscored;
 }
 
+/**
+ * Normaliza nombres de acciones a su forma canónica.
+ * Mantiene consistencia entre UI y comprobaciones `can()` en cada módulo.
+ */
+export function normalizeActionName(actionInput: string | null | undefined): string {
+  const raw = (actionInput || '').toString().trim().toLowerCase().replace(/[\s-]+/g, '_');
+  const aliases: Record<string, string> = {
+    // Acciones CRUD genéricas
+    crear: 'crear',
+    editar: 'editar',
+    eliminar: 'eliminar',
+    ver: 'ver',
+    imprimir: 'imprimir',
+
+    // Resultados
+    enviar: 'enviar_email', // alias genérico mapeado a email
+    enviar_whatsapp: 'enviar_whatsapp',
+    enviar_email: 'enviar_email',
+
+    // Inventario: aliases de UI históricos
+    crear_material: 'crear',
+    editar_material: 'editar',
+    eliminar_material: 'eliminar',
+
+    // Citas: equivalencias
+    gestionar: 'gestionar_disponibilidad',
+    gestionar_disponibilidad: 'gestionar_disponibilidad',
+    bloquear_dias: 'gestionar_disponibilidad',
+    desbloquear_dias: 'gestionar_disponibilidad',
+    reagendar: 'reprogramar',
+    reprogramar: 'reprogramar',
+
+    // Site config / estudios
+    actualizar_tasa_cambio: 'actualizar_tasa_cambio',
+  };
+  return aliases[raw] || raw;
+}
+
+/**
+ * Algunas acciones pertenecen conceptualmente a otro módulo (p.ej. tasa de cambio → site_config).
+ * Este helper remapea el módulo cuando aplique para que `hasPermission` evalúe correctamente.
+ */
+function maybeRemapModuleForAction(moduloNorm: string, accionNorm: string): string {
+  // La acción de actualizar la tasa de cambio vive bajo site_config
+  if (accionNorm === 'actualizar_tasa_cambio' && moduloNorm === 'estudios') {
+    return 'site_config';
+  }
+  return moduloNorm;
+}
+
 // Eliminado duplicado de normalizeModuleName; usar la versión exportada arriba
 
 // Normaliza el objeto de overrides proveniente de API (posibles claves en mayúsculas)
@@ -75,11 +125,13 @@ function normalizeOverrides(overrides: PermissionOverrides | null | undefined): 
   if (!overrides) return null;
   const norm: PermissionOverrides = {};
   Object.keys(overrides).forEach((mod) => {
-    const modNorm = normalizeModuleName(mod);
-    norm[modNorm] = norm[modNorm] || {};
+    const modNormBase = normalizeModuleName(mod);
     const actions = overrides[mod] || {};
     Object.keys(actions).forEach((act) => {
-      norm[modNorm][act] = Boolean(actions[act]);
+      const actNorm = normalizeActionName(act);
+      const modNorm = maybeRemapModuleForAction(modNormBase, actNorm);
+      if (!norm[modNorm]) norm[modNorm] = {};
+      norm[modNorm][actNorm] = Boolean(actions[act]);
     });
   });
   return norm;
@@ -176,11 +228,13 @@ export function hasPermission(
 ): boolean {
   const role = normalizeRole(user?.role || null);
   const userOverrides = normalizeOverrides(user?.overrides || null);
-  const moduloNorm = normalizeModuleName(modulo);
+  let moduloNorm = normalizeModuleName(modulo);
+  const accionNorm = normalizeActionName(accion);
+  moduloNorm = maybeRemapModuleForAction(moduloNorm, accionNorm);
 
   // 1) Overrides explícitos del usuario tienen prioridad
-  if (userOverrides && userOverrides[moduloNorm] && typeof userOverrides[moduloNorm][accion] === 'boolean') {
-    return Boolean(userOverrides[moduloNorm][accion]);
+  if (userOverrides && userOverrides[moduloNorm] && typeof userOverrides[moduloNorm][accionNorm] === 'boolean') {
+    return Boolean(userOverrides[moduloNorm][accionNorm]);
   }
 
   // 2) Permisos por defecto del rol
@@ -194,7 +248,7 @@ export function hasPermission(
   }
 
   // Acciones: si no está definida, se asume false excepto Admin
-  const allowed = (mod as Record<string, boolean>)[accion];
+  const allowed = (mod as Record<string, boolean>)[accionNorm];
   if (typeof allowed === 'boolean') return allowed;
   return role === 'Administrador';
 }
