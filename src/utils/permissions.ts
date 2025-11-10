@@ -131,8 +131,8 @@ const defaultPermissions: Record<Rol, Record<string, Record<string, boolean>>> =
     // INVENTARIO y PACIENTES: solo ver
     inventario: { ver: true },
     pacientes: { ver: true },
-    // RESULTADOS: ver/imprimir/enviar
-    resultados: { ver: true, imprimir: true, enviar: true },
+    // RESULTADOS: ver, imprimir y enviar por WhatsApp/Email
+    resultados: { ver: true, imprimir: true, enviar: true, enviar_whatsapp: true, enviar_email: true },
     // CITAS y días no disponibles: acceso total a gestión
     citas: new Proxy({}, { get: () => true }) as Record<string, boolean>,
     dias_no_disponibles: new Proxy({}, { get: () => true }) as Record<string, boolean>,
