@@ -22,19 +22,21 @@ interface Gasto {
   comprobante_url?: string | null;
 }
 
-interface CuentaPorPagar {
-  id?: string;
-  gasto_id: string;
-  proveedor_id?: string | null;
-  fecha_compra: string;
-  fecha_vencimiento?: string | null;
-  total_bs: number;
-  pagado_bs?: number;
-  pendiente_bs?: number;
-  pagada?: boolean;
-  plazo_dias?: number | null;
-  observaciones?: string | null;
-}
+  interface CuentaPorPagar {
+    id?: string;
+    gasto_id: string;
+    proveedor_id?: string | null;
+    fecha_compra: string;
+    fecha_vencimiento?: string | null;
+    total_bs: number;
+    pagado_bs?: number;
+    pendiente_bs?: number;
+    pagada?: boolean;
+    plazo_dias?: number | null;
+    observaciones?: string | null;
+    monto_usd?: number | null;
+    tasa_usd_bs?: number | null;
+  }
 
 interface PagoCxp {
   id?: string;
@@ -65,7 +67,7 @@ interface ServicioRecurrente {
 }
 interface Nomina { id?: string; periodo_inicio: string; periodo_fin: string; sede?: string | null; observaciones?: string | null; monto_total_bs?: number | null; }
 interface NominaItem { id?: string; nomina_id: string; empleado_id?: string | null; concepto: string; moneda?: Moneda; monto_usd?: number | null; tasa_usd_bs?: number | null; monto_bs: number; }
-interface Empleado { id: string; nombre_completo: string; cedula?: string | null; cargo?: string | null; sede?: string | null; telefono?: string | null; email?: string | null; is_active?: boolean; source?: 'db' | 'profile'; }
+interface Empleado { id: string; user_id?: string | null; nombre_completo: string; cedula?: string | null; cargo?: string | null; sede?: string | null; telefono?: string | null; email?: string | null; is_active?: boolean; source?: 'db' | 'profile'; }
 
 type Tab = 'gastos' | 'cxp' | 'pagos' | 'servicios' | 'nominas' | 'nomina_items' | 'proveedores' | 'categorias' | 'empleados';
 
@@ -85,13 +87,47 @@ const ExpensesAdminPage: React.FC = () => {
   const [servicios, setServicios] = useState<ServicioRecurrente[]>([]);
   const [nominas, setNominas] = useState<Nomina[]>([]);
   const [nominaItems, setNominaItems] = useState<any[]>([]);
+  // Catálogo de métodos de pago derivados de pagos_cxp
+  const [metodosPago, setMetodosPago] = useState<string[]>([]);
+  const [showNuevoMetodoPago, setShowNuevoMetodoPago] = useState<boolean>(false);
+  const [nuevoMetodoPagoNombre, setNuevoMetodoPagoNombre] = useState<string>('');
 
   const [filters, setFilters] = useState({ search: '', desde: '', hasta: '', mes: '', anio: '' });
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from({ length: 12 }, (_, i) => String(currentYear - i));
-  const [empleadoSearch, setEmpleadoSearch] = useState<string>('');
+const [selectedEmpleadoName, setSelectedEmpleadoName] = useState<string>('');
+const [selectedEmpleadoSource, setSelectedEmpleadoSource] = useState<'db' | 'profile' | null>(null);
+const [selectedEmpleadoUserId, setSelectedEmpleadoUserId] = useState<string | null>(null);
+// UI del selector de empleado: dropdown con búsqueda y lupa
+const [empleadoDropdownOpen, setEmpleadoDropdownOpen] = useState<boolean>(false);
+const [empleadoSearch, setEmpleadoSearch] = useState<string>('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [currentNominaId, setCurrentNominaId] = useState<string>('');
+
+  // Lista unificada para el selector del modal de Nómina (empleados DB + perfiles), sin duplicados
+  const empleadosUnifiedList = useMemo(() => {
+    const all = [...empleados, ...empleadosProfiles];
+    const map = new Map<string, Empleado>();
+    for (const e of all) {
+      const userKey = e.user_id ? `user:${String(e.user_id).toLowerCase()}` : '';
+      const fallbackKey = (e.cedula ? e.cedula.trim().toLowerCase() : '')
+        || (e.email ? e.email.trim().toLowerCase() : '')
+        || (e.nombre_completo ? e.nombre_completo.trim().toLowerCase() : '');
+      const key = userKey || fallbackKey;
+      if (!key) continue; // si no hay ninguna clave, omitir
+      const existing = map.get(key);
+      if (!existing) {
+        map.set(key, e);
+      } else {
+        // Preferir registro de BD si existe conflicto
+        if ((existing.source === 'profile' || !existing.source) && e.source === 'db') {
+          map.set(key, e);
+        }
+      }
+    }
+    return Array.from(map.values()).sort((a: Empleado, b: Empleado) => (a.nombre_completo || '').localeCompare(b.nombre_completo || ''));
+  }, [empleados, empleadosProfiles]);
+
 
   // Estados de edición por entidad
   const [editGastoId, setEditGastoId] = useState<string | null>(null);
@@ -117,10 +153,19 @@ const ExpensesAdminPage: React.FC = () => {
   const [newGasto, setNewGasto] = useState<Gasto>({ fecha: new Date().toISOString().slice(0,10), categoria_id: '', proveedor_id: null, descripcion: '', moneda: 'Bs', monto_usd: null, tasa_usd_bs: null, monto_bs: null, sede: 'Sede Principal Maracay' });
   // Nota: Para CxP el esquema requiere gasto_id; se propondrá ajuste de UI más adelante
   const [newCxp, setNewCxp] = useState<CuentaPorPagar>({ gasto_id: '', proveedor_id: null, fecha_compra: new Date().toISOString().slice(0,10), fecha_vencimiento: null, total_bs: 0, pagado_bs: 0, pendiente_bs: 0, pagada: false, plazo_dias: null, observaciones: '' });
+  // Estados auxiliares del modal CxP para moneda y conversión
+  const [cxpMoneda, setCxpMoneda] = useState<Moneda>('Bs');
+  const [cxpMontoUsd, setCxpMontoUsd] = useState<number | null>(null);
+  const [cxpTasaUsdBs, setCxpTasaUsdBs] = useState<number | null>(null);
+  const [cxpPagadoUsd, setCxpPagadoUsd] = useState<number | null>(null);
+  // Rastreo del pagado inicial para calcular deltas de abono
+  const [cxpInitialPagadoUsd, setCxpInitialPagadoUsd] = useState<number>(0);
+  const [cxpInitialPagadoBs, setCxpInitialPagadoBs] = useState<number>(0);
   const [newPago, setNewPago] = useState<PagoCxp>({ cxp_id: '', fecha_pago: new Date().toISOString().slice(0,10), moneda: 'Bs', monto_usd: null, tasa_usd_bs: null, monto_bs: null, referencia: '' });
   const [newServicio, setNewServicio] = useState<ServicioRecurrente>({ nombre: '', proveedor_id: null, categoria_id: null, ciclo: 'Mensual', is_active: true, monto_usd: null, tasa_usd_bs: null, monto_bs: null, moneda: 'Bs', sede: null, proximo_pago: null });
   const [newNomina, setNewNomina] = useState<Nomina>({ periodo_inicio: new Date().toISOString().slice(0,10), periodo_fin: new Date().toISOString().slice(0,10), observaciones: '' });
   const [newNominaItem, setNewNominaItem] = useState<NominaItem>({ nomina_id: '', empleado_id: null, concepto: '', moneda: 'Bs', monto_usd: null, tasa_usd_bs: null, monto_bs: 0 });
+
   const [newProveedor, setNewProveedor] = useState<{ nombre: string; rif?: string; telefono?: string; contacto?: string; email?: string; direccion?: string; is_active?: boolean }>({ nombre: '', rif: '', telefono: '', contacto: '', email: '', direccion: '', is_active: true });
   const [newCategoria, setNewCategoria] = useState<{ nombre: string; clasificacion: 'Fijo' | 'Variable'; is_active?: boolean }>({ nombre: '', clasificacion: 'Fijo', is_active: true });
   const [newEmpleado, setNewEmpleado] = useState<{ nombre_completo: string; cedula?: string; cargo?: string; sede?: string; telefono?: string; email?: string; is_active?: boolean }>({ nombre_completo: '', cedula: '', cargo: '', sede: '', telefono: '', email: '', is_active: true });
@@ -140,10 +185,11 @@ const ExpensesAdminPage: React.FC = () => {
         const { data: profiles } = await supabase.from('user_profiles').select('user_id, nombre, apellido, cedula, email, sede, rol');
         setCategorias(cats || []);
         setProveedores(provs || []);
-        const sortedEmpsInit = (emps || []).sort((a: any, b: any) => ((a.nombre_completo || '').localeCompare(b.nombre_completo || '')));
+        const sortedEmpsInit = (emps || []).sort((a: any, b: any) => (`${a.nombre ?? ''} ${a.apellido ?? ''}`.trim().localeCompare(`${b.nombre ?? ''} ${b.apellido ?? ''}`.trim())));
         setEmpleados((sortedEmpsInit as any[]).map((e: any) => ({
           id: e.id,
-          nombre_completo: e.nombre_completo,
+          user_id: e.user_id ?? null,
+          nombre_completo: `${e.nombre ?? ''} ${e.apellido ?? ''}`.trim(),
           cedula: e.cedula ?? null,
           cargo: e.cargo ?? null,
           sede: e.sede ?? null,
@@ -155,6 +201,7 @@ const ExpensesAdminPage: React.FC = () => {
 
         const profilesMapped = (profiles || []).map((p: any) => ({
           id: p.user_id,
+          user_id: p.user_id,
           nombre_completo: `${p.nombre} ${p.apellido}`.trim(),
           cedula: p.cedula ?? null,
           cargo: p.rol ?? null,
@@ -183,15 +230,21 @@ const { data: g } = await supabase.from('gastos').select('id, fecha, descripcion
         .order('fecha', { ascending: false }).limit(500);
       setGastos(g || []);
 
-      const { data: c } = await supabase.from('cuentas_por_pagar').select('id, proveedor_id, proveedores(nombre), fecha_compra, total_bs, pendiente_bs, fecha_vencimiento, observaciones')
+  const { data: c } = await supabase.from('cuentas_por_pagar').select('id, proveedor_id, proveedores(nombre), fecha_compra, total_bs, pagado_bs, pendiente_bs, pagada, plazo_dias, fecha_vencimiento, observaciones, monto_usd')
         .order('fecha_compra', { ascending: false }).limit(500);
       setCxp(c || []);
 
-      const { data: p } = await supabase.from('pagos_cxp').select('id, cxp_id, cuentas_por_pagar(observaciones), fecha_pago, moneda, monto_bs, tasa_usd_bs, referencia')
+      const { data: p } = await supabase.from('pagos_cxp').select('id, cxp_id, cuentas_por_pagar(observaciones), fecha_pago, moneda, monto_bs, monto_usd, tasa_usd_bs, metodo_pago, referencia, observaciones')
         .order('fecha_pago', { ascending: false }).limit(500);
       setPagos(p || []);
+      // Construir catálogo de métodos de pago existentes
+      setMetodosPago([...
+        new Set(((p || [])
+          .map((x: any) => x.metodo_pago)
+          .filter((x: any) => !!x)))
+      ] as string[]);
 
-const { data: s } = await supabase.from('servicios_recurrentes').select('id, nombre, ciclo, is_active, monto_bs, monto_usd, proveedor_id, categoria_id, proveedores(nombre)')
+const { data: s } = await supabase.from('servicios_recurrentes').select('id, nombre, ciclo, is_active, moneda, monto_bs, monto_usd, tasa_usd_bs, sede, proximo_pago, proveedor_id, categoria_id, proveedores(nombre)')
         .order('nombre');
       setServicios(s || []);
 
@@ -223,10 +276,11 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
 
   const refreshEmpleados = async () => {
     const { data: emps } = await supabase.from('empleados').select('*');
-    const sortedEmps = (emps || []).sort((a: any, b: any) => ((a.nombre_completo || '').localeCompare(b.nombre_completo || '')));
+    const sortedEmps = (emps || []).sort((a: any, b: any) => (`${a.nombre ?? ''} ${a.apellido ?? ''}`.trim().localeCompare(`${b.nombre ?? ''} ${b.apellido ?? ''}`.trim())));
     setEmpleados((sortedEmps as any[]).map((e: any) => ({
       id: e.id,
-      nombre_completo: e.nombre_completo,
+      user_id: e.user_id ?? null,
+      nombre_completo: `${e.nombre ?? ''} ${e.apellido ?? ''}`.trim(),
       cedula: e.cedula ?? null,
       cargo: e.cargo ?? null,
       sede: e.sede ?? null,
@@ -239,6 +293,7 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
     const { data: profiles } = await supabase.from('user_profiles').select('user_id, nombre, apellido, cedula, email, sede, rol');
     const profilesMapped = (profiles || []).map((p: any) => ({
       id: p.user_id,
+      user_id: p.user_id,
       nombre_completo: `${p.nombre} ${p.apellido}`.trim(),
       cedula: p.cedula ?? null,
       cargo: p.rol ?? null,
@@ -256,7 +311,7 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
     setCurrentNominaId(nominaId);
     const { data: ni } = await supabase
       .from('nomina_items')
-      .select('id, nomina_id, empleado_id, empleados(nombre_completo), concepto, monto_bs, nominas(periodo_inicio, periodo_fin)')
+      .select('id, nomina_id, empleado_id, empleados(nombre, apellido), concepto, moneda, monto_usd, tasa_usd_bs, monto_bs, nominas(periodo_inicio, periodo_fin)')
       .eq('nomina_id', nominaId)
       .order('id');
     setNominaItems(ni || []);
@@ -402,12 +457,17 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
           return;
         }
       } else {
-        payload.monto_usd = null;
-        payload.tasa_usd_bs = null;
+        // Moneda Bs: exigir monto Bs. Si se provee tasa, calcular USD = Bs / tasa.
         if (payload.monto_bs == null) {
           setError('Debe indicar Monto Bs');
           return;
         }
+        if (payload.tasa_usd_bs) {
+          payload.monto_usd = Number((payload.monto_bs / payload.tasa_usd_bs).toFixed(2));
+        } else {
+          payload.monto_usd = payload.monto_usd ?? null;
+        }
+        // Mantener tasa si fue proporcionada; no forzar null
       }
       let error;
       if (editGastoId) {
@@ -432,11 +492,30 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
     try {
       setIsLoading(true);
       const payload: any = { ...newCxp };
-      // Normalizar y calcular pendientes según esquema real
-      payload.pagado_bs = Number(payload.pagado_bs || 0);
-      payload.total_bs = Number(payload.total_bs || 0);
-      payload.pendiente_bs = Number((payload.total_bs - payload.pagado_bs).toFixed(2));
-      payload.pagada = payload.pendiente_bs <= 0;
+      // Conversión y normalización según moneda seleccionada en el modal
+      if (cxpMoneda === 'USD') {
+        if (!cxpMontoUsd || !cxpTasaUsdBs) {
+          setError('Para moneda USD debe ingresar Monto USD y Tasa USD→Bs');
+          setIsLoading(false);
+          return;
+        }
+        payload.monto_usd = Number(cxpMontoUsd);
+        payload.total_bs = Number((cxpMontoUsd * cxpTasaUsdBs).toFixed(2));
+        // No escribir pagado/pendiente directamente: se recalculan vía triggers según pagos_cxp
+        delete payload.pagado_bs;
+        delete payload.pendiente_bs;
+      } else {
+        // Moneda Bs: el total_bs es ingresado; si hay tasa, calcular monto_usd
+        payload.total_bs = Number(payload.total_bs || 0);
+        if (cxpTasaUsdBs && payload.total_bs) {
+          payload.monto_usd = Number((payload.total_bs / cxpTasaUsdBs).toFixed(2));
+        } else {
+          payload.monto_usd = null;
+        }
+        // No escribir pagado/pendiente directamente
+        delete payload.pagado_bs;
+        delete payload.pendiente_bs;
+      }
       // En edición no debemos sobreescribir gasto_id si no se está cambiando
       if (editCxpId) {
         delete payload.gasto_id;
@@ -447,15 +526,57 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
           return;
         }
       }
-      let error;
+      // Guardar CxP y obtener id para aplicar posible abono
+      let cxpId: string | null = null;
       if (editCxpId) {
-        const res = await supabase.from('cuentas_por_pagar').update(payload).eq('id', editCxpId);
-        error = res.error;
+        const res = await supabase.from('cuentas_por_pagar').update(payload).eq('id', editCxpId).select('id').single();
+        if (res.error) throw res.error;
+        cxpId = res.data?.id || editCxpId;
       } else {
-        const res = await supabase.from('cuentas_por_pagar').insert(payload);
-        error = res.error;
+        const res = await supabase.from('cuentas_por_pagar').insert(payload).select('id').single();
+        if (res.error) throw res.error;
+        cxpId = res.data?.id || null;
       }
-      if (error) throw error;
+
+      // Registrar abono como delta del pagado ingresado
+      if (cxpId) {
+        const today = new Date().toISOString().slice(0,10);
+        if (cxpMoneda === 'USD') {
+          const inputUsd = Number(cxpPagadoUsd || 0);
+          const prevUsd = Number(cxpInitialPagadoUsd || 0);
+          const deltaUsd = Number((inputUsd - prevUsd).toFixed(2));
+          if (deltaUsd < 0) {
+            setError('El pagado no puede ser menor al ya registrado. Use la gestión de abonos para ajustes.');
+          } else if (deltaUsd > 0) {
+            const pagoPayload: any = {
+              cxp_id: cxpId,
+              fecha_pago: today,
+              moneda: 'USD' as Moneda,
+              monto_usd: deltaUsd,
+              tasa_usd_bs: cxpTasaUsdBs ?? null,
+            };
+            const pagoRes = await supabase.from('pagos_cxp').insert(pagoPayload);
+            if (pagoRes.error) throw pagoRes.error;
+          }
+        } else {
+          const inputBs = Number(newCxp.pagado_bs || 0);
+          const prevBs = Number(cxpInitialPagadoBs || 0);
+          const deltaBs = Number((inputBs - prevBs).toFixed(2));
+          if (deltaBs < 0) {
+            setError('El pagado no puede ser menor al ya registrado. Use la gestión de abonos para ajustes.');
+          } else if (deltaBs > 0) {
+            const pagoPayload: any = {
+              cxp_id: cxpId,
+              fecha_pago: today,
+              moneda: 'Bs' as Moneda,
+              monto_bs: deltaBs,
+            };
+            const pagoRes = await supabase.from('pagos_cxp').insert(pagoPayload);
+            if (pagoRes.error) throw pagoRes.error;
+          }
+        }
+      }
+
       setShowCxpModal(false);
       setEditCxpId(null);
       await fetchAll();
@@ -565,11 +686,18 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
     try {
       setIsLoading(true);
       const payload: any = { ...newPago };
+      // Validación de método de pago
+      if (!payload.metodo_pago || payload.metodo_pago.trim() === '') {
+        setError('Debe seleccionar o ingresar un Método de Pago');
+        setIsLoading(false);
+        return;
+      }
       if (payload.moneda === 'USD') {
         if (payload.monto_usd && payload.tasa_usd_bs) {
           payload.monto_bs = Number((payload.monto_usd * payload.tasa_usd_bs).toFixed(2));
         } else {
           setError('Para moneda USD debe indicar monto y tasa');
+          setIsLoading(false);
           return;
         }
       } else {
@@ -577,6 +705,7 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
         payload.tasa_usd_bs = null;
         if (payload.monto_bs == null) {
           setError('Debe indicar Monto Bs');
+          setIsLoading(false);
           return;
         }
       }
@@ -589,6 +718,12 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
         error = res.error;
       }
       if (error) throw error;
+      // Si se agregó un nuevo método, actualizar el catálogo local
+      if (payload.metodo_pago && !metodosPago.includes(payload.metodo_pago)) {
+        setMetodosPago(prev => [...prev, payload.metodo_pago!]);
+      }
+      setShowNuevoMetodoPago(false);
+      setNuevoMetodoPagoNombre('');
       setShowPagoModal(false);
       setEditPagoId(null);
       await fetchAll();
@@ -603,11 +738,50 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
     try {
       setIsLoading(true);
       const payload: any = { ...newServicio };
-      // Mapear nombres a esquema real
+      // Respetar la moneda seleccionada y validar, calculando ambos montos cuando haya tasa
+      const monedaSel: Moneda = (newServicio.moneda ?? 'Bs') as Moneda;
+      const tasa = newServicio.tasa_usd_bs ?? null;
+      const usdVal = newServicio.monto_usd != null ? Number(newServicio.monto_usd) : null;
+      const bsVal = newServicio.monto_bs != null ? Number(newServicio.monto_bs) : null;
+
+      if (monedaSel === 'USD') {
+        if (!usdVal || usdVal <= 0) {
+          setError('Debes indicar Costo USD mayor a 0 cuando la moneda es USD.');
+          setIsLoading(false);
+          return;
+        }
+        payload.moneda = 'USD';
+        payload.monto_usd = usdVal;
+        // Si hay tasa válida, calcular Bs; si no, conservar lo ingresado si existe
+        if (tasa && tasa > 0) {
+          payload.monto_bs = Number((usdVal * tasa).toFixed(2));
+        } else {
+          payload.monto_bs = bsVal ?? null;
+        }
+      } else {
+        if (!bsVal || bsVal <= 0) {
+          setError('Debes indicar Costo Bs mayor a 0 cuando la moneda es Bs.');
+          setIsLoading(false);
+          return;
+        }
+        payload.moneda = 'Bs';
+        payload.monto_bs = bsVal;
+        // Si hay tasa válida, calcular USD; si no, conservar lo ingresado si existe
+        if (tasa && tasa > 0) {
+          payload.monto_usd = Number((bsVal / tasa).toFixed(2));
+        } else {
+          payload.monto_usd = usdVal ?? null;
+        }
+      }
+
+      // Normalizar campos adicionales
+      payload.tasa_usd_bs = tasa;
+      payload.sede = newServicio.sede ?? null;
+      payload.proximo_pago = newServicio.proximo_pago ?? null;
+      payload.categoria_id = newServicio.categoria_id ?? null;
+      payload.proveedor_id = newServicio.proveedor_id ?? null;
       payload.ciclo = newServicio.ciclo;
       payload.is_active = newServicio.is_active;
-      payload.monto_bs = newServicio.monto_bs ?? null;
-      payload.monto_usd = newServicio.monto_usd ?? null;
       let error;
       if (editServicioId) {
         const res = await supabase.from('servicios_recurrentes').update(payload).eq('id', editServicioId);
@@ -654,6 +828,37 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
     try {
       setIsLoading(true);
       const payload: any = { ...newNominaItem };
+      // Resolver empleado usando user_id cuando esté disponible (prioridad), con fallback por cédula/email/nombre
+      if (selectedEmpleadoSource === 'profile' && selectedEmpleadoUserId) {
+        const perfil = empleadosProfiles.find(p => p.id === selectedEmpleadoUserId);
+        const matchByUserId = empleados.find(e => e.user_id && e.user_id === selectedEmpleadoUserId);
+        if (matchByUserId) {
+          payload.empleado_id = matchByUserId.id;
+        } else {
+          const candidatoPorCedula = perfil?.cedula ? empleados.find(e => e.cedula === perfil?.cedula) : undefined;
+          const candidatoPorEmail = !candidatoPorCedula && perfil?.email ? empleados.find(e => (e.email || '').toLowerCase() === (perfil?.email || '').toLowerCase()) : undefined;
+          const candidatoPorNombre = !candidatoPorCedula && !candidatoPorEmail && perfil?.nombre_completo
+            ? empleados.find(e => (e.nombre_completo || '').trim().toLowerCase() === (perfil?.nombre_completo || '').trim().toLowerCase())
+            : undefined;
+          const emp = candidatoPorCedula || candidatoPorEmail || candidatoPorNombre;
+          if (!emp) {
+            setError('No se encontró el empleado correspondiente en la tabla empleados');
+            return;
+          }
+          payload.empleado_id = emp.id;
+        }
+      }
+      // Normalizar montos según moneda para cumplir esquema
+      if ((payload.moneda as Moneda) === 'USD') {
+        const usd = Number(payload.monto_usd || 0);
+        const tasa = Number(payload.tasa_usd_bs || 0);
+        payload.monto_bs = Number((usd * tasa).toFixed(2));
+      } else {
+        // En Bs, limpiar campos USD
+        payload.monto_usd = null;
+        payload.tasa_usd_bs = null;
+      }
+
       let error;
       if (editNominaItemId) {
         const res = await supabase.from('nomina_items').update(payload).eq('id', editNominaItemId);
@@ -665,6 +870,8 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
       if (error) throw error;
       setShowNominaItemModal(false);
       setEditNominaItemId(null);
+      setSelectedEmpleadoSource(null);
+      setSelectedEmpleadoUserId(null);
       await fetchNominaItems(newNominaItem.nomina_id);
     } catch (e: any) {
       setError(e?.message || 'Error guardando ítem de nómina');
@@ -786,6 +993,7 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
                     <th className="py-3 px-6 text-left">Moneda</th>
                     <th className="py-3 px-6 text-left">Tasa</th>
                     <th className="py-3 px-6 text-right">Monto Bs</th>
+                    <th className="py-3 px-6 text-right">Monto USD</th>
                     <th className="py-3 px-2 text-left">Acciones</th>
                   </tr>
                 </thead>
@@ -801,6 +1009,13 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
                       <td className="py-3 px-6">{row.moneda}</td>
                       <td className="py-3 px-6">{row.tasa_usd_bs || '-'}</td>
                       <td className="py-3 px-6 text-right">{formatCurrency(row.monto_bs)}</td>
+                      <td className="py-3 px-6 text-right">{
+                        row.monto_usd != null
+                          ? formatCurrency(row.monto_usd, 'usd')
+                          : (row.moneda === 'Bs' && row.tasa_usd_bs
+                              ? formatCurrency(Number(((row.monto_bs || 0) / row.tasa_usd_bs).toFixed(2)), 'usd')
+                              : '-')
+                      }</td>
                       <td className="py-3 px-2">
                         <div className="flex gap-1">
                           <button className="px-2 py-1 text-xs border rounded-md" onClick={() => { setEditGastoId(row.id!); setNewGasto({ fecha: row.fecha, categoria_id: row.categoria_id, proveedor_id: row.proveedor_id ?? null, descripcion: row.descripcion, moneda: row.moneda, monto_usd: row.monto_usd ?? null, tasa_usd_bs: row.tasa_usd_bs ?? null, monto_bs: row.monto_bs ?? null, sede: row.sede || 'Sede Principal Maracay' }); setShowGastoModal(true); }}>Editar</button>
@@ -811,8 +1026,20 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
                   ))}
                   <tr>
                     <td></td>
-                    <td className="py-3 px-6 font-semibold" colSpan={7}>Total Bs</td>
+                    <td className="py-3 px-6 font-semibold" colSpan={7}>Total</td>
                     <td className="py-3 px-6 text-right font-semibold">{formatCurrency(filteredGastos.reduce((acc:number, r:any) => acc + (r.monto_bs || 0), 0))}</td>
+                    <td className="py-3 px-6 text-right font-semibold">{
+                      formatCurrency(
+                        filteredGastos.reduce((acc:number, r:any) => {
+                          const usd = r.monto_usd != null
+                            ? r.monto_usd
+                            : (r.moneda === 'Bs' && r.tasa_usd_bs
+                                ? Number(((r.monto_bs || 0) / r.tasa_usd_bs).toFixed(2))
+                                : 0);
+                          return acc + usd;
+                        }, 0), 'usd'
+                      )
+                    }</td>
                     <td></td>
                   </tr>
                 </tbody>
@@ -827,36 +1054,100 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
                     <th className="py-3 px-6 text-left">Fecha Compra</th>
                     <th className="py-3 px-6 text-left">Proveedor</th>
                     <th className="py-3 px-6 text-left">Observaciones</th>
+                    <th className="py-3 px-6 text-left">Vencimiento</th>
+                    <th className="py-3 px-6 text-right">Total USD</th>
+                    <th className="py-3 px-6 text-right">Pendiente USD</th>
                     <th className="py-3 px-6 text-right">Total Bs</th>
                     <th className="py-3 px-6 text-right">Pendiente Bs</th>
-                    <th className="py-3 px-6 text-left">Vencimiento</th>
                     <th className="py-3 px-2 text-left">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {filteredCxp.map((row:any) => (
-                    <tr key={row.id}>
-                      <td className="py-3 px-2"><input type="checkbox" checked={selectedIds.includes(row.id!)} onChange={() => toggleSelect(row.id!)} /></td>
-                      <td className="py-3 px-6">{formatDate(row.fecha_compra)}</td>
-                      <td className="py-3 px-6">{row.proveedores?.nombre}</td>
-                      <td className="py-3 px-6">{row.observaciones || '-'}</td>
-                      <td className="py-3 px-6 text-right">{formatCurrency(row.total_bs)}</td>
-                      <td className="py-3 px-6 text-right">{formatCurrency(row.pendiente_bs)}</td>
-                      <td className="py-3 px-6">{formatDate(row.fecha_vencimiento)}</td>
-                      <td className="py-3 px-2">
-                        <div className="flex gap-1">
-                          <button className="px-2 py-1 text-xs border rounded-md" onClick={() => { setEditCxpId(row.id!); setShowCxpModal(true); setNewCxp(prev => ({ ...prev, proveedor_id: row.proveedor_id ?? null, observaciones: row.observaciones || '', fecha_compra: row.fecha_compra, fecha_vencimiento: row.fecha_vencimiento, total_bs: row.total_bs ?? 0 })); }}>Editar</button>
-                          <button className="px-2 py-1 text-xs border rounded-md text-red-600" onClick={() => deleteOne('cxp', row.id!)}>Eliminar</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredCxp.map((row:any) => {
+                    const tasa = row.monto_usd && row.total_bs ? Number((row.total_bs / row.monto_usd).toFixed(6)) : null;
+                    const totalUsd = row.monto_usd != null
+                      ? Number(row.monto_usd)
+                      : (tasa ? Number(((row.total_bs || 0) / tasa).toFixed(2)) : null);
+                    const pendienteUsd = tasa
+                      ? Number(((row.pendiente_bs || 0) / tasa).toFixed(2))
+                      : (totalUsd != null && row.pendiente_bs != null && row.total_bs != null
+                          ? Number(((row.pendiente_bs) / (row.total_bs / totalUsd)).toFixed(2))
+                          : null);
+                    return (
+                      <tr key={row.id}>
+                        <td className="py-3 px-2"><input type="checkbox" checked={selectedIds.includes(row.id!)} onChange={() => toggleSelect(row.id!)} /></td>
+                        <td className="py-3 px-6">{formatDate(row.fecha_compra)}</td>
+                        <td className="py-3 px-6">{row.proveedores?.nombre}</td>
+                        <td className="py-3 px-6">{row.observaciones || '-'}</td>
+                        <td className="py-3 px-6">{formatDate(row.fecha_vencimiento)}</td>
+                        <td className="py-3 px-6 text-right">{totalUsd != null ? formatCurrency(totalUsd, 'usd') : '-'}</td>
+                        <td className="py-3 px-6 text-right">{pendienteUsd != null ? formatCurrency(pendienteUsd, 'usd') : '-'}</td>
+                        <td className="py-3 px-6 text-right">{formatCurrency(row.total_bs)}</td>
+                        <td className="py-3 px-6 text-right">{formatCurrency(row.pendiente_bs)}</td>
+                        <td className="py-3 px-2">
+                          <div className="flex gap-1">
+                            <button className="px-2 py-1 text-xs border rounded-md" onClick={() => {
+                              setEditCxpId(row.id!);
+                              setShowCxpModal(true);
+                              setNewCxp(prev => ({
+                                ...prev,
+                                proveedor_id: row.proveedor_id ?? null,
+                                observaciones: row.observaciones || '',
+                                fecha_compra: row.fecha_compra,
+                                fecha_vencimiento: row.fecha_vencimiento,
+                                total_bs: row.total_bs ?? 0,
+                                pagado_bs: row.pagado_bs ?? 0,
+                                pendiente_bs: row.pendiente_bs ?? 0,
+                                pagada: row.pagada ?? false,
+                                plazo_dias: row.plazo_dias ?? null,
+                              }));
+                              // Inicializar estados auxiliares del modal según datos existentes
+                              const hasUsd = row.monto_usd != null;
+                              setCxpMoneda(hasUsd ? 'USD' : 'Bs');
+                              setCxpMontoUsd(hasUsd ? Number(row.monto_usd) : null);
+                              setCxpTasaUsdBs(hasUsd && row.total_bs ? Number((row.total_bs / row.monto_usd).toFixed(2)) : null);
+                              // Inicializar pago en USD si aplica
+                              if (hasUsd && row.total_bs && row.monto_usd) {
+                                const tasa = Number((row.total_bs / row.monto_usd).toFixed(6));
+                                const pagadoUsd = row.pagado_bs ? Number((row.pagado_bs / tasa).toFixed(2)) : 0;
+                                setCxpPagadoUsd(pagadoUsd);
+                                setCxpInitialPagadoUsd(pagadoUsd);
+                              } else {
+                                setCxpPagadoUsd(null);
+                                setCxpInitialPagadoUsd(0);
+                              }
+                              // Inicializar pagado Bs inicial
+                              setCxpInitialPagadoBs(row.pagado_bs ?? 0);
+                            }}>Editar</button>
+                            <button className="px-2 py-1 text-xs border rounded-md text-red-600" onClick={() => deleteOne('cxp', row.id!)}>Eliminar</button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                   <tr>
                     <td></td>
-                    <td className="py-3 px-6 font-semibold" colSpan={3}>Total Bs</td>
+                    <td className="py-3 px-6 font-semibold" colSpan={4}>Totales</td>
+                    <td className="py-3 px-6 text-right font-semibold">{
+                      formatCurrency(
+                        filteredCxp.reduce((acc:number, r:any) => {
+                          const t = (r.monto_usd != null && r.total_bs) ? (r.total_bs / r.monto_usd) : null;
+                          const usd = r.monto_usd != null ? r.monto_usd : (t ? Number(((r.total_bs || 0) / t).toFixed(2)) : 0);
+                          return acc + (usd || 0);
+                        }, 0), 'usd'
+                      )
+                    }</td>
+                    <td className="py-3 px-6 text-right font-semibold">{
+                      formatCurrency(
+                        filteredCxp.reduce((acc:number, r:any) => {
+                          const t = (r.monto_usd != null && r.total_bs) ? (r.total_bs / r.monto_usd) : null;
+                          const usdPend = t ? Number(((r.pendiente_bs || 0) / t).toFixed(2)) : 0;
+                          return acc + (usdPend || 0);
+                        }, 0), 'usd'
+                      )
+                    }</td>
                     <td className="py-3 px-6 text-right font-semibold">{formatCurrency(filteredCxp.reduce((acc:number, r:any) => acc + (r.total_bs || 0), 0))}</td>
                     <td className="py-3 px-6 text-right font-semibold">{formatCurrency(filteredCxp.reduce((acc:number, r:any) => acc + (r.pendiente_bs || 0), 0))}</td>
-                    <td></td>
                     <td></td>
                   </tr>
                 </tbody>
@@ -871,7 +1162,9 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
                     <th className="py-3 px-6 text-left">Fecha</th>
                     <th className="py-3 px-6 text-left">Cuenta por Pagar</th>
                     <th className="py-3 px-6 text-left">Moneda</th>
+                    <th className="py-3 px-6 text-right">Monto USD</th>
                     <th className="py-3 px-6 text-right">Monto Bs</th>
+                    <th className="py-3 px-6 text-left">Método de Pago</th>
                     <th className="py-3 px-6 text-left">Referencia</th>
                     <th className="py-3 px-2 text-left">Acciones</th>
                   </tr>
@@ -883,7 +1176,9 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
                       <td className="py-3 px-6">{formatDate(row.fecha_pago)}</td>
                       <td className="py-3 px-6">{row.cuentas_por_pagar?.observaciones || '-'}</td>
                       <td className="py-3 px-6">{row.moneda}</td>
+                      <td className="py-3 px-6 text-right">{row.monto_usd != null ? formatCurrency(row.monto_usd, 'usd') : '-'}</td>
                       <td className="py-3 px-6 text-right">{formatCurrency(row.monto_bs)}</td>
+                      <td className="py-3 px-6">{row.metodo_pago || '-'}</td>
                       <td className="py-3 px-6">{row.referencia || '-'}</td>
                       <td className="py-3 px-2">
                         <div className="flex gap-1">
@@ -895,8 +1190,21 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
                   ))}
                   <tr>
                     <td></td>
-                    <td className="py-3 px-6 font-semibold" colSpan={3}>Total Bs</td>
+                    <td className="py-3 px-6 font-semibold" colSpan={3}>Totales</td>
+                    <td className="py-3 px-6 text-right font-semibold">{
+                      formatCurrency(
+                        filteredPagos.reduce((acc:number, r:any) => {
+                          const usd = r.monto_usd != null
+                            ? Number(r.monto_usd)
+                            : (r.moneda === 'Bs' && r.tasa_usd_bs
+                                ? Number(((r.monto_bs || 0) / r.tasa_usd_bs).toFixed(2))
+                                : 0);
+                          return acc + usd;
+                        }, 0), 'usd'
+                      )
+                    }</td>
                     <td className="py-3 px-6 text-right font-semibold">{formatCurrency(filteredPagos.reduce((acc:number, r:any) => acc + (r.monto_bs || 0), 0))}</td>
+                    <td></td>
                     <td></td>
                     <td></td>
                   </tr>
@@ -914,6 +1222,7 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
                     <th className="py-3 px-6 text-left">Periodo</th>
                     <th className="py-3 px-6 text-left">Activo</th>
                     <th className="py-3 px-6 text-right">Costo Bs</th>
+                    <th className="py-3 px-6 text-right">Costo USD</th>
                     <th className="py-3 px-2 text-left">Acciones</th>
                   </tr>
                 </thead>
@@ -926,6 +1235,7 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
                       <td className="py-3 px-6">{row.ciclo}</td>
                       <td className="py-3 px-6">{row.is_active ? 'Sí' : 'No'}</td>
                       <td className="py-3 px-6 text-right">{formatCurrency(row.monto_bs)}</td>
+                      <td className="py-3 px-6 text-right">{row.monto_usd != null ? formatCurrency(row.monto_usd, 'usd') : '-'}</td>
                       <td className="py-3 px-2">
                         <div className="flex gap-1">
                           <button className="px-2 py-1 text-xs border rounded-md" onClick={() => { setEditServicioId(row.id!); setNewServicio({ nombre: row.nombre, proveedor_id: row.proveedor_id ?? null, categoria_id: row.categoria_id ?? null, ciclo: row.ciclo, is_active: !!row.is_active, monto_bs: row.monto_bs ?? 0, monto_usd: row.monto_usd ?? null, tasa_usd_bs: row.tasa_usd_bs ?? null, moneda: row.moneda || 'Bs', sede: row.sede || null, proximo_pago: row.proximo_pago || null }); setShowServicioModal(true); }}>Editar</button>
@@ -936,8 +1246,20 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
                   ))}
                   <tr>
                     <td></td>
-                    <td className="py-3 px-6 font-semibold" colSpan={4}>Total Bs</td>
+                    <td className="py-3 px-6 font-semibold" colSpan={4}>Totales</td>
                     <td className="py-3 px-6 text-right font-semibold">{formatCurrency(filteredServicios.reduce((acc:number, r:any) => acc + (r.monto_bs || 0), 0))}</td>
+                    <td className="py-3 px-6 text-right font-semibold">{
+                      formatCurrency(
+                        filteredServicios.reduce((acc:number, r:any) => {
+                          const usd = r.monto_usd != null
+                            ? Number(r.monto_usd)
+                            : (r.moneda === 'Bs' && r.tasa_usd_bs
+                                ? Number(((r.monto_bs || 0) / r.tasa_usd_bs).toFixed(2))
+                                : 0);
+                          return acc + usd;
+                        }, 0), 'usd'
+                      )
+                    }</td>
                     <td></td>
                   </tr>
                 </tbody>
@@ -996,12 +1318,24 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
                   {nominaItems.map((row:any) => (
                     <tr key={row.id}>
                       <td className="py-3 px-2"><input type="checkbox" checked={selectedIds.includes(row.id!)} onChange={() => toggleSelect(row.id!)} /></td>
-                      <td className="py-3 px-6">{row.empleados?.nombre_completo || '-'}</td>
+                      <td className="py-3 px-6">{row.empleados ? `${row.empleados.nombre ?? ''} ${row.empleados.apellido ?? ''}`.trim() || '-' : '-'}</td>
                       <td className="py-3 px-6">{row.concepto}</td>
                       <td className="py-3 px-6 text-right">{formatCurrency(row.monto_bs)}</td>
                       <td className="py-3 px-2">
                         <div className="flex gap-1">
-                          <button className="px-2 py-1 text-xs border rounded-md" onClick={() => { setEditNominaItemId(row.id!); setNewNominaItem({ nomina_id: row.nomina_id, empleado_id: row.empleado_id, concepto: row.concepto, monto_bs: row.monto_bs ?? 0 }); setShowNominaItemModal(true); }}>Editar</button>
+                          <button className="px-2 py-1 text-xs border rounded-md" onClick={() => {
+                            setEditNominaItemId(row.id!);
+                            setNewNominaItem({
+                              nomina_id: row.nomina_id,
+                              empleado_id: row.empleado_id,
+                              concepto: row.concepto,
+                              moneda: (row.moneda ?? 'Bs') as Moneda,
+                              monto_usd: row.monto_usd ?? null,
+                              tasa_usd_bs: row.tasa_usd_bs ?? null,
+                              monto_bs: row.monto_bs ?? 0,
+                            });
+                            setShowNominaItemModal(true);
+                          }}>Editar</button>
                           <button className="px-2 py-1 text-xs border rounded-md text-red-600" onClick={() => deleteOne('nomina_items', row.id!)}>Eliminar</button>
                         </div>
                       </td>
@@ -1222,8 +1556,81 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
             <input type="date" value={newCxp.fecha_vencimiento || ''} onChange={e => setNewCxp(prev => ({ ...prev, fecha_vencimiento: e.target.value }))} className="w-full border rounded-md px-3 py-2" />
           </div>
           <div>
-            <label className="block text-sm text-gray-700">Total Bs</label>
-            <input type="number" step="0.01" value={newCxp.total_bs ?? 0} onChange={e => setNewCxp(prev => ({ ...prev, total_bs: Number(e.target.value) }))} className="w-full border rounded-md px-3 py-2" />
+            <label className="block text-sm text-gray-700">Moneda</label>
+            <select value={cxpMoneda} onChange={e => setCxpMoneda(e.target.value as Moneda)} className="w-full border rounded-md px-3 py-2">
+              <option value="Bs">Bs</option>
+              <option value="USD">USD</option>
+            </select>
+          </div>
+          {cxpMoneda === 'USD' ? (
+            <div>
+              <label className="block text-sm text-gray-700">Monto USD</label>
+              <input type="number" step="0.01" value={cxpMontoUsd ?? 0} onChange={e => setCxpMontoUsd(Number(e.target.value))} className="w-full border rounded-md px-3 py-2" />
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm text-gray-700">Total Bs</label>
+              <input type="number" step="0.01" value={newCxp.total_bs ?? 0} onChange={e => setNewCxp(prev => ({ ...prev, total_bs: Number(e.target.value) }))} className="w-full border rounded-md px-3 py-2" />
+            </div>
+          )}
+          <div>
+            <label className="block text-sm text-gray-700">Tasa USD→Bs</label>
+            <input type="number" step="0.01" value={cxpTasaUsdBs ?? 0} onChange={e => setCxpTasaUsdBs(Number(e.target.value))} className="w-full border rounded-md px-3 py-2" />
+          </div>
+          {cxpMoneda === 'USD' ? (
+            <>
+              <div>
+                <label className="block text-sm text-gray-700">Pagado USD</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={cxpPagadoUsd ?? 0}
+                  onChange={e => setCxpPagadoUsd(Number(e.target.value))}
+                  className="w-full border rounded-md px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700">Pendiente USD</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={Number((((cxpMontoUsd || 0) - (cxpPagadoUsd || 0)) || 0).toFixed(2))}
+                  disabled
+                  className="w-full border rounded-md px-3 py-2 bg-gray-100"
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="block text-sm text-gray-700">Pagado Bs</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={newCxp.pagado_bs ?? 0}
+                  onChange={e => setNewCxp(prev => ({ ...prev, pagado_bs: Number(e.target.value) }))}
+                  className="w-full border rounded-md px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700">Pendiente Bs</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={Number(((newCxp.total_bs || 0) - (newCxp.pagado_bs || 0)).toFixed(2))}
+                  disabled
+                  className="w-full border rounded-md px-3 py-2 bg-gray-100"
+                />
+              </div>
+            </>
+          )}
+          <div>
+            <label className="block text-sm text-gray-700">Plazo (días)</label>
+            <input type="number" step="1" value={newCxp.plazo_dias ?? 0} onChange={e => setNewCxp(prev => ({ ...prev, plazo_dias: Number(e.target.value) }))} className="w-full border rounded-md px-3 py-2" />
+          </div>
+          <div className="flex items-center gap-2">
+            <input type="checkbox" checked={newCxp.pagada ?? false} onChange={e => setNewCxp(prev => ({ ...prev, pagada: e.target.checked }))} />
+            <label className="text-sm text-gray-700">Pagada</label>
           </div>
         </div>
         <div className="mt-4 flex justify-end gap-2">
@@ -1266,9 +1673,51 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
             <label className="block text-sm text-gray-700">Tasa USD→Bs</label>
             <input type="number" step="0.01" value={newPago.tasa_usd_bs ?? 0} onChange={e => setNewPago(prev => ({ ...prev, tasa_usd_bs: Number(e.target.value) }))} className="w-full border rounded-md px-3 py-2" />
           </div>
+          <div>
+            <label className="block text-sm text-gray-700">Método de Pago</label>
+            <select
+              value={newPago.metodo_pago || ''}
+              onChange={e => {
+                const val = e.target.value;
+                if (val === '__new__') {
+                  setShowNuevoMetodoPago(true);
+                  setNewPago(prev => ({ ...prev, metodo_pago: '' }));
+                } else {
+                  setShowNuevoMetodoPago(false);
+                  setNewPago(prev => ({ ...prev, metodo_pago: val }));
+                }
+              }}
+              className="w-full border rounded-md px-3 py-2"
+            >
+              <option value="">Seleccione un método…</option>
+              {metodosPago.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+              <option value="__new__">Agregar nuevo método…</option>
+            </select>
+          </div>
+          {showNuevoMetodoPago && (
+            <div>
+              <label className="block text-sm text-gray-700">Nuevo método</label>
+              <input
+                type="text"
+                value={nuevoMetodoPagoNombre}
+                onChange={e => {
+                  setNuevoMetodoPagoNombre(e.target.value);
+                  setNewPago(prev => ({ ...prev, metodo_pago: e.target.value }));
+                }}
+                className="w-full border rounded-md px-3 py-2"
+                placeholder="Ej.: Transferencia, Zelle, Pago Móvil…"
+              />
+            </div>
+          )}
           <div className="md:col-span-2">
             <label className="block text-sm text-gray-700">Referencia</label>
             <input type="text" value={newPago.referencia || ''} onChange={e => setNewPago(prev => ({ ...prev, referencia: e.target.value }))} className="w-full border rounded-md px-3 py-2" />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm text-gray-700">Observaciones</label>
+            <input type="text" value={newPago.observaciones || ''} onChange={e => setNewPago(prev => ({ ...prev, observaciones: e.target.value }))} className="w-full border rounded-md px-3 py-2" />
           </div>
         </div>
         <div className="mt-4 flex justify-end gap-2">
@@ -1291,6 +1740,13 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
             </select>
           </div>
           <div>
+            <label className="block text-sm text-gray-700">Categoría</label>
+            <select value={newServicio.categoria_id ?? ''} onChange={e => setNewServicio(prev => ({ ...prev, categoria_id: e.target.value ? e.target.value : null }))} className="w-full border rounded-md px-3 py-2">
+              <option value="">Sin categoría</option>
+              {categorias.map(c => (<option key={c.id} value={c.id}>{c.nombre} ({c.clasificacion})</option>))}
+            </select>
+          </div>
+          <div>
             <label className="block text-sm text-gray-700">Periodo</label>
             <select value={newServicio.ciclo} onChange={e => setNewServicio(prev => ({ ...prev, ciclo: e.target.value as any }))} className="w-full border rounded-md px-3 py-2">
               <option value="Mensual">Mensual</option>
@@ -1306,12 +1762,90 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
             </select>
           </div>
           <div>
+            <label className="block text-sm text-gray-700">Moneda</label>
+            <select value={newServicio.moneda ?? 'Bs'} onChange={e => setNewServicio(prev => ({ ...prev, moneda: e.target.value as Moneda }))} className="w-full border rounded-md px-3 py-2">
+              <option value="Bs">Bs</option>
+              <option value="USD">USD</option>
+            </select>
+          </div>
+          <div>
             <label className="block text-sm text-gray-700">Costo Bs</label>
-            <input type="number" step="0.01" value={newServicio.monto_bs ?? 0} onChange={e => setNewServicio(prev => ({ ...prev, monto_bs: Number(e.target.value) }))} className="w-full border rounded-md px-3 py-2" />
+            <input
+              type="number"
+              step="0.01"
+              value={newServicio.monto_bs ?? 0}
+              onChange={e =>
+                setNewServicio(prev => {
+                  const bs = Number(e.target.value);
+                  const tasa = prev.tasa_usd_bs ?? 0;
+                  const usdCalc = tasa ? Number((bs / tasa).toFixed(2)) : prev.monto_usd ?? null;
+                  return {
+                    ...prev,
+                    monto_bs: bs,
+                    monto_usd: prev.moneda === 'Bs' && tasa ? usdCalc : prev.monto_usd,
+                  };
+                })
+              }
+              className="w-full border rounded-md px-3 py-2"
+            />
           </div>
           <div>
             <label className="block text-sm text-gray-700">Costo USD</label>
-            <input type="number" step="0.01" value={newServicio.monto_usd ?? 0} onChange={e => setNewServicio(prev => ({ ...prev, monto_usd: Number(e.target.value) }))} className="w-full border rounded-md px-3 py-2" />
+            <input
+              type="number"
+              step="0.01"
+              value={newServicio.monto_usd ?? 0}
+              onChange={e =>
+                setNewServicio(prev => {
+                  const usd = Number(e.target.value);
+                  const tasa = prev.tasa_usd_bs ?? 0;
+                  const bsCalc = tasa ? Number((usd * tasa).toFixed(2)) : prev.monto_bs ?? null;
+                  return {
+                    ...prev,
+                    monto_usd: usd,
+                    monto_bs: prev.moneda === 'USD' && tasa ? bsCalc : prev.monto_bs,
+                  };
+                })
+              }
+              className="w-full border rounded-md px-3 py-2"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-700">Tasa USD→Bs</label>
+            <input
+              type="number"
+              step="0.0001"
+              value={newServicio.tasa_usd_bs ?? 0}
+              onChange={e =>
+                setNewServicio(prev => {
+                  const tasa = Number(e.target.value);
+                  let monto_bs = prev.monto_bs ?? null;
+                  let monto_usd = prev.monto_usd ?? null;
+                  if (tasa > 0) {
+                    if (prev.moneda === 'USD' && prev.monto_usd != null) {
+                      monto_bs = Number((prev.monto_usd * tasa).toFixed(2));
+                    } else if (prev.moneda === 'Bs' && prev.monto_bs != null) {
+                      monto_usd = Number((prev.monto_bs / tasa).toFixed(2));
+                    }
+                  }
+                  return { ...prev, tasa_usd_bs: tasa, monto_bs, monto_usd };
+                })
+              }
+              className="w-full border rounded-md px-3 py-2"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-700">Sede</label>
+            <select value={newServicio.sede ?? ''} onChange={e => setNewServicio(prev => ({ ...prev, sede: e.target.value ? e.target.value : null }))} className="w-full border rounded-md px-3 py-2">
+              <option value="">Sin sede</option>
+              <option value="Sede Principal Maracay">Sede Principal Maracay</option>
+              <option value="Sede La Colonia Tovar">Sede La Colonia Tovar</option>
+              <option value="Servicio a Domicilio">Servicio a Domicilio</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm text-gray-700">Próximo Pago</label>
+            <input type="date" value={newServicio.proximo_pago ?? ''} onChange={e => setNewServicio(prev => ({ ...prev, proximo_pago: e.target.value || null }))} className="w-full border rounded-md px-3 py-2" />
           </div>
         </div>
         <div className="mt-4 flex justify-end gap-2">
@@ -1351,35 +1885,83 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
           </div>
           <div>
             <label className="block text-sm text-gray-700">Empleado</label>
-            <div className="space-y-2">
-              <input
-                type="text"
-                value={empleadoSearch}
-                onChange={e => setEmpleadoSearch(e.target.value)}
-                className="w-full border rounded-md px-3 py-2"
-                placeholder="Buscar empleado por nombre"
-              />
-              <select
-                value={newNominaItem.empleado_id ?? ''}
-                onChange={e => setNewNominaItem(prev => ({ ...prev, empleado_id: e.target.value ? e.target.value : null }))}
-                className="w-full border rounded-md px-3 py-2"
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setEmpleadoDropdownOpen(prev => !prev)}
+                className="w-full border rounded-md px-3 py-2 text-left flex items-center justify-between"
               >
-                <option value="">Seleccione…</option>
-                {empleados
-                  .filter(e => (empleadoSearch ? (e.nombre_completo || '').toLowerCase().includes(empleadoSearch.toLowerCase()) : true))
-                  .map(e => (
-                    <option key={e.id} value={e.id}>{e.nombre_completo}</option>
-                  ))}
-              </select>
+                <span className="truncate text-gray-800">{selectedEmpleadoName || 'Seleccione empleado'}</span>
+                <span className="ml-2 text-gray-500">▾</span>
+              </button>
+              {empleadoDropdownOpen && (
+                <div className="absolute z-20 mt-1 w-full bg-white border rounded-md shadow-lg">
+                  <div className="p-2 relative">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                    <input
+                      type="text"
+                      value={empleadoSearch}
+                      onChange={e => setEmpleadoSearch(e.target.value)}
+                      placeholder="Buscar empleado por nombre"
+                      className="w-full border rounded-md pl-8 pr-2 py-2 text-sm"
+                    />
+                  </div>
+                  <ul className="max-h-48 overflow-auto">
+                    {(empleadosUnifiedList || [])
+                      .filter(e => (e.nombre_completo || '').toLowerCase().includes((empleadoSearch || '').toLowerCase()))
+                      .map(e => (
+                        <li key={`${e.source ?? 'db'}-${e.id}`}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedEmpleadoName(e.nombre_completo || '');
+                              if ((e.source ?? 'db') === 'db') {
+                                setSelectedEmpleadoSource('db');
+                                setSelectedEmpleadoUserId(null);
+                                setNewNominaItem(prev => ({ ...prev, empleado_id: e.id }));
+                              } else {
+                                setSelectedEmpleadoSource('profile');
+                                setSelectedEmpleadoUserId(e.id);
+                                setNewNominaItem(prev => ({ ...prev, empleado_id: null }));
+                              }
+                              setEmpleadoDropdownOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-2 hover:bg-gray-100"
+                          >
+                            {e.nombre_completo}
+                          </button>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )}
             </div>
+          </div>
+          <div>
+            <label className="block text-sm text-gray-700">Moneda</label>
+            <select value={newNominaItem.moneda ?? 'Bs'} onChange={e => setNewNominaItem(prev => ({ ...prev, moneda: e.target.value as Moneda }))} className="w-full border rounded-md px-3 py-2">
+              <option value="Bs">Bs</option>
+              <option value="USD">USD</option>
+            </select>
           </div>
           <div className="md:col-span-2">
             <label className="block text-sm text-gray-700">Concepto</label>
             <input type="text" value={newNominaItem.concepto} onChange={e => setNewNominaItem(prev => ({ ...prev, concepto: e.target.value }))} className="w-full border rounded-md px-3 py-2" />
           </div>
+          {newNominaItem.moneda === 'USD' ? (
+            <div>
+              <label className="block text-sm text-gray-700">Monto USD</label>
+              <input type="number" step="0.01" value={newNominaItem.monto_usd ?? 0} onChange={e => setNewNominaItem(prev => ({ ...prev, monto_usd: Number(e.target.value) }))} className="w-full border rounded-md px-3 py-2" />
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm text-gray-700">Monto Bs</label>
+              <input type="number" step="0.01" value={newNominaItem.monto_bs} onChange={e => setNewNominaItem(prev => ({ ...prev, monto_bs: Number(e.target.value) }))} className="w-full border rounded-md px-3 py-2" />
+            </div>
+          )}
           <div>
-            <label className="block text-sm text-gray-700">Monto Bs</label>
-            <input type="number" step="0.01" value={newNominaItem.monto_bs} onChange={e => setNewNominaItem(prev => ({ ...prev, monto_bs: Number(e.target.value) }))} className="w-full border rounded-md px-3 py-2" />
+            <label className="block text-sm text-gray-700">Tasa USD→Bs</label>
+            <input type="number" step="0.01" value={newNominaItem.tasa_usd_bs ?? 0} onChange={e => setNewNominaItem(prev => ({ ...prev, tasa_usd_bs: Number(e.target.value) }))} className="w-full border rounded-md px-3 py-2" />
           </div>
         </div>
         <div className="mt-4 flex justify-end gap-2">
