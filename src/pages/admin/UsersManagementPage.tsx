@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { supabase } from '../../services/supabaseClient';
-import { hasPermission } from '../../utils/permissions.ts';
+import { supabase } from '@/services/supabaseClient';
+import { hasPermission, normalizeRole } from '@/utils/permissions';
 
 type Rol = 'Administrador' | 'Lic.' | 'Asistente';
 type Sede = 'Sede Principal Maracay' | 'Sede La Colonia Tovar';
@@ -101,7 +101,7 @@ const UsersManagementPage: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<Usuario | null>(null);
   const [permOverrides, setPermOverrides] = useState<Record<string, Record<string, boolean>>>({});
 
-  const API_BASE = '/api';
+  const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
   // --- Permisos locales del módulo de Gestión de Usuarios ---
   type UserModuleAction = 'crear_usuario' | 'actualizar_perfil' | 'eliminar_usuario' | 'editar_permisos';
@@ -168,8 +168,8 @@ const UsersManagementPage: React.FC = () => {
           }
         }
 
-        // Mensaje informativo si no es admin
-        if (role && role !== 'Administrador') {
+        // Mensaje informativo si no es admin (comparación con rol normalizado)
+        if (role && normalizeRole(String(role)) !== 'Administrador') {
           setInfoMsg('Tu rol no está autorizado para gestionar usuarios. Algunas acciones estarán bloqueadas.');
         }
       } catch (e: any) {

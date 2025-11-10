@@ -12,7 +12,7 @@ import { Modal } from '@/components/common/Modal';
 import { Pagination } from '@/components/common/Pagination';
 import { EmptyState } from '@/components/common/EmptyState';
 import { InventoryItem } from '@/types';
-import { hasPermission } from '@/utils/permissions';
+import { hasPermission, normalizeRole } from '@/utils/permissions';
 
 type ViewMode = 'cards' | 'table';
 
@@ -180,31 +180,64 @@ const InventoryPage = () => {
 
   // Permisos (INVENTARIO)
   const [currentUserRole, setCurrentUserRole] = useState<string>('Asistente');
-  const [currentUserOverrides, setCurrentUserOverrides] = useState<Record<string, string[]>>({});
-  const API_BASE = import.meta.env.VITE_API_BASE || '';
-  const can = (action: string) => hasPermission(currentUserRole, 'INVENTARIO', action, currentUserOverrides);
+  const [currentUserOverrides, setCurrentUserOverrides] = useState<Record<string, Record<string, boolean>>>({});
+  const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+  const can = (action: string) => {
+    const roleRaw = currentUserRole || 'Asistente';
+    const roleNorm = normalizeRole(roleRaw);
+    const overridesForModule = currentUserOverrides['INVENTARIO'] || {};
+    const bypass = roleNorm === 'Administrador';
+    const allowed = bypass ? true : hasPermission({ role: roleNorm, overrides: currentUserOverrides }, 'INVENTARIO', action);
+    console.groupCollapsed(`🔐 PermEval [INVENTARIO] action=${action}`);
+    console.log('• role_raw:', roleRaw);
+    console.log('• role_norm:', roleNorm, 'bypass_admin:', bypass);
+    console.log('• override(action):', overridesForModule[action]);
+    console.log('• overrides_count(INVENTARIO):', Object.keys(overridesForModule).length);
+    console.log('• result:', allowed ? 'permitido' : 'bloqueado');
+    console.groupEnd();
+    return allowed;
+  };
 
   useEffect(() => {
     const fetchRoleAndOverrides = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError) throw authError;
         const userId = user?.id;
-        let roleFromDB = 'Asistente';
-        if (userId) {
-          const { data: profile } = await supabase
-            .from('user_profiles')
-            .select('role')
-            .eq('user_id', userId)
-            .maybeSingle();
-          roleFromDB = profile?.role || 'Asistente';
+        if (!userId) return;
+
+        // Rol efectivo: perfil > metadatos > Asistente
+        const metaRol = (user?.user_metadata as any)?.rol || null;
+        let effectiveRole: string = metaRol || 'Asistente';
+        const { data: profData, error: profErr } = await supabase
+          .from('user_profiles')
+          .select('rol')
+          .eq('user_id', userId)
+          .limit(1);
+        if (!profErr && Array.isArray(profData) && profData.length > 0) {
+          effectiveRole = (profData[0] as any)?.rol || effectiveRole;
         }
-        setCurrentUserRole(roleFromDB);
+        setCurrentUserRole(effectiveRole);
+
+        // Overrides
         if (API_BASE) {
           try {
-            const resp = await fetch(`${API_BASE}/permissions/overrides`);
+            const resp = await fetch(`${API_BASE}/users/${userId}/permissions`);
             if (resp.ok) {
               const json = await resp.json();
-              setCurrentUserOverrides(json?.overrides || {});
+              const overrides: Record<string, Record<string, boolean>> = {};
+              (json.permissions || []).forEach((p: any) => {
+                if (!overrides[p.module]) overrides[p.module] = {};
+                overrides[p.module][p.action] = Boolean(p.allowed);
+              });
+              setCurrentUserOverrides(overrides);
+              console.groupCollapsed('👤 INVENTARIO: Carga de rol y overrides');
+              console.log('• user_id:', userId);
+              console.log('• meta_rol:', metaRol);
+              console.log('• effective_role:', effectiveRole);
+              console.log('• overrides(INVENTARIO):', overrides['INVENTARIO'] || {});
+              console.log('• overrides_total_modules:', Object.keys(overrides || {}).length);
+              console.groupEnd();
             }
           } catch {
             // Ignorar errores de overrides
@@ -212,6 +245,7 @@ const InventoryPage = () => {
         }
       } catch (e) {
         console.error('[INVENTARIO] Error cargando permisos:', e);
+        setCurrentUserRole((prev) => prev || 'Asistente');
       }
     };
     fetchRoleAndOverrides();
@@ -224,6 +258,10 @@ const InventoryPage = () => {
     if (selectedIds.length === 0) return;
 
     try {
+      console.groupCollapsed('🗑️ INVENTARIO: Bulk delete inicio');
+      console.log('• selected_ids:', selectedIds);
+      console.log('• can(eliminar):', can('eliminar'));
+      console.groupEnd();
       // Verificar qué materiales están en uso por estudios médicos
       const { data: materialsInUse, error: relationError } = await supabase
         .from('estudio_materiales')
@@ -234,6 +272,9 @@ const InventoryPage = () => {
 
       // Crear set de ids en uso
       const blockedIds = new Set(materialsInUse?.map((r: any) => r.material_id) || []);
+      if (blockedIds.size > 0) {
+        console.warn('⚠️ INVENTARIO: Materiales en uso, no eliminables', { blockedIds: Array.from(blockedIds) });
+      }
 
       // Separar materiales seguros vs bloqueados
       const safeToDelete = selectedIds.filter(id => !blockedIds.has(id));
@@ -242,7 +283,7 @@ const InventoryPage = () => {
       // Confirmación de eliminación
       const confirmed = await showBulkDeleteConfirmation(safeToDelete.length, blockedCount, '');
 
-      if (!confirmed) return;
+      if (!confirmed) { console.log('🧯 INVENTARIO: Bulk delete cancelado por usuario'); return; }
 
       // Ejecutar eliminación solo de materiales seguros
       if (safeToDelete.length > 0) {
@@ -252,6 +293,7 @@ const InventoryPage = () => {
           .in('id', safeToDelete);
 
         if (deleteError) throw deleteError;
+        console.log('✅ INVENTARIO: Eliminación ejecutada', { deletedIds: safeToDelete });
       }
 
       // Feedback al usuario
@@ -267,7 +309,7 @@ const InventoryPage = () => {
       }
 
     } catch (error: any) {
-      console.error('Bulk delete error:', error);
+      console.error('❌ INVENTARIO: Bulk delete error:', error);
       toast.error(`Error al eliminar: ${error.message}`);
     }
   };
@@ -306,7 +348,7 @@ const InventoryPage = () => {
           {currentView === 'table' && selectedForDeletion.size > 0 && (
             <button
               onClick={() => {
-                if (!can('eliminar')) { setDeniedBulkDelete(true); setTimeout(() => setDeniedBulkDelete(false), 3000); return; }
+                if (!can('eliminar')) { console.warn('🚫 INVENTARIO: Eliminación múltiple denegada', { role: currentUserRole }); setDeniedBulkDelete(true); setTimeout(() => setDeniedBulkDelete(false), 3000); return; }
                 handleBulkDelete(Array.from(selectedForDeletion));
               }}
               className={`text-white font-bold py-2 px-4 rounded-lg flex items-center ${!can('eliminar') ? 'bg-red-300 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}`}
@@ -321,7 +363,7 @@ const InventoryPage = () => {
 
           <button
             onClick={() => {
-              if (!can('crear')) { setShowCreateDenied(true); setTimeout(() => setShowCreateDenied(false), 3000); return; }
+              if (!can('crear')) { console.warn('🚫 INVENTARIO: Crear material denegado', { role: currentUserRole }); setShowCreateDenied(true); setTimeout(() => setShowCreateDenied(false), 3000); return; }
               handleOpenModal();
             }}
             className={`text-white font-bold py-2 px-4 rounded-lg flex items-center ${!can('crear') ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'}`}

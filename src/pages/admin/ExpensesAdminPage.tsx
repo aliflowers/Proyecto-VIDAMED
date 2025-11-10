@@ -673,7 +673,7 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
     }
   };
 
-  if (userEmail && userEmail !== 'anamariaprieto@labvidamed.com') {
+  if (userEmail && userEmail.toLowerCase() !== 'anamariaprieto@labvidamed.com') {
     return (
       <div className="bg-white rounded-lg p-6 border">
         <h2 className="text-xl font-semibold mb-2">Acceso restringido</h2>

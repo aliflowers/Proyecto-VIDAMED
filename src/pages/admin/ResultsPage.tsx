@@ -8,7 +8,7 @@ import FileUploadModal from '@/components/admin/FileUploadModal';
 import ManualResultForm from '@/components/admin/ManualResultForm';
 import ResultViewer from '@/components/admin/ResultViewer';
 import InterpretationModal from '@/components/admin/InterpretationModal';
-import { hasPermission } from '../../utils/permissions.ts';
+import { hasPermission, normalizeRole } from '@/utils/permissions';
 
 import PatientSelectorModal, { Patient } from '@/components/admin/PatientSelectorModal';
 import UnifiedEntryModal from '@/components/admin/UnifiedEntryModal';
@@ -66,42 +66,92 @@ const ResultsPage: React.FC = () => {
   const [currentFileToProcess, setCurrentFileToProcess] = useState<File | null>(null);
   const [currentStudyToProcess, setCurrentStudyToProcess] = useState<SchedulingStudy | null>(null);
   const [showCreateDenied, setShowCreateDenied] = useState(false);
+  // 🔎 Panel de diagnóstico de permisos
+  const [debugOpen, setDebugOpen] = useState(false);
 
   // 🔐 Permisos del usuario (RESULTADOS)
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [currentUserOverrides, setCurrentUserOverrides] = useState<Record<string, Record<string, boolean>>>({});
-  const API_BASE = '/api';
+  const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
-  const can = (action: string): boolean =>
-    hasPermission(
-      { role: currentUserRole || 'Asistente', overrides: currentUserOverrides },
-      'RESULTADOS',
-      action
-    );
+  const can = (action: string): boolean => {
+    const roleRaw = currentUserRole || 'Asistente';
+    const roleNorm = normalizeRole(roleRaw);
+    const overridesForResults = currentUserOverrides?.['RESULTADOS'] || {};
+    const allowed = roleNorm === 'Administrador'
+      ? true
+      : hasPermission({ role: roleNorm, overrides: currentUserOverrides }, 'RESULTADOS', action);
+    console.log('[PERMISOS][RESULTADOS] Evaluación de acción:', {
+      action,
+      roleRaw,
+      roleNorm,
+      overridesCount: Object.keys(overridesForResults).length,
+      overrideValue: overridesForResults[action],
+      allowed,
+    });
+    if (!allowed) {
+      console.warn(`[DENEGADO][RESULTADOS] Acción '${action}' bloqueada`, {
+        roleRaw,
+        roleNorm,
+        overrideValue: overridesForResults[action],
+      });
+    }
+    return allowed;
+  };
 
   useEffect(() => {
     const loadUserPermissions = async () => {
       try {
+        console.log('🔐 Cargando permisos de usuario en ResultsPage...');
+        // Obtener usuario autenticado
         const { data: authData, error: authError } = await supabase.auth.getUser();
         if (authError) throw authError;
-        const userId = authData.user?.id;
+        const user = authData.user;
+        const userId = user?.id;
         if (!userId) return;
 
-        const { data: profile, error: profileError } = await supabase
+        // Rol desde metadatos (fallback inicial)
+        const metaRol = (user?.user_metadata as any)?.rol || null;
+        console.log('ℹ️ Rol en metadatos:', metaRol);
+        let effectiveRole: string = metaRol || 'Asistente';
+
+        // Intentar leer rol desde perfil en BD, sin lanzar error si no existe
+        const { data: profData, error: profErr } = await supabase
           .from('user_profiles')
           .select('rol')
           .eq('user_id', userId)
-          .maybeSingle();
-        if (profileError) throw profileError;
-        setCurrentUserRole(profile?.rol || 'Asistente');
+          .limit(1);
 
+        console.log('ℹ️ Resultado lectura perfil:', { profErr, profData });
+        if (!profErr && Array.isArray(profData) && profData.length > 0) {
+          effectiveRole = (profData[0] as any)?.rol || effectiveRole;
+        }
+
+        // Establecer rol efectivo siempre, aunque haya habido errores al leer perfil
+        setCurrentUserRole(effectiveRole);
+        console.log('✅ Rol efectivo establecido:', effectiveRole);
+
+        // Cargar overrides granulares del usuario
         const resp = await fetch(`${API_BASE}/users/${userId}/permissions`);
         if (resp.ok) {
-          const overrides = await resp.json();
+          const json = await resp.json();
+          const overrides: Record<string, Record<string, boolean>> = {};
+          (json.permissions || []).forEach((p: any) => {
+            if (!overrides[p.module]) overrides[p.module] = {};
+            overrides[p.module][p.action] = Boolean(p.allowed);
+          });
           setCurrentUserOverrides(overrides || {});
+          console.log('✅ Overrides cargados:', {
+            modules: Object.keys(overrides),
+            RESULTADOS: overrides['RESULTADOS'] ? Object.keys(overrides['RESULTADOS']).length : 0,
+          });
+        } else {
+          console.warn('⚠️ No se pudieron cargar overrides desde API. HTTP:', resp.status);
         }
       } catch (e) {
         console.warn('No se pudo cargar permisos del usuario:', e);
+        // En caso de error, mantener un mínimo funcional
+        setCurrentUserRole((prev) => prev || 'Asistente');
       }
     };
     loadUserPermissions();
@@ -397,6 +447,7 @@ const ResultsPage: React.FC = () => {
   // 🗑️ Eliminación de resultado
   const handleDeleteResult = async (resultId: number) => {
     if (!can('eliminar')) {
+      console.warn('[DENEGADO][RESULTADOS] Intento de eliminar resultado sin permisos', { resultId });
       toast.error('No está autorizado para eliminar resultados.');
       return;
     }
@@ -433,6 +484,7 @@ const ResultsPage: React.FC = () => {
   // 🤖 Análisis IA
   const handleGenerateInterpretation = async (result: GlobalResult) => {
     if (!can('editar')) {
+      console.warn('[DENEGADO][RESULTADOS] Intento de generar/editar interpretación sin permisos', { resultId: result.id });
       toast.error('No está autorizado para generar o editar interpretaciones.');
       return;
     }
@@ -518,6 +570,7 @@ const ResultsPage: React.FC = () => {
 
   const handleUpdateInterpretationStatus = async (resultId: number, status: 'aprobado' | 'rechazado', editedText?: string) => {
     if (!can('editar')) {
+      console.warn('[DENEGADO][RESULTADOS] Intento de actualizar estado de interpretación sin permisos', { resultId, status });
       toast.error('No está autorizado para actualizar el estado de interpretaciones.');
       return;
     }
@@ -543,6 +596,7 @@ const ResultsPage: React.FC = () => {
   // 🔁 Re-generar interpretación con IA basándose en valores editados
   const handleRegenerateInterpretation = async (resultId: number) => {
     if (!can('editar')) {
+      console.warn('[DENEGADO][RESULTADOS] Intento de re-generar interpretación sin permisos', { resultId });
       toast.error('No está autorizado para re-generar interpretaciones.');
       return;
     }
@@ -669,6 +723,7 @@ const ResultsPage: React.FC = () => {
             className={`bg-blue-500 text-white font-bold py-2 px-4 rounded-lg cursor-pointer flex items-center justify-center text-center ${!can('crear') ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-600'}`}
             onClick={() => {
               if (!can('crear')) {
+                console.warn('[DENEGADO][RESULTADOS] Intento de "Subir Archivo" sin permisos');
                 setShowCreateDenied(true);
                 setTimeout(() => setShowCreateDenied(false), 3000);
               }
@@ -691,6 +746,7 @@ const ResultsPage: React.FC = () => {
           <button
             onClick={() => {
               if (!can('crear')) {
+                console.warn('[DENEGADO][RESULTADOS] Intento de "Ingreso Manual" sin permisos');
                 setShowCreateDenied(true);
                 setTimeout(() => setShowCreateDenied(false), 3000);
                 return;
@@ -757,6 +813,48 @@ const ResultsPage: React.FC = () => {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* 🧪 Panel de Diagnóstico de Permisos */}
+      <div className="mb-4">
+        <button
+          onClick={() => setDebugOpen(!debugOpen)}
+          className="px-3 py-2 text-xs rounded-md border border-gray-300 bg-white hover:bg-gray-50"
+        >
+          {debugOpen ? 'Ocultar Diagnóstico' : 'Mostrar Diagnóstico de Permisos'}
+        </button>
+        {debugOpen && (
+          <div className="mt-2 p-3 border rounded-md bg-gray-50 text-xs text-gray-700">
+            {(() => {
+              const roleRaw = currentUserRole || 'Asistente';
+              const roleNorm = normalizeRole(roleRaw);
+              const overridesForResults = currentUserOverrides['RESULTADOS'] || {};
+              const actions = ['ver', 'crear', 'editar', 'eliminar', 'enviar_whatsapp', 'enviar_email'];
+              return (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-4">
+                    <div><span className="font-semibold">Rol detectado:</span> {String(roleRaw)}</div>
+                    <div><span className="font-semibold">Rol normalizado:</span> {String(roleNorm)}</div>
+                    <div><span className="font-semibold">Overrides (RESULTADOS):</span> {Object.keys(overridesForResults).length} acción(es)</div>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {actions.map((a) => (
+                      <div key={a} className="px-2 py-1 border rounded bg-white">
+                        <span className="font-semibold">{a}:</span>{' '}
+                        <span className={can(a) ? 'text-green-600' : 'text-red-600'}>
+                          {can(a) ? 'permitido' : 'bloqueado'}
+                        </span>
+                        {overridesForResults[a] !== undefined && (
+                          <span className="ml-2 text-gray-500">(override: {String(overridesForResults[a])})</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
       </div>
 
       {/* 📊 Tabla/Lista de Resultados Globales */}

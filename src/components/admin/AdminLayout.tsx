@@ -37,8 +37,13 @@ const AdminLayout: React.FC = () => {
                     }
                 }
 
+                // Fallback a metadata si no hay nombre/apellido en profile
+                const meta = (auth?.user?.user_metadata || {}) as Record<string, any>;
+                if (!nombre) nombre = meta.nombre || meta.nombres || '';
+                if (!apellido) apellido = meta.apellido || meta.apellidos || '';
+
                 setUserName([nombre, apellido].filter(Boolean).join(' '));
-                setUserRole(rol ? rol : (auth?.user?.user_metadata?.rol ? String(auth.user.user_metadata.rol) : ''));
+                setUserRole(rol ? rol : (meta?.rol ? String(meta.rol) : ''));
                 setUserEmail(auth?.user?.email || '');
             } catch (e) {
                 setUserName('');
@@ -66,7 +71,7 @@ const AdminLayout: React.FC = () => {
         // Enlace al módulo de Gestión de Usuarios (por encima de Configuración y debajo del panel de estadísticas)
         { to: "/admin/gestion_usuarios", icon: UserCog, label: "Gestión de Usuarios" },
         // Módulo de Control de Gastos (visible solo para la usuaria principal)
-        ...(userEmail === 'anamariaprieto@labvidamed.com' ? [
+        ...(userEmail && userEmail.toLowerCase() === 'anamariaprieto@labvidamed.com' ? [
             { to: "/admin/expenses", icon: Banknote, label: "Control de Gastos" },
         ] : []),
         { to: "/admin/config", icon: Settings, label: "Configuración" },

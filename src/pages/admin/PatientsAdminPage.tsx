@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import PatientForm from '@/components/admin/PatientForm';
 import { Patient } from '@/types';
 import { useStatistics } from '@/context/StatisticsContext';
-import { hasPermission } from '@/utils/permissions';
+import { hasPermission, normalizeRole } from '@/utils/permissions';
 
 const PatientsAdminPage: React.FC = () => {
     const [allPatients, setAllPatients] = useState<Patient[]>([]);
@@ -15,7 +15,21 @@ const PatientsAdminPage: React.FC = () => {
     const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
     const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
     const [currentUserOverrides, setCurrentUserOverrides] = useState<Record<string, Record<string, boolean>>>({});
-    const can = (action: string) => hasPermission({ role: currentUserRole || 'Asistente', overrides: currentUserOverrides }, 'PACIENTES', action);
+    const can = (action: string) => {
+        const roleRaw = currentUserRole || 'Asistente';
+        const roleNorm = normalizeRole(roleRaw);
+        const overridesForModule = currentUserOverrides['PACIENTES'] || {};
+        const allowed = hasPermission({ role: roleRaw, overrides: currentUserOverrides }, 'PACIENTES', action);
+        console.groupCollapsed(`🔐 PermEval [PACIENTES] action=${action}`);
+        console.log('• role_raw:', roleRaw);
+        console.log('• role_norm:', roleNorm);
+        console.log('• override(action):', overridesForModule[action]);
+        console.log('• overrides_count(PACIENTES):', Object.keys(overridesForModule).length);
+        console.log('• result:', allowed ? 'permitido' : 'bloqueado');
+        console.groupEnd();
+        return allowed;
+    };
+    const API_BASE = import.meta.env.VITE_API_BASE || '/api';
     const { refreshStats } = useStatistics();
 
     useEffect(() => {
@@ -23,26 +37,50 @@ const PatientsAdminPage: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        // Cargar rol del usuario actual y overrides de permisos
+        // Cargar rol del usuario actual y overrides de permisos con tolerancia a fallos
         const loadAuth = async () => {
-            const { data: auth } = await supabase.auth.getUser();
-            const user = auth?.user;
-            if (!user) return;
-            const { data: profile } = await supabase
-                .from('user_profiles')
-                .select('rol')
-                .eq('user_id', user.id)
-                .maybeSingle();
-            setCurrentUserRole(profile?.rol || null);
             try {
-                const base = (import.meta as any).env?.VITE_API_BASE || '';
-                const res = await fetch(`${base}/api/permissions/overrides?user_id=${user.id}`);
-                if (res.ok) {
-                    const json = await res.json();
-                    setCurrentUserOverrides(json || {});
+                const { data: auth, error: authError } = await supabase.auth.getUser();
+                if (authError) throw authError;
+                const user = auth?.user;
+                const userId = user?.id;
+                if (!userId) return;
+                const metaRol = (user?.user_metadata as any)?.rol || null;
+                let effectiveRole: string = metaRol || 'Asistente';
+                const { data: profData, error: profErr } = await supabase
+                    .from('user_profiles')
+                    .select('rol')
+                    .eq('user_id', userId)
+                    .limit(1);
+                if (!profErr && Array.isArray(profData) && profData.length > 0) {
+                    effectiveRole = (profData[0] as any)?.rol || effectiveRole;
                 }
+                setCurrentUserRole(effectiveRole);
+                console.groupCollapsed('👤 PACIENTES: Carga de rol y overrides');
+                console.log('• user_id:', userId);
+                console.log('• meta_rol:', metaRol);
+                console.log('• effective_role:', effectiveRole);
+                // Overrides
+                try {
+                    const resp = await fetch(`${API_BASE}/users/${userId}/permissions`);
+                    if (resp.ok) {
+                        const json = await resp.json();
+                        const overrides: Record<string, Record<string, boolean>> = {};
+                        (json.permissions || []).forEach((p: any) => {
+                            if (!overrides[p.module]) overrides[p.module] = {};
+                            overrides[p.module][p.action] = Boolean(p.allowed);
+                        });
+                        setCurrentUserOverrides(overrides || {});
+                        console.log('• overrides(PACIENTES):', overrides['PACIENTES'] || {});
+                        console.log('• overrides_total_modules:', Object.keys(overrides || {}).length);
+                    }
+                } catch (e) {
+                    console.warn('No se pudieron cargar overrides de permisos', e);
+                }
+                console.groupEnd();
             } catch (e) {
-                console.warn('No se pudieron cargar overrides de permisos', e);
+                console.warn('No se pudo cargar rol del usuario en Pacientes', e);
+                setCurrentUserRole((prev) => prev || 'Asistente');
             }
         };
         loadAuth();
@@ -73,11 +111,16 @@ const PatientsAdminPage: React.FC = () => {
         
         try {
             if (patientData.id) { // Editing
+                console.groupCollapsed('✏️ PACIENTES: Guardar edición de paciente');
+                console.log('• patient_id:', patientData.id);
+                console.log('• can("editar"):', can('editar'));
                 const { id, ...dataToUpdate } = patientData;
                 const { error } = await supabase.from('pacientes').update(dataToUpdate).eq('id', id);
                 if (error) throw error;
                 alert('Paciente actualizado con éxito.');
+                console.groupEnd();
             } else { // Creating
+                console.groupCollapsed('🆕 PACIENTES: Crear nuevo paciente');
                 const { data: newId, error: rpcError } = await supabase.rpc('generate_patient_id', {
                     nombre: patientData.nombres,
                     apellido: patientData.apellidos
@@ -87,6 +130,8 @@ const PatientsAdminPage: React.FC = () => {
                 const { error: insertError } = await supabase.from('pacientes').insert({ ...patientData, id: newId });
                 if (insertError) throw insertError;
                 alert('Paciente registrado con éxito.');
+                console.log('• new_patient_id:', newId);
+                console.groupEnd();
             }
             
             setIsModalOpen(false);
@@ -94,6 +139,7 @@ const PatientsAdminPage: React.FC = () => {
             fetchPatients();
             refreshStats(); // ¡Aquí está la corrección!
         } catch (error: any) {
+            console.error('❌ PACIENTES: Error al guardar paciente', error);
             alert(error.message);
         } finally {
             setIsLoading(false);
@@ -148,7 +194,14 @@ const PatientsAdminPage: React.FC = () => {
                                         <div className="flex items-center justify-center gap-4">
                                             <button
                                                 onClick={() => {
-                                                    if (!can('editar')) return;
+                                                    if (!can('editar')) {
+                                                        console.warn('🚫 PACIENTES: Edición denegada', {
+                                                            patient_id: patient.id,
+                                                            role: currentUserRole || 'Asistente',
+                                                            overrides: currentUserOverrides['PACIENTES'] || {}
+                                                        });
+                                                        return;
+                                                    }
                                                     setEditingPatient(patient);
                                                     setIsModalOpen(true);
                                                 }}

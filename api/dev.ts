@@ -428,6 +428,7 @@ app.post('/api/users', async (req: Request, res: Response) => {
       password,
       email_confirm: true,
       user_metadata: { nombre, apellido, cedula, sede, rol },
+      app_metadata: { role: rol },
     });
     if (created.error) throw created.error;
     const userId = created.data.user?.id;
@@ -475,6 +476,11 @@ app.put('/api/users/:id', async (req: Request, res: Response) => {
     if (sede) meta.sede = String(sede);
     if (rol) meta.rol = String(rol);
     if (Object.keys(meta).length > 0) updatePayload.user_metadata = meta;
+
+    // Sincronizar rol también a app_metadata para políticas RLS basadas en JWT
+    if (rol) {
+      updatePayload.app_metadata = { role: String(rol) };
+    }
 
     if (Object.keys(updatePayload).length > 0) {
       const upd = await (supabaseAdmin as any).auth.admin.updateUserById(userId, updatePayload);

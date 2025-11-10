@@ -77,6 +77,7 @@ export interface ResultadoPaciente {
     // Nuevo campo: razón clínica del estudio (se guarda a nivel de fila)
     motivo_estudio?: string;
     analisis_ia?: string;
+    analisis_editado?: string;
     analisis_estado?: 'pendiente' | 'completado' | 'aprobado' | 'rechazado';
 }
 

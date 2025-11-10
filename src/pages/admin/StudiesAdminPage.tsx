@@ -3,7 +3,7 @@ import { supabase } from '@/services/supabaseClient';
 import { Study } from '@/types';
 import { Loader, Plus, Edit, Trash2, Search, ArrowUp, ArrowDown, ArrowUpDown, Save, Trash } from 'lucide-react';
 import StudyForm from '@/components/admin/StudyForm';
-import { hasPermission } from '@/utils/permissions';
+import { hasPermission, normalizeRole } from '@/utils/permissions';
 
 type SortOption = 'nombre' | 'costo_usd' | 'veces_realizado';
 
@@ -25,7 +25,21 @@ const StudiesAdminPage: React.FC = () => {
     // Estado de permisos
     const [currentUserRole, setCurrentUserRole] = useState<string>('Asistente');
     const [currentUserOverrides, setCurrentUserOverrides] = useState<Record<string, Record<string, boolean>>>({});
-    const can = (action: string) => hasPermission({ role: currentUserRole || 'Asistente', overrides: currentUserOverrides }, 'ESTUDIOS', action);
+    const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+    const can = (action: string) => {
+        const roleRaw = currentUserRole || 'Asistente';
+        const roleNorm = normalizeRole(roleRaw);
+        const overridesForModule = currentUserOverrides['ESTUDIOS'] || {};
+        const allowed = hasPermission({ role: roleRaw, overrides: currentUserOverrides }, 'ESTUDIOS', action);
+        console.groupCollapsed(`🔐 PermEval [ESTUDIOS] action=${action}`);
+        console.log('• role_raw:', roleRaw);
+        console.log('• role_norm:', roleNorm);
+        console.log('• override(action):', overridesForModule[action]);
+        console.log('• overrides_count(ESTUDIOS):', Object.keys(overridesForModule).length);
+        console.log('• result:', allowed ? 'permitido' : 'bloqueado');
+        console.groupEnd();
+        return allowed;
+    };
     const [showCreateDenied, setShowCreateDenied] = useState<boolean>(false);
     const [denied, setDenied] = useState<Record<string, Record<string, boolean>>>({});
     const markDenied = (id: string, action: string) => {
@@ -121,33 +135,48 @@ const StudiesAdminPage: React.FC = () => {
     useEffect(() => {
         const loadUserPermissions = async () => {
             try {
-                const { data: { user } } = await supabase.auth.getUser();
+                const { data: { user }, error: authError } = await supabase.auth.getUser();
+                if (authError) throw authError;
                 const userId = user?.id;
-                let roleFromDB = 'Asistente';
-                if (userId) {
-                    const { data: profile } = await supabase
-                        .from('user_profiles')
-                        .select('rol')
-                        .eq('user_id', userId)
-                        .maybeSingle();
-                    roleFromDB = profile?.rol || 'Asistente';
+                if (!userId) return;
+                const metaRol = (user?.user_metadata as any)?.rol || null;
+                let effectiveRole: string = metaRol || 'Asistente';
+                const { data: profData, error: profErr } = await supabase
+                    .from('user_profiles')
+                    .select('rol')
+                    .eq('user_id', userId)
+                    .limit(1);
+                if (!profErr && Array.isArray(profData) && profData.length > 0) {
+                    effectiveRole = (profData[0] as any)?.rol || effectiveRole;
                 }
-                setCurrentUserRole(roleFromDB);
-                // Overrides (si existen en API interna)
-                try {
-                    const base = import.meta.env.VITE_API_BASE;
-                    if (base) {
-                        const resp = await fetch(`${base}/permissions/overrides`);
+                setCurrentUserRole(effectiveRole);
+                console.groupCollapsed('👤 ESTUDIOS: Carga de rol y overrides');
+                console.log('• user_id:', userId);
+                console.log('• meta_rol:', metaRol);
+                console.log('• effective_role:', effectiveRole);
+                // Overrides
+                if (API_BASE) {
+                    try {
+                        const resp = await fetch(`${API_BASE}/users/${userId}/permissions`);
                         if (resp.ok) {
                             const json = await resp.json();
-                            setCurrentUserOverrides(json?.overrides || {});
+                            const overrides: Record<string, Record<string, boolean>> = {};
+                            (json.permissions || []).forEach((p: any) => {
+                                if (!overrides[p.module]) overrides[p.module] = {};
+                                overrides[p.module][p.action] = Boolean(p.allowed);
+                            });
+                            setCurrentUserOverrides(overrides || {});
+                            console.log('• overrides(ESTUDIOS):', overrides['ESTUDIOS'] || {});
+                            console.log('• overrides_total_modules:', Object.keys(overrides || {}).length);
                         }
+                    } catch (e) {
+                        // Silenciar errores de overrides
                     }
-                } catch (e) {
-                    // Silenciar errores de overrides
                 }
+                console.groupEnd();
             } catch (e) {
                 console.error('[StudiesAdmin] Error cargando permisos de usuario', e);
+                setCurrentUserRole((prev) => prev || 'Asistente');
             }
         };
         loadUserPermissions();
@@ -181,12 +210,17 @@ const StudiesAdminPage: React.FC = () => {
         }
 
         setTasaBcvGlobal(newTasa);
+        console.groupCollapsed('💸 ESTUDIOS: Guardar tasa BCV');
+        console.log('• nueva_tasa:', newTasa);
+        console.groupEnd();
         await handleUpdateAllPrices(newTasa);
         setIsLoading(false);
         alert('Tasa de cambio actualizada y precios recalculados exitosamente.');
     };
 
     const handleUpdateAllPrices = async (newTasa: number) => {
+        console.groupCollapsed('💸 ESTUDIOS: Actualización masiva de precios');
+        console.log('• can("editar"):', can('editar'));
         const updates = studies.map(study => ({
             id: study.id,
             costo_bs: study.price * newTasa
@@ -200,11 +234,17 @@ const StudiesAdminPage: React.FC = () => {
         } else {
             fetchStudiesAndCategories(); // Refetch to show updated prices
         }
+        console.groupEnd();
     };
 
     const handleSave = async (studyData: Partial<Study>, materials: { material_id: number; cantidad_usada: number }[], file?: File) => {
         const isUpdate = Boolean(studyData.id);
         if (!can(isUpdate ? 'editar' : 'crear')) {
+            console.warn('🚫 ESTUDIOS: Acción denegada', {
+                isUpdate,
+                role: currentUserRole || 'Asistente',
+                overrides: currentUserOverrides['ESTUDIOS'] || {}
+            });
             alert('No está autorizado para realizar esta acción.');
             return;
         }
@@ -509,14 +549,14 @@ const StudiesAdminPage: React.FC = () => {
                                     <td className="py-1 px-1 text-right">
                                         <div className="flex justify-end gap-0.5">
                                             <button
-                                                onClick={() => { if (!can('editar')) { markDenied(study.id, 'editar'); return; } setEditingStudy(study); setIsModalOpen(true); }}
+                                                onClick={() => { if (!can('editar')) { console.warn('🚫 ESTUDIOS: Edición denegada', { study_id: study.id, role: currentUserRole || 'Asistente', overrides: currentUserOverrides['ESTUDIOS'] || {} }); markDenied(study.id, 'editar'); return; } setEditingStudy(study); setIsModalOpen(true); }}
                                                 className={`p-0.5 ${!can('editar') ? 'text-indigo-300 cursor-not-allowed' : 'text-indigo-600 hover:text-indigo-900'}`}
                                             >
                                                 <Edit size={14} />
                                             </button>
                                             {denied[study.id]?.editar && <span className="ml-1 text-[10px] text-red-600">No está autorizado</span>}
                                             <button
-                                                onClick={() => { if (!can('eliminar')) { markDenied(study.id, 'eliminar'); return; } handleDelete(study.id); }}
+                                                onClick={() => { if (!can('eliminar')) { console.warn('🚫 ESTUDIOS: Eliminación denegada', { study_id: study.id, role: currentUserRole || 'Asistente', overrides: currentUserOverrides['ESTUDIOS'] || {} }); markDenied(study.id, 'eliminar'); return; } handleDelete(study.id); }}
                                                 className={`p-0.5 ${!can('eliminar') ? 'text-red-300 cursor-not-allowed' : 'text-red-600 hover:text-red-900'}`}
                                             >
                                                 <Trash2 size={14} />
