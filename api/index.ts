@@ -518,6 +518,8 @@ Consultas de Estudios:
     function buildAssistantToolCallMessage(toolCalls: Array<{ id?: string; name: string; arguments: any }>): BedrockMessage {
       return {
         role: 'assistant',
+        // Bedrock/OpenAI requieren content presente aunque esté vacío cuando se incluyen tool_calls
+        content: '',
         tool_calls: toolCalls.map((tc) => ({
           id: tc.id,
           type: 'function',

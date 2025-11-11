@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/services/supabaseClient';
+import { logAudit, auditActionLabel } from '@/services/audit';
 import { Study } from '@/types';
 import { Loader, Plus, Edit, Trash2, Search, ArrowUp, ArrowDown, ArrowUpDown, Save, Trash } from 'lucide-react';
 import StudyForm from '@/components/admin/StudyForm';
@@ -323,6 +324,21 @@ const StudiesAdminPage: React.FC = () => {
                     // Potentially roll back study creation/update or handle otherwise
                 }
             }
+            await logAudit({
+                action: auditActionLabel(isUpdate),
+                module: 'ESTUDIOS',
+                entity: 'estudio',
+                entityId: studyId,
+                metadata: {
+                    nombre: studyData.name,
+                    categoria: studyData.category,
+                    precio_usd: priceUSD,
+                    costo_bs: costoBS,
+                    materiales_count: materials.length,
+                    background_url: backgroundUrl,
+                },
+                success: true,
+            });
         }
 
         setIsModalOpen(false);
@@ -338,7 +354,16 @@ const StudiesAdminPage: React.FC = () => {
         }
         if (window.confirm('¿Estás seguro de que quieres eliminar este estudio?')) {
             setIsLoading(true);
+            const study = studies.find(s => s.id === studyId);
             const { error } = await supabase.from('estudios').delete().eq('id', studyId);
+            await logAudit({
+                action: 'Eliminar',
+                module: 'ESTUDIOS',
+                entity: 'estudio',
+                entityId: studyId,
+                metadata: { nombre: study?.name, categoria: study?.category },
+                success: !error,
+            });
             if (error) {
                 console.error('Error deleting study:', error);
                 alert(error.message);
@@ -390,6 +415,14 @@ const StudiesAdminPage: React.FC = () => {
                 .delete()
                 .in('id', Array.from(selectedStudies));
 
+            await logAudit({
+                action: 'Eliminar',
+                module: 'ESTUDIOS',
+                entity: 'estudio',
+                entityId: null,
+                metadata: { deleted_ids: Array.from(selectedStudies), count: selectedStudies.size },
+                success: !error,
+            });
             if (error) {
                 console.error('Error deleting selected studies:', error);
                 alert(error.message);

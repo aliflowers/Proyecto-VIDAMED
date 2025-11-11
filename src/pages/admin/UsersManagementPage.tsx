@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/services/supabaseClient';
+import { logAudit } from '@/services/audit';
 import { hasPermission, normalizeRole } from '@/utils/permissions';
 
 type Rol = 'Administrador' | 'Lic.' | 'Asistente';
@@ -200,6 +201,7 @@ const UsersManagementPage: React.FC = () => {
       });
       const json = await resp.json();
       if (!resp.ok) throw new Error(json?.error || 'Error al crear usuario');
+      await logAudit({ action: 'Crear', module: 'Gestión de Usuarios', entity: 'users', entityId: (json?.user?.id ?? null), metadata: { email: form.email, rol: form.rol, sede: form.sede } });
       setForm({ nombre: '', apellido: '', cedula: '', email: '', password: '', sede: 'Sede Principal Maracay', rol: 'Asistente' });
       await fetchUsuarios();
     } catch (e: any) {
@@ -218,6 +220,7 @@ const UsersManagementPage: React.FC = () => {
       const resp = await fetch(`${API_BASE}/users/${u.user_id}`, { method: 'DELETE' });
       const json = await resp.json();
       if (!resp.ok) throw new Error(json?.error || 'Error al eliminar usuario');
+      await logAudit({ action: 'Eliminar', module: 'Gestión de Usuarios', entity: 'users', entityId: u.user_id, metadata: { email: u.email } });
       if (selectedUser?.user_id === u.user_id) {
         setSelectedUser(null);
         setPermOverrides({});
@@ -297,6 +300,7 @@ const UsersManagementPage: React.FC = () => {
       });
       const json = await resp.json();
       if (!resp.ok) throw new Error(json?.error || 'Error al guardar permisos');
+      await logAudit({ action: 'Editar permisos', module: 'Gestión de Usuarios', entity: 'user_permissions', entityId: selectedUser.user_id, metadata: { overrides_count: overridesToSend.length } });
       // Refrescar overrides desde servidor por consistencia
       await seleccionarUsuario(selectedUser);
       alert('Permisos actualizados');
@@ -318,6 +322,7 @@ const UsersManagementPage: React.FC = () => {
       });
       const json = await resp.json();
       if (!resp.ok) throw new Error(json?.error || 'Error al actualizar perfil');
+      await logAudit({ action: 'Actualizar', module: 'Gestión de Usuarios', entity: 'users', entityId: u.user_id, metadata: { rol: u.rol, sede: u.sede } });
       await fetchUsuarios();
       alert('Perfil actualizado');
     } catch (e: any) {

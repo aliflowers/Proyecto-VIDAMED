@@ -58,6 +58,8 @@ const AdminLayout: React.FC = () => {
         navigate('/login');
     };
 
+    const isAuditor = userEmail && ['anamariaprieto@labvidamed.com', 'alijesusflores@gmail.com'].includes(userEmail.toLowerCase());
+
     const navLinks = [
         { to: "/admin/dashboard", icon: LayoutDashboard, label: "Dashboard" },
         { to: "/admin/studies", icon: FlaskConical, label: "Estudios" },
@@ -73,6 +75,10 @@ const AdminLayout: React.FC = () => {
         // Módulo de Control de Gastos (visible solo para la usuaria principal)
         ...(userEmail && userEmail.toLowerCase() === 'anamariaprieto@labvidamed.com' ? [
             { to: "/admin/expenses", icon: Banknote, label: "Control de Gastos" },
+        ] : []),
+        // Módulo de Auditoría (visible solo para dos usuarios específicos)
+        ...(isAuditor ? [
+            { to: "/admin/auditoria", icon: FileText, label: "Auditoría de Usuarios" },
         ] : []),
         { to: "/admin/config", icon: Settings, label: "Configuración" },
     ];

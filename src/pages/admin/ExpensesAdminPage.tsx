@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../services/supabaseClient';
+// Auditoría del módulo de Control de Gastos deshabilitada por requerimiento
 import { Loader, Plus, Printer, Search } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { Modal } from '../../components/common/Modal';
@@ -537,6 +538,7 @@ const { data: s } = await supabase.from('servicios_recurrentes').select('id, nom
         if (res.error) throw res.error;
         cxpId = res.data?.id || null;
       }
+      // Auditoría deshabilitada para Control de Gastos
 
       // Registrar abono como delta del pagado ingresado
       if (cxpId) {

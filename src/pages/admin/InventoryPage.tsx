@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/services/supabaseClient';
+import { logAudit } from '@/services/audit';
 import { toast } from 'react-toastify';
 import { FaBoxOpen, FaPlus, FaSearch, FaTrash } from 'react-icons/fa';
 import InventoryCard from '@/components/admin/InventoryCard';
@@ -301,6 +302,19 @@ const InventoryPage = () => {
 
       if (deletedCount > 0) {
         toast.success(`${deletedCount} material(es) eliminado(s) exitosamente`);
+        await logAudit({
+          action: 'Eliminar',
+          module: 'INVENTARIO',
+          entity: 'material',
+          entityId: null,
+          metadata: {
+            deleted_ids: safeToDelete,
+            blocked_ids: Array.from(blockedIds),
+            deleted_count: deletedCount,
+            blocked_count: blockedCount,
+          },
+          success: true,
+        });
         fetchInventory(); // Recargar datos
       }
 
@@ -311,6 +325,17 @@ const InventoryPage = () => {
     } catch (error: any) {
       console.error('❌ INVENTARIO: Bulk delete error:', error);
       toast.error(`Error al eliminar: ${error.message}`);
+      await logAudit({
+        action: 'Eliminar',
+        module: 'INVENTARIO',
+        entity: 'material',
+        entityId: null,
+        metadata: {
+          attempted_ids: selectedIds,
+          error: error.message,
+        },
+        success: false,
+      });
     }
   };
 

@@ -9,6 +9,7 @@ import ManualResultForm from '@/components/admin/ManualResultForm';
 import ResultViewer from '@/components/admin/ResultViewer';
 import InterpretationModal from '@/components/admin/InterpretationModal';
 import { hasPermission, normalizeRole } from '@/utils/permissions';
+import { logAudit } from '@/services/audit';
 
 import PatientSelectorModal, { Patient } from '@/components/admin/PatientSelectorModal';
 import UnifiedEntryModal from '@/components/admin/UnifiedEntryModal';
@@ -398,7 +399,7 @@ const ResultsPage: React.FC = () => {
         tipo: 'manual',
         valores: plainResults,
         materiales_utilizados: selectedMaterials.map(m => ({ id: m.id, nombre: m.nombre, cantidad_usada: m.cantidad_usada })),
-        paciente_id: Number(selectedPatient.id),
+        paciente_id: Number(selectedPatient!.id),
         paciente_nombres: selectedPatient.nombres,
         paciente_apellidos: selectedPatient.apellidos,
         paciente_cedula: selectedPatient.cedula_identidad,
@@ -407,13 +408,16 @@ const ResultsPage: React.FC = () => {
       };
 
       const dataToInsert = {
-        paciente_id: Number(selectedPatient.id),
+        paciente_id: Number(selectedPatient!.id),
         estudio_id: parseInt(manualEntryStudy.id, 10),
         resultado_data: resultadoData,
         motivo_estudio: motivoEstudio // <- NUEVO: pobla la columna dedicada
       };
 
-      const { error: dbError } = await supabase.from('resultados_pacientes').insert([dataToInsert]);
+      const { data: insertedRows, error: dbError } = await supabase
+        .from('resultados_pacientes')
+        .insert([dataToInsert])
+        .select('id');
 
       if (dbError) {
         console.error('Manual result error:', dbError);
@@ -421,6 +425,21 @@ const ResultsPage: React.FC = () => {
       }
 
       await supabase.rpc('increment_study_count', { study_ids: [parseInt(manualEntryStudy.id, 10)] });
+
+      const createdId = Array.isArray(insertedRows) && insertedRows.length > 0 ? insertedRows[0]?.id : null;
+      await logAudit({
+        action: 'Crear',
+        module: 'RESULTADOS',
+        entity: 'resultado',
+        entityId: createdId,
+        metadata: {
+          tipo: 'manual',
+          estudio: manualEntryStudy.name,
+          paciente_id: selectedPatient.id,
+          paciente: `${selectedPatient.nombres} ${selectedPatient.apellidos}`,
+          materiales: selectedMaterials.length,
+        },
+      });
 
       console.log('✅ RESULTADO GUARDADO EXITOSAMENTE:', {
         paciente: `${selectedPatient.nombres} ${selectedPatient.apellidos}`,
@@ -469,6 +488,16 @@ const ResultsPage: React.FC = () => {
       if (error) throw error;
 
       toast.success('Resultado eliminado exitosamente.');
+      await logAudit({
+        action: 'Eliminar',
+        module: 'RESULTADOS',
+        entity: 'resultado',
+        entityId: resultId,
+        metadata: {
+          estudio: resultToDelete.nombre_estudio,
+          paciente_id: resultToDelete.paciente_id,
+        },
+      });
       fetchAllResults();
     } catch (error: any) {
       toast.error(`Error eliminando resultado: ${error.message}`);
@@ -557,6 +586,17 @@ const ResultsPage: React.FC = () => {
       console.log('✅ Análisis IA guardado y mostrado exitosamente');
       toast.success('Análisis médico generado exitosamente');
 
+      await logAudit({
+        action: 'Editar',
+        module: 'RESULTADOS',
+        entity: 'interpretacion',
+        entityId: result.id,
+        metadata: {
+          operacion: 'generar_ia',
+          estudio: result.nombre_estudio,
+        },
+      });
+
       await fetchAllResults(); // Refresh para actualizar el estado de la tabla
       setInterpretationModalOpen(true);
 
@@ -587,6 +627,21 @@ const ResultsPage: React.FC = () => {
       toast.error(`Error actualizando estado: ${error.message}`);
     } else {
       toast.success(`Análisis marcado como ${status}`);
+      try {
+        const target = allResults.find(r => r.id === resultId);
+        await logAudit({
+          action: status === 'aprobado' ? 'Aprobar' : 'Rechazar',
+          module: 'RESULTADOS',
+          entity: 'interpretacion',
+          entityId: resultId,
+          metadata: {
+            estudio: target?.nombre_estudio,
+            editado: Boolean(editedText && editedText.length > 0),
+          },
+        });
+      } catch (e) {
+        console.warn('[AUDIT] Error registrando auditoría de estado de interpretación:', e);
+      }
       await fetchAllResults();
       setInterpretationModalOpen(false);
     }
@@ -644,6 +699,16 @@ const ResultsPage: React.FC = () => {
       }
 
       toast.success('Interpretación re-generada y actualizada.');
+      await logAudit({
+        action: 'Editar',
+        module: 'RESULTADOS',
+        entity: 'interpretacion',
+        entityId: target.id,
+        metadata: {
+          operacion: 'regenerar_ia',
+          estudio: target.nombre_estudio,
+        },
+      });
       await fetchAllResults();
     } catch (error: any) {
       console.error('❌ Error en re-generación de interpretación:', error);
@@ -682,7 +747,10 @@ const ResultsPage: React.FC = () => {
         }
       };
 
-      const { error: dbError } = await supabase.from('resultados_pacientes').insert([dataToInsert]);
+      const { data: insertedRows, error: dbError } = await supabase
+        .from('resultados_pacientes')
+        .insert([dataToInsert])
+        .select('id');
       if (dbError) {
         console.error('Error BD:', dbError);
         throw dbError;
@@ -691,6 +759,22 @@ const ResultsPage: React.FC = () => {
       await supabase.rpc('increment_study_count', { study_ids: [parseInt(study.id, 10)] });
 
       toast.success(`Resultado subido exitosamente para ${patient.nombres} ${patient.apellidos}`);
+
+      const createdId = Array.isArray(insertedRows) && insertedRows.length > 0 ? insertedRows[0]?.id : null;
+      await logAudit({
+        action: 'Crear',
+        module: 'RESULTADOS',
+        entity: 'resultado',
+        entityId: createdId,
+        metadata: {
+          tipo: 'archivo',
+          estudio: study.name,
+          paciente_id: patient.id,
+          paciente: `${patient.nombres} ${patient.apellidos}`,
+          archivo: cleanFileName,
+          url: publicUrl,
+        },
+      });
 
       // Limpiar estados
       setCurrentFileToProcess(null);

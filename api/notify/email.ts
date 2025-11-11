@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { createClient } from '@supabase/supabase-js';
+import { logServerAudit } from '../_utils/audit.js';
 import nodemailer from 'nodemailer';
 import PDFDocument from 'pdfkit';
 import path from 'path';
@@ -436,12 +437,30 @@ export default async function notifyEmailHandler(req: Request, res: Response) {
   try {
     const { result_id } = req.body || {};
     if (!result_id) {
+      await logServerAudit({
+        req,
+        action: 'Enviar vía Email',
+        module: 'Resultados',
+        entity: 'resultados_pacientes',
+        entityId: null,
+        metadata: { reason: 'Falta result_id' },
+        success: false,
+      });
       return res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'Falta result_id en el cuerpo de la petición.' });
     }
 
     const supabaseUrl = getEnv('SUPABASE_URL');
     const supabaseServiceKey = getEnv('SUPABASE_SERVICE_ROLE_KEY') || getEnv('SUPABASE_SERVICE_ROLE');
     if (!supabaseUrl || !supabaseServiceKey) {
+      await logServerAudit({
+        req,
+        action: 'Enviar vía Email',
+        module: 'Resultados',
+        entity: 'resultados_pacientes',
+        entityId: result_id,
+        metadata: { reason: 'ENV_MISSING' },
+        success: false,
+      });
       return res.status(500).json({ ok: false, code: 'ENV_MISSING', message: 'SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY no configurados (acepta VITE_SUPABASE_URL / VITE_SUPABASE_SERVICE_ROLE).' });
     }
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
@@ -453,14 +472,41 @@ export default async function notifyEmailHandler(req: Request, res: Response) {
       .maybeSingle();
 
     if (error) {
+      await logServerAudit({
+        req,
+        action: 'Enviar vía Email',
+        module: 'Resultados',
+        entity: 'resultados_pacientes',
+        entityId: result_id,
+        metadata: { reason: 'DB_ERROR', message: error.message },
+        success: false,
+      });
       return res.status(500).json({ ok: false, code: 'DB_ERROR', message: error.message });
     }
     if (!data) {
+      await logServerAudit({
+        req,
+        action: 'Enviar vía Email',
+        module: 'Resultados',
+        entity: 'resultados_pacientes',
+        entityId: result_id,
+        metadata: { reason: 'NOT_FOUND' },
+        success: false,
+      });
       return res.status(404).json({ ok: false, code: 'NOT_FOUND', message: 'Resultado no encontrado.' });
     }
 
     const paciente = (data as any).pacientes || {};
     if (!paciente.email || !String(paciente.email).trim()) {
+      await logServerAudit({
+        req,
+        action: 'Enviar vía Email',
+        module: 'Resultados',
+        entity: 'resultados_pacientes',
+        entityId: result_id,
+        metadata: { reason: 'NO_EMAIL' },
+        success: false,
+      });
       return res.status(400).json({ ok: false, code: 'NO_EMAIL', message: 'Este paciente no tiene email registrado.' });
     }
 
@@ -476,6 +522,15 @@ export default async function notifyEmailHandler(req: Request, res: Response) {
       const normalized = String(estado).trim().toLowerCase();
       const approvedStates = new Set(['aprobado', 'aprobada', 'completado', 'completada']);
       if (!approvedStates.has(normalized)) {
+        await logServerAudit({
+          req,
+          action: 'Enviar vía Email',
+          module: 'Resultados',
+          entity: 'resultados_pacientes',
+          entityId: result_id,
+          metadata: { reason: 'INTERPRETATION_NOT_APPROVED' },
+          success: false,
+        });
         return res.status(400).json({ ok: false, code: 'INTERPRETATION_NOT_APPROVED', message: 'La interpretación IA no está aprobada (se requiere Aprobado/Completado).' });
       }
     }
@@ -488,6 +543,15 @@ export default async function notifyEmailHandler(req: Request, res: Response) {
     const emailReplyTo = getEnv('EMAIL_REPLY_TO') || undefined;
 
     if (!smtpHost || !smtpPort || !smtpUser || !smtpPass) {
+      await logServerAudit({
+        req,
+        action: 'Enviar vía Email',
+        module: 'Resultados',
+        entity: 'resultados_pacientes',
+        entityId: result_id,
+        metadata: { reason: 'ENV_MISSING_SMTP' },
+        success: false,
+      });
       return res.status(500).json({ ok: false, code: 'ENV_MISSING', message: 'Config SMTP incompleta: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS.' });
     }
 
@@ -496,16 +560,43 @@ export default async function notifyEmailHandler(req: Request, res: Response) {
     if (isArchivo) {
       const fileUrl = String(raw?.url || '').trim();
       if (!fileUrl) {
+        await logServerAudit({
+          req,
+          action: 'Enviar vía Email',
+          module: 'Resultados',
+          entity: 'resultados_pacientes',
+          entityId: result_id,
+          metadata: { reason: 'BAD_REQUEST_NO_FILE_URL' },
+          success: false,
+        });
         return res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'El resultado tipo archivo no tiene URL disponible para adjunto.' });
       }
       try {
         const resp = await fetch(fileUrl);
         if (!resp.ok) {
+          await logServerAudit({
+            req,
+            action: 'Enviar vía Email',
+            module: 'Resultados',
+            entity: 'resultados_pacientes',
+            entityId: result_id,
+            metadata: { reason: 'FILE_FETCH_ERROR', status: resp.status },
+            success: false,
+          });
           return res.status(500).json({ ok: false, code: 'FILE_FETCH_ERROR', message: `No se pudo descargar el archivo (${resp.status}).` });
         }
         const ab = await resp.arrayBuffer();
         pdfBuffer = Buffer.from(ab);
       } catch (e: any) {
+        await logServerAudit({
+          req,
+          action: 'Enviar vía Email',
+          module: 'Resultados',
+          entity: 'resultados_pacientes',
+          entityId: result_id,
+          metadata: { reason: 'FILE_FETCH_ERROR', message: e?.message || String(e) },
+          success: false,
+        });
         return res.status(500).json({ ok: false, code: 'FILE_FETCH_ERROR', message: e?.message || 'Error descargando el archivo para adjuntar.' });
       }
     } else {
@@ -561,8 +652,26 @@ export default async function notifyEmailHandler(req: Request, res: Response) {
       })(),
     });
 
+    await logServerAudit({
+      req,
+      action: 'Enviar vía Email',
+      module: 'Resultados',
+      entity: 'resultados_pacientes',
+      entityId: result_id,
+      metadata: { to: paciente.email, paciente: `${nombres} ${apellidos}`.trim() },
+      success: true,
+    });
     return res.status(200).json({ ok: true, code: 'SENT', message: `Email enviado a ${paciente.email}.`, provider: { messageId: info.messageId } });
   } catch (err: any) {
+    await logServerAudit({
+      req,
+      action: 'Enviar vía Email',
+      module: 'Resultados',
+      entity: 'resultados_pacientes',
+      entityId: (req.body?.result_id ?? null),
+      metadata: { reason: 'UNEXPECTED', message: err?.message || String(err) },
+      success: false,
+    });
     return res.status(500).json({ ok: false, code: 'UNEXPECTED', message: err?.message || 'Error inesperado enviando email.' });
   }
 }

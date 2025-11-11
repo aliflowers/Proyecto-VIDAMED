@@ -161,10 +161,10 @@ const defaultPermissions: Record<Rol, Record<string, Record<string, boolean>>> =
       enviar_whatsapp: true,
       enviar_email: true,
     },
-    // PACIENTES: ver y editar
+    // PACIENTES: ver, crear y editar
     pacientes: {
       ver: true,
-      crear: false,
+      crear: true,
       editar: true,
       eliminar: false,
     },
@@ -182,7 +182,8 @@ const defaultPermissions: Record<Rol, Record<string, Record<string, boolean>>> =
   Asistente: {
     // INVENTARIO y PACIENTES: solo ver
     inventario: { ver: true },
-    pacientes: { ver: true },
+    // PACIENTES: ver y crear
+    pacientes: { ver: true, crear: true },
     // RESULTADOS: ver, imprimir y enviar por WhatsApp/Email
     resultados: { ver: true, imprimir: true, enviar: true, enviar_whatsapp: true, enviar_email: true },
     // CITAS y días no disponibles: acceso total a gestión

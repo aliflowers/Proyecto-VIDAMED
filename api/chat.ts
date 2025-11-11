@@ -735,6 +735,8 @@ Consultas de Estudios:
 
       return {
         role: 'assistant' as const,
+        // Aseguramos la presencia de content para cumplir con el contrato Bedrock/OpenAI
+        content: '',
         tool_calls: normalizedCalls,
       } as any;
     };

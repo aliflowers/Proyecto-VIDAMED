@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/services/supabaseClient';
 import { toast } from 'react-toastify';
 import ImageUpload from './ImageUpload';
+import { logAudit, auditActionLabel } from '@/services/audit';
 
 import { InventoryItem } from '@/types';
 
@@ -161,7 +162,7 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ item, onClose }) => {
         response = await supabase.from('inventario').update(dataToSubmit).eq('id', item.id);
       } else {
         // Crear
-        response = await supabase.from('inventario').insert([dataToSubmit]);
+        response = await supabase.from('inventario').insert([dataToSubmit]).select('id');
       }
 
       if (response.error) {
@@ -169,10 +170,51 @@ const InventoryForm: React.FC<InventoryFormProps> = ({ item, onClose }) => {
         throw response.error;
       }
 
+      // Auditoría de operación exitosa (crear/actualizar material de inventario)
+      await logAudit({
+        action: auditActionLabel(!!(item && item.id)),
+        module: 'INVENTARIO',
+        entity: 'material',
+        entityId: (item && item.id) ? item.id : (response as any)?.data?.[0]?.id ?? null,
+        metadata: {
+          nombre: dataToSubmit.nombre,
+          proveedor: dataToSubmit.proveedor,
+          unidad_medida: dataToSubmit.unidad_medida,
+          stock_final: stockFinal,
+          cantidad_ingresar: cantidadIngresarValue,
+          unidades_por_caja: dataToSubmit.unidades_por_caja,
+          costo_bs: dataToSubmit.costo_ultima_compra_bs,
+          costo_usd: dataToSubmit.costo_ultima_compra_usd,
+          fecha_ultima_compra: dataToSubmit.fecha_ultima_compra,
+          previo: item && item.id ? {
+            id: item.id,
+            nombre: item.nombre,
+            cantidad_stock: item.cantidad_stock,
+            proveedor: item.proveedor,
+            unidad_medida: item.unidad_medida,
+            costo_bs: item.costo_ultima_compra_bs,
+            costo_usd: item.costo_ultima_compra_usd,
+          } : null,
+        },
+        success: true,
+      });
+
       toast.success(`Material ${item ? 'actualizado' : 'creado'} con éxito.`);
       onClose();
     } catch (error: any) {
       console.error('Error completo:', error);
+      // Auditoría de operación fallida
+      await logAudit({
+        action: auditActionLabel(!!(item && item.id)),
+        module: 'INVENTARIO',
+        entity: 'material',
+        entityId: item?.id ?? null,
+        metadata: {
+          nombre: formData.nombre,
+          error: error?.message || String(error),
+        },
+        success: false,
+      });
       toast.error(error.message || 'Error desconocido');
     }
   };

@@ -7,6 +7,7 @@ import 'react-day-picker/dist/style.css';
 import { format, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { hasPermission, normalizeRole } from '@/utils/permissions';
+import { logAudit } from '@/services/audit';
 
 const RescheduleModal: React.FC<{ appointment: Appointment, onSave: (id: number, newDate: string) => void, onCancel: () => void }> = ({ appointment, onSave, onCancel }) => {
     const [newDateTime, setNewDateTime] = useState(appointment.fecha_cita.substring(0, 16));
@@ -240,8 +241,10 @@ const AppointmentsAdminPage: React.FC = () => {
         let error;
         if (wasSelected) {
             ({ error } = await supabase.from('dias_no_disponibles').delete().eq('fecha', formattedDate));
+            await logAudit({ action: 'Desbloquear día', module: 'Citas', entity: 'dias_no_disponibles', entityId: null, metadata: { fecha: formattedDate }, success: !error });
         } else {
             ({ error } = await supabase.from('dias_no_disponibles').insert({ fecha: formattedDate }));
+            await logAudit({ action: 'Bloquear día', module: 'Citas', entity: 'dias_no_disponibles', entityId: null, metadata: { fecha: formattedDate }, success: !error });
         }
         if (error) {
             alert(`Error al actualizar la disponibilidad: ${error.message}`);
@@ -256,6 +259,7 @@ const AppointmentsAdminPage: React.FC = () => {
         const { error } = await supabase.from('citas').update({ status }).eq('id', id);
         if (error) alert(error.message);
         else fetchAppointments();
+        await logAudit({ action: 'Actualizar estado', module: 'Citas', entity: 'citas', entityId: id, metadata: { status }, success: !error });
     };
 
     const handleReschedule = async (id: number, newDate: string) => {
@@ -268,6 +272,7 @@ const AppointmentsAdminPage: React.FC = () => {
             setEditingAppointment(null);
             fetchAppointments();
         }
+        await logAudit({ action: 'Reagendar', module: 'Citas', entity: 'citas', entityId: id, metadata: { nueva_fecha: isoStringInVenezuelaTime }, success: !error });
     };
 
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -334,8 +339,10 @@ const AppointmentsAdminPage: React.FC = () => {
             }
             if (!res.ok) {
                 const text = await res.text();
+                await logAudit({ action: isCurrentlyAvailable ? 'Bloquear horario' : 'Desbloquear horario', module: 'Citas', entity: 'disponibilidad_horarios', entityId: null, metadata: { fecha: date, slot, ubicacion: location, response_status: res.status }, success: false });
                 throw new Error(text || 'Fallo actualizando disponibilidad');
             }
+            await logAudit({ action: isCurrentlyAvailable ? 'Bloquear horario' : 'Desbloquear horario', module: 'Citas', entity: 'disponibilidad_horarios', entityId: null, metadata: { fecha: date, slot, ubicacion: location }, success: true });
             // Recargar slots tras éxito
             await loadSlotsForDate(selectedDate);
         } catch (e: any) {

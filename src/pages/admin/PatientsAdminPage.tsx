@@ -6,6 +6,7 @@ import PatientForm from '@/components/admin/PatientForm';
 import { Patient } from '@/types';
 import { useStatistics } from '@/context/StatisticsContext';
 import { hasPermission, normalizeRole } from '@/utils/permissions';
+import { logAudit } from '@/services/audit';
 
 const PatientsAdminPage: React.FC = () => {
     const [allPatients, setAllPatients] = useState<Patient[]>([]);
@@ -118,6 +119,29 @@ const PatientsAdminPage: React.FC = () => {
                 const { error } = await supabase.from('pacientes').update(dataToUpdate).eq('id', id);
                 if (error) throw error;
                 alert('Paciente actualizado con éxito.');
+                await logAudit({
+                    action: 'Actualizar',
+                    module: 'PACIENTES',
+                    entity: 'paciente',
+                    entityId: id,
+                    metadata: {
+                        nombres: dataToUpdate.nombres,
+                        apellidos: dataToUpdate.apellidos,
+                        cedula_identidad: dataToUpdate.cedula_identidad,
+                        telefono: dataToUpdate.telefono,
+                        email: dataToUpdate.email,
+                        direccion: dataToUpdate.direccion,
+                        previo: editingPatient ? {
+                            nombres: editingPatient.nombres,
+                            apellidos: editingPatient.apellidos,
+                            cedula_identidad: editingPatient.cedula_identidad,
+                            telefono: editingPatient.telefono,
+                            email: editingPatient.email,
+                            direccion: editingPatient.direccion,
+                        } : null,
+                    },
+                    success: true,
+                });
                 console.groupEnd();
             } else { // Creating
                 console.groupCollapsed('🆕 PACIENTES: Crear nuevo paciente');
@@ -130,6 +154,21 @@ const PatientsAdminPage: React.FC = () => {
                 const { error: insertError } = await supabase.from('pacientes').insert({ ...patientData, id: newId });
                 if (insertError) throw insertError;
                 alert('Paciente registrado con éxito.');
+                await logAudit({
+                    action: 'Crear',
+                    module: 'PACIENTES',
+                    entity: 'paciente',
+                    entityId: newId,
+                    metadata: {
+                        nombres: patientData.nombres,
+                        apellidos: patientData.apellidos,
+                        cedula_identidad: patientData.cedula_identidad,
+                        telefono: patientData.telefono,
+                        email: patientData.email,
+                        direccion: patientData.direccion,
+                    },
+                    success: true,
+                });
                 console.log('• new_patient_id:', newId);
                 console.groupEnd();
             }
@@ -140,6 +179,19 @@ const PatientsAdminPage: React.FC = () => {
             refreshStats(); // ¡Aquí está la corrección!
         } catch (error: any) {
             console.error('❌ PACIENTES: Error al guardar paciente', error);
+            await logAudit({
+                action: patientData.id ? 'Actualizar' : 'Crear',
+                module: 'PACIENTES',
+                entity: 'paciente',
+                entityId: patientData.id ?? null,
+                metadata: {
+                    nombres: patientData.nombres,
+                    apellidos: patientData.apellidos,
+                    cedula_identidad: patientData.cedula_identidad,
+                    error: error?.message || String(error),
+                },
+                success: false,
+            });
             alert(error.message);
         } finally {
             setIsLoading(false);
@@ -150,7 +202,22 @@ const PatientsAdminPage: React.FC = () => {
         <div>
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-3xl font-bold text-dark">Gestión de Pacientes</h1>
-                <button onClick={() => { setEditingPatient(null); setIsModalOpen(true); }} className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-dark flex items-center">
+                <button
+                    onClick={() => {
+                        if (!can('crear')) {
+                            console.warn('🚫 PACIENTES: Creación denegada', {
+                                role: currentUserRole || 'Asistente',
+                                overrides: currentUserOverrides['PACIENTES'] || {}
+                            });
+                            return;
+                        }
+                        setEditingPatient(null);
+                        setIsModalOpen(true);
+                    }}
+                    className={`${!can('crear') ? 'bg-indigo-300 cursor-not-allowed' : 'bg-primary hover:bg-primary-dark'} text-white px-4 py-2 rounded-md flex items-center`}
+                    disabled={!can('crear')}
+                    title={can('crear') ? 'Registrar Nuevo Paciente' : 'No autorizado'}
+                >
                     <UserPlus size={20} className="mr-2" />
                     Registrar Nuevo Paciente
                 </button>

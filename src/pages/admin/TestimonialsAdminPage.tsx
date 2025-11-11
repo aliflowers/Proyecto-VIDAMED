@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/services/supabaseClient';
+import { logAudit } from '@/services/audit';
 import { Testimonial } from '@/types';
 import { Loader, Check, X, Trash2, Star } from 'lucide-react';
 import TestimonialViewer from '@/components/admin/TestimonialViewer';
@@ -40,10 +41,27 @@ const TestimonialsAdminPage: React.FC = () => {
     };
 
     const handleApprove = async (id: number, currentStatus: boolean) => {
+        const newStatus = !currentStatus;
         const { error } = await supabase
             .from('testimonios')
-            .update({ is_approved: !currentStatus })
+            .update({ is_approved: newStatus })
             .eq('id', id);
+
+        const t = testimonials.find(t => t.id === id);
+        await logAudit({
+            action: newStatus ? 'Aprobar' : 'Rechazar',
+            module: 'TESTIMONIOS',
+            entity: 'testimonio',
+            entityId: id,
+            metadata: {
+                autor: t?.author,
+                rating: t?.rating,
+                estudio_realizado: t?.estudio_realizado,
+                estado_anterior: currentStatus,
+                estado_nuevo: newStatus,
+            },
+            success: !error,
+        });
 
         if (error) alert(error.message);
         else fetchTestimonials();
@@ -51,7 +69,20 @@ const TestimonialsAdminPage: React.FC = () => {
 
     const handleDelete = async (id: number) => {
         if (window.confirm('¿Estás seguro de que quieres eliminar este testimonio?')) {
+            const t = testimonials.find(t => t.id === id);
             const { error } = await supabase.from('testimonios').delete().eq('id', id);
+            await logAudit({
+                action: 'Eliminar',
+                module: 'TESTIMONIOS',
+                entity: 'testimonio',
+                entityId: id,
+                metadata: {
+                    autor: t?.author,
+                    rating: t?.rating,
+                    estudio_realizado: t?.estudio_realizado,
+                },
+                success: !error,
+            });
             if (error) alert(error.message);
             else fetchTestimonials();
         }
