@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { bedrockChat } from './bedrock.js';
+import { DEFAULT_BEDROCK_MODEL } from './config.js';
 
 /**
  * Vercel Serverless Function: /api/generate-blog-post
@@ -52,7 +53,7 @@ export default async function handler(req: Request, res: Response) {
       `- No incluyas comentarios, explicaciones adicionales, ni bloques de código triple.\n`;
 
     const genResult = await bedrockChat({
-      model: process.env.BEDROCK_DEFAULT_MODEL || 'amazon.nova-micro-v1:0',
+      model: DEFAULT_BEDROCK_MODEL,
       messages: [{ role: 'system', content: 'Eres un generador de artículos para el Blog del Laboratorio Clínico VidaMed.' }, { role: 'user', content: prompt }],
       temperature: 0.2,
       top_p: 0.9,

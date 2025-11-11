@@ -33,7 +33,7 @@ export async function bedrockChat(options: {
   }
 
   const baseUrl = options.baseUrl || process.env.BEDROCK_OPENAI_BASE_URL || 'https://bedrock-runtime.us-west-2.amazonaws.com/openai/v1';
-  const model = options.model || process.env.BEDROCK_DEFAULT_MODEL || 'openai.gpt-oss-120b-1:0';
+  const model = options.model || process.env.BEDROCK_DEFAULT_MODEL || 'amazon.nova-micro-v1:0';
 
   const body: Record<string, any> = {
     model,

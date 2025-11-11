@@ -317,7 +317,12 @@ app.delete('/api/availability/block', async (req: Request, res: Response) => {
 // Blog post generator (dev mirror)
 app.post('/api/generate-blog-post', async (req: Request, res: Response) => {
   try {
-    const BEDROCK_MODEL = process.env.BEDROCK_DEFAULT_MODEL || DEFAULT_BEDROCK_MODEL;
+    // Selección robusta del modelo: evita Nova en la API OpenAI-compatible
+    const candidateModel = process.env.BEDROCK_DEFAULT_MODEL || DEFAULT_BEDROCK_MODEL;
+    const BEDROCK_MODEL = /^amazon\.nova/.test(String(candidateModel))
+      ? DEFAULT_BEDROCK_MODEL
+      : candidateModel;
+
     if (!process.env.AWS_BEARER_TOKEN_BEDROCK) {
       return res.status(500).json({ error: 'AWS_BEARER_TOKEN_BEDROCK no configurado en entorno de desarrollo.' });
     }
