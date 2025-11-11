@@ -21,6 +21,7 @@ import { sendAppointmentConfirmationEmail } from './notify/appointment-email.js'
 import { bedrockChat } from './bedrock.js';
 import { DEFAULT_BEDROCK_MODEL } from './config.js';
 import { createClient } from '@supabase/supabase-js';
+import { logServerAudit } from './_utils/audit.js';
 
 // Configuración Supabase admin (para consultar y bloquear horarios)
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -265,8 +266,38 @@ app.get('/api/availability/slots', async (req: Request, res: Response) => {
     const unavailableSet = new Set<string>([...blockedSlotSet, ...bookedSet]);
     const available = isDayBlocked ? [] : allSlots.filter(s => !unavailableSet.has(s));
     res.status(200).json({ date, location, isDayBlocked, available, unavailable: Array.from(unavailableSet) });
+
+    // Auditoría: lectura de slots
+    try {
+      const userIdHeader = (req.headers['x-user-id'] || req.headers['x_user_id'] || '') as string;
+      const emailHeader = (req.headers['x-user-email'] || req.headers['x_user_email'] || '') as string;
+      const excluded = ['anamariaprieto@labvidamed.com', 'alijesusflores@gmail.com'];
+      const shouldLog = Boolean(userIdHeader || emailHeader) && !excluded.includes(String(emailHeader).toLowerCase());
+      if (shouldLog) {
+        await logServerAudit({
+          req,
+          action: 'Leer slots disponibles',
+          module: 'Citas',
+          entity: 'horarios',
+          entityId: null,
+          metadata: { date, location, isDayBlocked, available_count: available.length },
+          success: true,
+        });
+      }
+    } catch {}
   } catch (e: any) {
     console.error('[dev-api] Error en /api/availability/slots:', e);
+    try {
+      await logServerAudit({
+        req,
+        action: 'Leer slots disponibles',
+        module: 'Citas',
+        entity: 'horarios',
+        entityId: null,
+        metadata: { date: String(req.query.date || ''), location: String(req.query.location || ''), error: e?.message || String(e) },
+        success: false,
+      });
+    } catch {}
     res.status(500).json({ error: e.message || 'Error interno' });
   }
 });
@@ -285,8 +316,38 @@ app.post('/api/availability/block', async (req: Request, res: Response) => {
       .insert({ fecha: date, hora: slot, ubicacion: loc, motivo: motivo || null });
     if (error) throw error;
     res.status(200).json({ ok: true });
+
+    // Auditoría: bloquear horario
+    try {
+      const userIdHeader = (req.headers['x-user-id'] || req.headers['x_user_id'] || '') as string;
+      const emailHeader = (req.headers['x-user-email'] || req.headers['x_user_email'] || '') as string;
+      const excluded = ['anamariaprieto@labvidamed.com', 'alijesusflores@gmail.com'];
+      const shouldLog = Boolean(userIdHeader || emailHeader) && !excluded.includes(String(emailHeader).toLowerCase());
+      if (shouldLog) {
+        await logServerAudit({
+          req,
+          action: 'Bloquear horario',
+          module: 'Citas',
+          entity: 'disponibilidad_horarios',
+          entityId: null,
+          metadata: { fecha: date, slot, ubicacion: loc, motivo: motivo || null },
+          success: true,
+        });
+      }
+    } catch {}
   } catch (e: any) {
     console.error('[dev-api] Error en /api/availability/block:', e);
+    try {
+      await logServerAudit({
+        req,
+        action: 'Bloquear horario',
+        module: 'Citas',
+        entity: 'disponibilidad_horarios',
+        entityId: null,
+        metadata: { fecha: req.body?.date, slot: req.body?.slot, ubicacion: req.body?.location, error: e?.message || String(e) },
+        success: false,
+      });
+    } catch {}
     res.status(500).json({ ok: false, error: e.message || 'Error interno' });
   }
 });
@@ -308,8 +369,38 @@ app.delete('/api/availability/block', async (req: Request, res: Response) => {
       .eq('ubicacion', loc);
     if (error) throw error;
     res.status(200).json({ ok: true });
+
+    // Auditoría: desbloquear horario
+    try {
+      const userIdHeader = (req.headers['x-user-id'] || req.headers['x_user_id'] || '') as string;
+      const emailHeader = (req.headers['x-user-email'] || req.headers['x_user_email'] || '') as string;
+      const excluded = ['anamariaprieto@labvidamed.com', 'alijesusflores@gmail.com'];
+      const shouldLog = Boolean(userIdHeader || emailHeader) && !excluded.includes(String(emailHeader).toLowerCase());
+      if (shouldLog) {
+        await logServerAudit({
+          req,
+          action: 'Desbloquear horario',
+          module: 'Citas',
+          entity: 'disponibilidad_horarios',
+          entityId: null,
+          metadata: { fecha: date, slot, ubicacion: loc },
+          success: true,
+        });
+      }
+    } catch {}
   } catch (e: any) {
     console.error('[dev-api] Error en DELETE /api/availability/block:', e);
+    try {
+      await logServerAudit({
+        req,
+        action: 'Desbloquear horario',
+        module: 'Citas',
+        entity: 'disponibilidad_horarios',
+        entityId: null,
+        metadata: { fecha: req.body?.date, slot: req.body?.slot, ubicacion: req.body?.location, error: e?.message || String(e) },
+        success: false,
+      });
+    } catch {}
     res.status(500).json({ ok: false, error: e.message || 'Error interno' });
   }
 });
@@ -391,10 +482,32 @@ app.post('/api/generate-blog-post', async (req: Request, res: Response) => {
       meta_descripcion: typeof parsed.meta_descripcion === 'string' ? parsed.meta_descripcion.trim() : '',
       keywords: typeof parsed.keywords === 'string' ? parsed.keywords : [topic, 'salud', 'laboratorio clínico'].concat(safeCategories).join(', '),
     };
+    try {
+      await logServerAudit({
+        req,
+        action: 'Generar contenido blog',
+        module: 'Blog',
+        entity: 'publicaciones_blog',
+        entityId: null,
+        metadata: { topic, postType: type, categories: safeCategories, tone: style, targetAudience: audience },
+        success: true,
+      });
+    } catch {}
 
     return res.status(200).json(responsePayload);
   } catch (err: any) {
     console.error('[dev-api] Error en /api/generate-blog-post:', err);
+    try {
+      await logServerAudit({
+        req,
+        action: 'Generar contenido blog',
+        module: 'Blog',
+        entity: 'publicaciones_blog',
+        entityId: null,
+        metadata: { topic: req.body?.topic, error: err?.message || String(err) },
+        success: false,
+      });
+    } catch {}
     if (!res.headersSent) res.status(500).json({ error: 'Error generando el artículo con IA.', details: err.message });
   }
 });

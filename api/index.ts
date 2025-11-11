@@ -6,6 +6,7 @@ import { bedrockChat, BedrockMessage, BedrockTool } from './bedrock.js';
 import { nextDay, format, isFuture, parseISO } from 'date-fns';
 import path from 'path';
 import notifyWhatsappHandler from './notify/whatsapp.js';
+import { logServerAudit } from './_utils/audit.js';
 import notifyEmailHandler from './notify/email.js';
 import { sendAppointmentConfirmationEmail, sendAppointmentReminderEmail } from './notify/appointment-email.js';
 // Eliminado: nodemailer ya no es necesario para recuperación de contraseña
@@ -783,9 +784,32 @@ Instrucciones estrictas:
           keywords: typeof parsed.keywords === 'string' ? parsed.keywords : [topic, 'salud', 'laboratorio clínico'].concat(safeCategories).join(', '),
         };
 
+        try {
+          await logServerAudit({
+            req,
+            action: 'Generar contenido blog',
+            module: 'Blog',
+            entity: 'publicaciones_blog',
+            entityId: null,
+            metadata: { topic, postType: type, categories: safeCategories, tone: style, targetAudience: audience },
+            success: true,
+          });
+        } catch {}
+
         return res.status(200).json(responsePayload);
       } catch (error: any) {
         console.error('Error en /api/generate-blog-post:', error);
+        try {
+          await logServerAudit({
+            req,
+            action: 'Generar contenido blog',
+            module: 'Blog',
+            entity: 'publicaciones_blog',
+            entityId: null,
+            metadata: { topic: req.body?.topic, error: error?.message || String(error) },
+            success: false,
+          });
+        } catch {}
         return res.status(500).json({ error: 'Error generando el artículo con IA.', details: error.message });
       }
     });

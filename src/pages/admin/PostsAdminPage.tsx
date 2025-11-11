@@ -55,6 +55,16 @@ const PostsAdminPage: React.FC = () => {
             const fileName = `${Date.now()}_${cleanFileName}`;
             const { error: uploadError } = await supabase.storage.from('blog-images').upload(fileName, file);
             if (uploadError) {
+                try {
+                    await logAudit({
+                        action: 'Actualizar',
+                        module: 'Blog',
+                        entity: 'publicaciones_blog',
+                        entityId: ('id' in postData && postData.id) ? postData.id : null,
+                        metadata: { fileName },
+                        success: false,
+                    });
+                } catch {}
                 alert(`Error subiendo la imagen: ${uploadError.message}`);
                 setIsLoading(false);
                 return;
@@ -96,14 +106,18 @@ const PostsAdminPage: React.FC = () => {
             } catch {}
         } else {
             // Create
-            const { error: createError } = await supabase.from('publicaciones_blog').insert([dataToSave]);
+            const { data: createdRows, error: createError } = await supabase
+                .from('publicaciones_blog')
+                .insert([dataToSave])
+                .select('id');
+            const newId = Array.isArray(createdRows) && createdRows.length > 0 ? createdRows[0]?.id ?? null : null;
             error = createError;
             try {
                 await logAudit({
                     action: 'Crear',
                     module: 'Blog',
                     entity: 'publicaciones_blog',
-                    entityId: null,
+                    entityId: newId,
                     metadata: { slug: dataToSave.slug, titulo: dataToSave.titulo },
                     success: !createError,
                 });

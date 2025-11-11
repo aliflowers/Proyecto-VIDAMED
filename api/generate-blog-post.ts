@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { bedrockChat } from './bedrock.js';
 import { DEFAULT_BEDROCK_MODEL } from './config.js';
+import { logServerAudit } from './_utils/audit.js';
 
 /**
  * Vercel Serverless Function: /api/generate-blog-post
@@ -83,10 +84,32 @@ export default async function handler(req: Request, res: Response) {
       meta_descripcion: typeof parsed.meta_descripcion === 'string' ? parsed.meta_descripcion.trim() : '',
       keywords: typeof parsed.keywords === 'string' ? parsed.keywords : [topic, 'salud', 'laboratorio clínico'].concat(safeCategories).join(', '),
     };
+    try {
+      await logServerAudit({
+        req,
+        action: 'Generar contenido blog',
+        module: 'Blog',
+        entity: 'publicaciones_blog',
+        entityId: null,
+        metadata: { topic, postType: type, categories: safeCategories, tone: style, targetAudience: audience },
+        success: true,
+      });
+    } catch {}
 
     return res.status(200).json(responsePayload);
   } catch (err: any) {
     console.error('[api] Error en /api/generate-blog-post:', err);
+    try {
+      await logServerAudit({
+        req,
+        action: 'Generar contenido blog',
+        module: 'Blog',
+        entity: 'publicaciones_blog',
+        entityId: null,
+        metadata: { topic: (typeof req.body === 'string' ? JSON.parse(req.body)?.topic : req.body?.topic), error: err?.message || String(err) },
+        success: false,
+      });
+    } catch {}
     return res.status(500).json({ error: 'Error generando el artículo con IA.', details: err?.message || 'Error interno' });
   }
 }

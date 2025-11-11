@@ -8,6 +8,7 @@ import { format, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { hasPermission, normalizeRole } from '@/utils/permissions';
 import { logAudit } from '@/services/audit';
+import { apiFetch } from '@/services/apiFetch';
 
 const RescheduleModal: React.FC<{ appointment: Appointment, onSave: (id: number, newDate: string) => void, onCancel: () => void }> = ({ appointment, onSave, onCancel }) => {
     const [newDateTime, setNewDateTime] = useState(appointment.fecha_cita.substring(0, 16));
@@ -292,7 +293,7 @@ const AppointmentsAdminPage: React.FC = () => {
             const date = format(dateObj, 'yyyy-MM-dd');
             const location = getLocationForAvailability();
             const url = `/api/availability/slots?date=${encodeURIComponent(date)}&location=${encodeURIComponent(location)}`;
-            const res = await fetch(url);
+            const res = await apiFetch(url);
             if (!res.ok) throw new Error(`Error consultando horarios: ${res.status}`);
             const json = await res.json();
             setAvailableSlots(Array.isArray(json.available) ? json.available : []);
@@ -326,16 +327,18 @@ const AppointmentsAdminPage: React.FC = () => {
             const isCurrentlyAvailable = availableSlots.includes(slot);
             const endpoint = '/api/availability/block';
             const options: RequestInit = {
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                },
                 body: JSON.stringify({ date, slot, location }),
             };
             let res: Response;
             if (isCurrentlyAvailable) {
                 // Bloquear horario
-                res = await fetch(endpoint, { ...options, method: 'POST' });
+                res = await apiFetch(endpoint, { ...options, method: 'POST' });
             } else {
                 // Desbloquear horario
-                res = await fetch(endpoint, { ...options, method: 'DELETE' });
+                res = await apiFetch(endpoint, { ...options, method: 'DELETE' });
             }
             if (!res.ok) {
                 const text = await res.text();
