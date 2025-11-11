@@ -5,6 +5,7 @@ import { Sparkles } from 'lucide-react';
 import BlogAiGeneratorModal from './BlogAiGeneratorModal';
 import { BlogPost } from '@/types';
 import showdown from 'showdown';
+import { apiFetch } from '@/services/apiFetch';
 
 interface PostFormProps {
     post?: BlogPost | null;
@@ -63,7 +64,7 @@ const PostForm: React.FC<PostFormProps> = ({ post, onSave, onCancel, isLoading }
     const handleGenerateAiPost = async (params: any) => {
         setIsGenerating(true);
         try {
-            const response = await fetch('/api/generate-blog-post', {
+            const response = await apiFetch('/api/generate-blog-post', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(params),

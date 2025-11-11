@@ -10,6 +10,7 @@ import ResultViewer from '@/components/admin/ResultViewer';
 import InterpretationModal from '@/components/admin/InterpretationModal';
 import { hasPermission, normalizeRole } from '@/utils/permissions';
 import { logAudit } from '@/services/audit';
+import { apiFetch } from '@/services/apiFetch';
 
 import PatientSelectorModal, { Patient } from '@/components/admin/PatientSelectorModal';
 import UnifiedEntryModal from '@/components/admin/UnifiedEntryModal';
@@ -133,7 +134,7 @@ const ResultsPage: React.FC = () => {
         console.log('✅ Rol efectivo establecido:', effectiveRole);
 
         // Cargar overrides granulares del usuario
-        const resp = await fetch(`${API_BASE}/users/${userId}/permissions`);
+        const resp = await apiFetch(`${API_BASE}/users/${userId}/permissions`);
         if (resp.ok) {
           const json = await resp.json();
           const overrides: Record<string, Record<string, boolean>> = {};
@@ -535,7 +536,7 @@ const ResultsPage: React.FC = () => {
     try {
       const apiUrl = '/api/interpretar';
       console.log(`📡 Realizando fetch a ${apiUrl} con result_id: ${result.id}`);
-      const response = await fetch(apiUrl, {
+      const response = await apiFetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ result_id: result.id }),
@@ -664,7 +665,7 @@ const ResultsPage: React.FC = () => {
     setInterpretationGenerating(true);
     try {
       const apiUrl = '/api/interpretar';
-      const response = await fetch(apiUrl, {
+      const response = await apiFetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ result_id: target.id }),

@@ -5,6 +5,7 @@ import { Study } from '@/types';
 import { Loader, Plus, Edit, Trash2, Search, ArrowUp, ArrowDown, ArrowUpDown, Save, Trash } from 'lucide-react';
 import StudyForm from '@/components/admin/StudyForm';
 import { hasPermission, normalizeRole } from '@/utils/permissions';
+import { apiFetch } from '@/services/apiFetch';
 
 type SortOption = 'nombre' | 'costo_usd' | 'veces_realizado';
 
@@ -158,7 +159,7 @@ const StudiesAdminPage: React.FC = () => {
                 // Overrides
                 if (API_BASE) {
                     try {
-                        const resp = await fetch(`${API_BASE}/users/${userId}/permissions`);
+                        const resp = await apiFetch(`${API_BASE}/users/${userId}/permissions`);
                         if (resp.ok) {
                             const json = await resp.json();
                             const overrides: Record<string, Record<string, boolean>> = {};

@@ -7,6 +7,7 @@ import { Patient } from '@/types';
 import { useStatistics } from '@/context/StatisticsContext';
 import { hasPermission, normalizeRole } from '@/utils/permissions';
 import { logAudit } from '@/services/audit';
+import { apiFetch } from '@/services/apiFetch';
 
 const PatientsAdminPage: React.FC = () => {
     const [allPatients, setAllPatients] = useState<Patient[]>([]);
@@ -63,7 +64,7 @@ const PatientsAdminPage: React.FC = () => {
                 console.log('• effective_role:', effectiveRole);
                 // Overrides
                 try {
-                    const resp = await fetch(`${API_BASE}/users/${userId}/permissions`);
+                    const resp = await apiFetch(`${API_BASE}/users/${userId}/permissions`);
                     if (resp.ok) {
                         const json = await resp.json();
                         const overrides: Record<string, Record<string, boolean>> = {};

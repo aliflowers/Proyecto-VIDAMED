@@ -104,7 +104,7 @@ const AppointmentsAdminPage: React.FC = () => {
                 setCurrentUserRole(effectiveRole);
                 if (API_BASE) {
                     try {
-                        const resp = await fetch(`${API_BASE}/users/${userId}/permissions`);
+                        const resp = await apiFetch(`${API_BASE}/users/${userId}/permissions`);
                         if (resp.ok) {
                             const json = await resp.json();
                             const overrides: Record<string, Record<string, boolean>> = {};

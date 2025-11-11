@@ -5,6 +5,7 @@ import { formatDate } from '@/utils/formatters';
 import { supabase } from '@/services/supabaseClient';
 import { toast } from 'react-toastify';
 import { logAudit } from '@/services/audit';
+import { apiFetch } from '@/services/apiFetch';
 
 interface GlobalResult {
   id: number;
@@ -78,7 +79,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   const notifyWhatsapp = async (resultId: number) => {
     setSendingWhatsappId(resultId);
     try {
-      const resp = await fetch('/api/notify/whatsapp', {
+      const resp = await apiFetch('/api/notify/whatsapp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ result_id: resultId }),
@@ -126,7 +127,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   const notifyEmail = async (resultId: number) => {
     setSendingEmailId(resultId);
     try {
-      const resp = await fetch('/api/notify/email', {
+      const resp = await apiFetch('/api/notify/email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ result_id: resultId }),
