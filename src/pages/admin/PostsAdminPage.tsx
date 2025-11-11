@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/services/supabaseClient';
+import { logAudit } from '@/services/audit';
 import { BlogPost } from '@/types';
 import { Loader, Plus, Edit, Trash2 } from 'lucide-react';
 import PostForm from '@/components/admin/PostForm';
@@ -83,10 +84,30 @@ const PostsAdminPage: React.FC = () => {
             // Update
             const { error: updateError } = await supabase.from('publicaciones_blog').update(dataToSave).eq('id', postData.id);
             error = updateError;
+            try {
+                await logAudit({
+                    action: 'Actualizar',
+                    module: 'Blog',
+                    entity: 'publicaciones_blog',
+                    entityId: postData.id,
+                    metadata: { slug: dataToSave.slug, titulo: dataToSave.titulo },
+                    success: !updateError,
+                });
+            } catch {}
         } else {
             // Create
             const { error: createError } = await supabase.from('publicaciones_blog').insert([dataToSave]);
             error = createError;
+            try {
+                await logAudit({
+                    action: 'Crear',
+                    module: 'Blog',
+                    entity: 'publicaciones_blog',
+                    entityId: null,
+                    metadata: { slug: dataToSave.slug, titulo: dataToSave.titulo },
+                    success: !createError,
+                });
+            } catch {}
         }
 
         if (error) {
@@ -104,6 +125,16 @@ const PostsAdminPage: React.FC = () => {
         if (window.confirm('¿Estás seguro de que quieres eliminar esta publicación?')) {
             setIsLoading(true);
             const { error } = await supabase.from('publicaciones_blog').delete().eq('id', postId);
+            try {
+                await logAudit({
+                    action: 'Eliminar',
+                    module: 'Blog',
+                    entity: 'publicaciones_blog',
+                    entityId: postId,
+                    metadata: null,
+                    success: !error,
+                });
+            } catch {}
             if (error) {
                 console.error('Error deleting post:', error);
                 alert(error.message);
