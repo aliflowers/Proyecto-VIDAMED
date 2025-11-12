@@ -22,6 +22,7 @@ import { bedrockChat } from './bedrock.js';
 import { DEFAULT_BEDROCK_MODEL } from './config.js';
 import { createClient } from '@supabase/supabase-js';
 import { logServerAudit } from './_utils/audit.js';
+import { normalizeModuleName, normalizeActionName, maybeRemapModuleForAction } from './_utils/permissions.js';
 
 // Configuración Supabase admin (para consultar y bloquear horarios)
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -558,12 +559,16 @@ app.post('/api/users', async (req: Request, res: Response) => {
     if (profErr) throw profErr;
 
     if (Array.isArray(permissions) && permissions.length > 0) {
-      const toInsert = permissions.map((p: any) => ({
-        user_id: userId,
-        module: String(p.module),
-        action: String(p.action),
-        allowed: Boolean(p.allowed),
-      }));
+      const toInsert = permissions.map((p: any) => {
+        const actNorm = normalizeActionName(p.action);
+        const modNorm = maybeRemapModuleForAction(normalizeModuleName(p.module), actNorm);
+        return {
+          user_id: userId,
+          module: modNorm,
+          action: actNorm,
+          allowed: Boolean(p.allowed),
+        };
+      });
       const { error: permErr } = await supabaseAdmin.from('user_permissions').insert(toInsert);
       if (permErr) throw permErr;
     }
@@ -629,12 +634,16 @@ app.put('/api/users/:id', async (req: Request, res: Response) => {
         .eq('user_id', userId);
       if (delErr) throw delErr;
       if (permissions.length > 0) {
-        const toInsert = permissions.map((p: any) => ({
-          user_id: userId,
-          module: String(p.module),
-          action: String(p.action),
-          allowed: Boolean(p.allowed),
-        }));
+        const toInsert = permissions.map((p: any) => {
+          const actNorm = normalizeActionName(p.action);
+          const modNorm = maybeRemapModuleForAction(normalizeModuleName(p.module), actNorm);
+          return {
+            user_id: userId,
+            module: modNorm,
+            action: actNorm,
+            allowed: Boolean(p.allowed),
+          };
+        });
         const { error: permErr } = await supabaseAdmin.from('user_permissions').insert(toInsert);
         if (permErr) throw permErr;
       }
@@ -674,7 +683,14 @@ app.get('/api/users/:id/permissions', async (req: Request, res: Response) => {
       .select('module, action, allowed')
       .eq('user_id', userId);
     if (error) throw error;
-    res.status(200).json({ permissions: data || [] });
+
+    const permissions = (data || []).map((p: any) => {
+      const actNorm = normalizeActionName(p.action);
+      const modNorm = maybeRemapModuleForAction(normalizeModuleName(p.module), actNorm);
+      return { module: modNorm, action: actNorm, allowed: Boolean(p.allowed) };
+    });
+
+    res.status(200).json({ permissions });
   } catch (e: any) {
     console.error('[dev-api] Error en GET /api/users/:id/permissions:', e);
     res.status(500).json({ error: e.message || 'Error interno' });
@@ -695,12 +711,16 @@ app.put('/api/users/:id/permissions', async (req: Request, res: Response) => {
       .eq('user_id', userId);
     if (delErr) throw delErr;
     if (permissions.length > 0) {
-      const toInsert = permissions.map((p: any) => ({
-        user_id: userId,
-        module: String(p.module),
-        action: String(p.action),
-        allowed: Boolean(p.allowed),
-      }));
+      const toInsert = permissions.map((p: any) => {
+        const actNorm = normalizeActionName(p.action);
+        const modNorm = maybeRemapModuleForAction(normalizeModuleName(p.module), actNorm);
+        return {
+          user_id: userId,
+          module: modNorm,
+          action: actNorm,
+          allowed: Boolean(p.allowed),
+        };
+      });
       const { error: permErr } = await supabaseAdmin.from('user_permissions').insert(toInsert);
       if (permErr) throw permErr;
     }

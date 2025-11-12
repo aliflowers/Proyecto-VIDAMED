@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/services/supabaseClient';
 import { logAudit } from '@/services/audit';
-import { hasPermission, normalizeRole } from '@/utils/permissions';
+import { hasPermission, normalizeRole, normalizeModuleName, normalizeActionName } from '@/utils/permissions';
+import { apiFetch } from '@/services/apiFetch';
 
 type Rol = 'Administrador' | 'Lic.' | 'Asistente';
 type Sede = 'Sede Principal Maracay' | 'Sede La Colonia Tovar';
@@ -29,6 +30,9 @@ const MODULES: Record<string, string[]> = {
   ESTUDIOS: ['ver', 'crear', 'editar', 'eliminar'],
   SITE_CONFIG: ['ver', 'actualizar_tasa_cambio'],
 };
+
+const OWNER_EMAILS = ['anamariaprieto@labvidamed.com', 'alijesusflores@gmail.com'];
+const isProtectedEmail = (email?: string) => OWNER_EMAILS.includes(String(email || '').toLowerCase());
 
 function getDefaultAllowed(rol: Rol, module: string, action: string): boolean {
   // Administrador: todo permitido
@@ -92,6 +96,7 @@ const UsersManagementPage: React.FC = () => {
   // Usuario actual (quien está usando este módulo)
   const [currentUserRole, setCurrentUserRole] = useState<Rol | null>(null);
   const [currentUserOverrides, setCurrentUserOverrides] = useState<Record<string, Record<string, boolean>>>({});
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
 
   // Formulario de creación
   const [form, setForm] = useState({
@@ -106,6 +111,19 @@ const UsersManagementPage: React.FC = () => {
 
   const [selectedUser, setSelectedUser] = useState<Usuario | null>(null);
   const [permOverrides, setPermOverrides] = useState<Record<string, Record<string, boolean>>>({});
+  const effectiveMatrix: Record<string, Record<string, boolean>> = useMemo(() => {
+    const matrix: Record<string, Record<string, boolean>> = {};
+    const rol: Rol = selectedUser?.rol || 'Asistente';
+    for (const mod of Object.keys(MODULES)) {
+      matrix[mod] = {};
+      for (const action of MODULES[mod]) {
+        const def = getDefaultAllowed(rol, mod, action);
+        const override = permOverrides[mod]?.[action];
+        matrix[mod][action] = typeof override === 'boolean' ? override : def;
+      }
+    }
+    return matrix;
+  }, [selectedUser?.rol, permOverrides]);
 
   const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
@@ -123,7 +141,7 @@ const UsersManagementPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const resp = await fetch(`${API_BASE}/users`);
+      const resp = await apiFetch(`${API_BASE}/users`);
       const json = await resp.json();
       if (!resp.ok) throw new Error(json?.error || 'Error al listar usuarios');
       setUsuarios(json.users || []);
@@ -138,17 +156,19 @@ const UsersManagementPage: React.FC = () => {
     fetchUsuarios();
   }, []);
 
-  // Cargar rol y overrides del usuario actual para aplicar permisos del módulo
+  // Cargar rol, email y overrides del usuario actual para aplicar permisos del módulo
   useEffect(() => {
     (async () => {
       try {
         const { data: auth } = await supabase.auth.getUser();
         const uid = auth?.user?.id || null;
+        const email = (auth?.user?.email || '').toLowerCase() || null;
+        setCurrentUserEmail(email);
+
         let role: Rol | null = null;
         if (auth?.user?.user_metadata?.rol) {
           role = String(auth.user.user_metadata.rol) as Rol;
         }
-        // Fuente de verdad: perfil en BD. Si existe, sobreescribe cualquier metadato.
         if (uid) {
           const { data: prof, error: profErr } = await supabase
             .from('user_profiles')
@@ -160,9 +180,8 @@ const UsersManagementPage: React.FC = () => {
         }
         setCurrentUserRole(role);
 
-        // Cargar overrides propios si tenemos uid
         if (uid) {
-          const resp = await fetch(`${API_BASE}/users/${uid}/permissions`);
+          const resp = await apiFetch(`${API_BASE}/users/${uid}/permissions`);
           const json = await resp.json();
           if (resp.ok) {
             const overrides: Record<string, Record<string, boolean>> = {};
@@ -174,12 +193,10 @@ const UsersManagementPage: React.FC = () => {
           }
         }
 
-        // Mensaje informativo si no es admin (comparación con rol normalizado)
         if (role && normalizeRole(String(role)) !== 'Administrador') {
           setInfoMsg('Tu rol no está autorizado para gestionar usuarios. Algunas acciones estarán bloqueadas.');
         }
       } catch (e: any) {
-        // Si no hay sesión o falla, asumimos permisos mínimos
         setCurrentUserRole(null);
         setInfoMsg('Debes iniciar sesión para gestionar usuarios. Acceso limitado.');
       }
@@ -194,14 +211,25 @@ const UsersManagementPage: React.FC = () => {
       return;
     }
     try {
-      const resp = await fetch(`${API_BASE}/users`, {
+      const resp = await apiFetch(`${API_BASE}/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form }),
       });
       const json = await resp.json();
       if (!resp.ok) throw new Error(json?.error || 'Error al crear usuario');
-      await logAudit({ action: 'Crear', module: 'Gestión de Usuarios', entity: 'users', entityId: (json?.user?.id ?? null), metadata: { email: form.email, rol: form.rol, sede: form.sede } });
+
+      // Audit con entityId corregido (user_id retornado por backend)
+      if (!isProtectedEmail(currentUserEmail || undefined)) {
+        await logAudit({
+          action: 'Crear',
+          module: 'Gestión de Usuarios',
+          entity: 'users',
+          entityId: json?.user_id ?? null,
+          metadata: { email: form.email, rol: form.rol, sede: form.sede },
+        });
+      }
+
       setForm({ nombre: '', apellido: '', cedula: '', email: '', password: '', sede: 'Sede Principal Maracay', rol: 'Asistente' });
       await fetchUsuarios();
     } catch (e: any) {
@@ -214,13 +242,21 @@ const UsersManagementPage: React.FC = () => {
       setError('No está autorizado para eliminar usuarios.');
       return;
     }
+    if (isProtectedEmail(u.email)) {
+      setError('No está autorizado para eliminar usuarios propietarios de la plataforma.');
+      return;
+    }
     if (!window.confirm(`¿Eliminar usuario ${u.email}? Esta acción es permanente.`)) return;
     setError(null);
     try {
-      const resp = await fetch(`${API_BASE}/users/${u.user_id}`, { method: 'DELETE' });
+      const resp = await apiFetch(`${API_BASE}/users/${u.user_id}`, { method: 'DELETE' });
       const json = await resp.json();
       if (!resp.ok) throw new Error(json?.error || 'Error al eliminar usuario');
-      await logAudit({ action: 'Eliminar', module: 'Gestión de Usuarios', entity: 'users', entityId: u.user_id, metadata: { email: u.email } });
+
+      if (!isProtectedEmail(currentUserEmail || undefined)) {
+        await logAudit({ action: 'Eliminar', module: 'Gestión de Usuarios', entity: 'users', entityId: u.user_id, metadata: { email: u.email } });
+      }
+
       if (selectedUser?.user_id === u.user_id) {
         setSelectedUser(null);
         setPermOverrides({});
@@ -235,7 +271,7 @@ const UsersManagementPage: React.FC = () => {
     setSelectedUser(u);
     setError(null);
     try {
-      const resp = await fetch(`${API_BASE}/users/${u.user_id}/permissions`);
+      const resp = await apiFetch(`${API_BASE}/users/${u.user_id}/permissions`);
       const json = await resp.json();
       if (!resp.ok) throw new Error(json?.error || 'Error al cargar permisos');
       const overrides: Record<string, Record<string, boolean>> = {};
@@ -249,27 +285,11 @@ const UsersManagementPage: React.FC = () => {
     }
   }
 
-  const effectiveMatrix = useMemo(() => {
-    const matrix: Record<string, Record<string, boolean>> = {};
-    if (!selectedUser) return matrix;
-    const rol = selectedUser.rol;
-    for (const mod of Object.keys(MODULES)) {
-      matrix[mod] = {};
-      for (const action of MODULES[mod]) {
-        const def = getDefaultAllowed(rol, mod, action);
-        const ov = permOverrides[mod]?.[action];
-        matrix[mod][action] = typeof ov === 'boolean' ? ov : def;
-      }
-    }
-    return matrix;
-  }, [selectedUser, permOverrides]);
-
-  function togglePermission(module: string, action: string, value: boolean) {
+  function togglePermission(moduleName: string, actionName: string, allowed: boolean) {
     setPermOverrides(prev => {
-      const next = { ...prev };
-      if (!next[module]) next[module] = {};
-      next[module][action] = value;
-      return next;
+      const nextModule = { ...(prev[moduleName] || {}) };
+      nextModule[actionName] = allowed;
+      return { ...prev, [moduleName]: nextModule };
     });
   }
 
@@ -279,7 +299,10 @@ const UsersManagementPage: React.FC = () => {
       setError('No está autorizado para editar permisos de usuarios.');
       return;
     }
-    // Solo enviamos overrides donde el valor difiere del default para el rol
+    if (isProtectedEmail(selectedUser.email)) {
+      setError('No está autorizado para editar permisos de los propietarios de la plataforma.');
+      return;
+    }
     const rol = selectedUser.rol;
     const overridesToSend: PermOverride[] = [];
     for (const mod of Object.keys(MODULES)) {
@@ -287,21 +310,29 @@ const UsersManagementPage: React.FC = () => {
         const def = getDefaultAllowed(rol, mod, action);
         const eff = effectiveMatrix[mod]?.[action] ?? def;
         if (eff !== def) {
-          overridesToSend.push({ module: mod, action, allowed: eff });
+          // Normaliza módulo y acción antes de enviar
+          overridesToSend.push({
+            module: normalizeModuleName(mod),
+            action: normalizeActionName(action),
+            allowed: eff,
+          });
         }
       }
     }
 
     try {
-      const resp = await fetch(`${API_BASE}/users/${selectedUser.user_id}/permissions`, {
+      const resp = await apiFetch(`${API_BASE}/users/${selectedUser.user_id}/permissions`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ permissions: overridesToSend }),
       });
       const json = await resp.json();
       if (!resp.ok) throw new Error(json?.error || 'Error al guardar permisos');
-      await logAudit({ action: 'Editar permisos', module: 'Gestión de Usuarios', entity: 'user_permissions', entityId: selectedUser.user_id, metadata: { overrides_count: overridesToSend.length } });
-      // Refrescar overrides desde servidor por consistencia
+
+      if (!isProtectedEmail(currentUserEmail || undefined)) {
+        await logAudit({ action: 'Editar permisos', module: 'Gestión de Usuarios', entity: 'user_permissions', entityId: selectedUser.user_id, metadata: { overrides_count: overridesToSend.length } });
+      }
+
       await seleccionarUsuario(selectedUser);
       alert('Permisos actualizados');
     } catch (e: any) {
@@ -314,15 +345,23 @@ const UsersManagementPage: React.FC = () => {
       setError('No está autorizado para actualizar perfiles de usuarios.');
       return;
     }
+    if (isProtectedEmail(u.email)) {
+      setError('No está autorizado para editar el perfil/rol de los propietarios de la plataforma.');
+      return;
+    }
     try {
-      const resp = await fetch(`${API_BASE}/users/${u.user_id}`, {
+      const resp = await apiFetch(`${API_BASE}/users/${u.user_id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre: u.nombre, apellido: u.apellido, cedula: u.cedula, email: u.email, sede: u.sede, rol: u.rol }),
       });
       const json = await resp.json();
       if (!resp.ok) throw new Error(json?.error || 'Error al actualizar perfil');
-      await logAudit({ action: 'Actualizar', module: 'Gestión de Usuarios', entity: 'users', entityId: u.user_id, metadata: { rol: u.rol, sede: u.sede } });
+
+      if (!isProtectedEmail(currentUserEmail || undefined)) {
+        await logAudit({ action: 'Actualizar', module: 'Gestión de Usuarios', entity: 'users', entityId: u.user_id, metadata: { rol: u.rol, sede: u.sede } });
+      }
+
       await fetchUsuarios();
       alert('Perfil actualizado');
     } catch (e: any) {
@@ -385,27 +424,27 @@ const UsersManagementPage: React.FC = () => {
             <tbody>
               {usuarios.map(u => (
                 <tr key={u.user_id} className="border-b">
-                  <td className="p-2"><input className="border p-1 rounded w-full" value={u.nombre} disabled={!can('actualizar_perfil')} onChange={e => setUsuarios(prev => prev.map(x => x.user_id === u.user_id ? { ...x, nombre: e.target.value } : x))} /></td>
-                  <td className="p-2"><input className="border p-1 rounded w-full" value={u.apellido} disabled={!can('actualizar_perfil')} onChange={e => setUsuarios(prev => prev.map(x => x.user_id === u.user_id ? { ...x, apellido: e.target.value } : x))} /></td>
-                  <td className="p-2"><input className="border p-1 rounded w-full" value={u.cedula} disabled={!can('actualizar_perfil')} onChange={e => setUsuarios(prev => prev.map(x => x.user_id === u.user_id ? { ...x, cedula: e.target.value } : x))} /></td>
-                  <td className="p-2"><input className="border p-1 rounded w-full" value={u.email} disabled={!can('actualizar_perfil')} onChange={e => setUsuarios(prev => prev.map(x => x.user_id === u.user_id ? { ...x, email: e.target.value } : x))} /></td>
+                  <td className="p-2"><input className="border p-1 rounded w-full" value={u.nombre} disabled={!can('actualizar_perfil') || isProtectedEmail(u.email)} onChange={e => setUsuarios(prev => prev.map(x => x.user_id === u.user_id ? { ...x, nombre: e.target.value } : x))} /></td>
+                  <td className="p-2"><input className="border p-1 rounded w-full" value={u.apellido} disabled={!can('actualizar_perfil') || isProtectedEmail(u.email)} onChange={e => setUsuarios(prev => prev.map(x => x.user_id === u.user_id ? { ...x, apellido: e.target.value } : x))} /></td>
+                  <td className="p-2"><input className="border p-1 rounded w-full" value={u.cedula} disabled={!can('actualizar_perfil') || isProtectedEmail(u.email)} onChange={e => setUsuarios(prev => prev.map(x => x.user_id === u.user_id ? { ...x, cedula: e.target.value } : x))} /></td>
+                  <td className="p-2"><input className="border p-1 rounded w-full" value={u.email} disabled={!can('actualizar_perfil') || isProtectedEmail(u.email)} onChange={e => setUsuarios(prev => prev.map(x => x.user_id === u.user_id ? { ...x, email: e.target.value } : x))} /></td>
                   <td className="p-2">
-                    <select className="border p-1 rounded" value={u.sede} disabled={!can('actualizar_perfil')} onChange={e => setUsuarios(prev => prev.map(x => x.user_id === u.user_id ? { ...x, sede: e.target.value as Sede } : x))}>
+                    <select className="border p-1 rounded" value={u.sede} disabled={!can('actualizar_perfil') || isProtectedEmail(u.email)} onChange={e => setUsuarios(prev => prev.map(x => x.user_id === u.user_id ? { ...x, sede: e.target.value as Sede } : x))}>
                       <option value="Sede Principal Maracay">Sede Principal Maracay</option>
                       <option value="Sede La Colonia Tovar">Sede La Colonia Tovar</option>
                     </select>
                   </td>
                   <td className="p-2">
-                    <select className="border p-1 rounded" value={u.rol} disabled={!can('actualizar_perfil')} onChange={e => setUsuarios(prev => prev.map(x => x.user_id === u.user_id ? { ...x, rol: e.target.value as Rol } : x))}>
+                    <select className="border p-1 rounded" value={u.rol} disabled={!can('actualizar_perfil') || isProtectedEmail(u.email)} onChange={e => setUsuarios(prev => prev.map(x => x.user_id === u.user_id ? { ...x, rol: e.target.value as Rol } : x))}>
                       <option value="Administrador">Administrador</option>
                       <option value="Lic.">Lic.</option>
                       <option value="Asistente">Asistente</option>
                     </select>
                   </td>
                   <td className="p-2 flex gap-2">
-                    <button className="px-2 py-1 bg-emerald-600 text-white rounded disabled:opacity-50" onClick={() => actualizarPerfil(u)} disabled={!can('actualizar_perfil')}>Guardar</button>
+                    <button className="px-2 py-1 bg-emerald-600 text-white rounded disabled:opacity-50" onClick={() => actualizarPerfil(u)} disabled={!can('actualizar_perfil') || isProtectedEmail(u.email)}>Guardar</button>
                     <button className="px-2 py-1 bg-sky-600 text-white rounded disabled:opacity-50" onClick={() => seleccionarUsuario(u)} disabled={!can('editar_permisos')}>Permisos</button>
-                    <button className="px-2 py-1 bg-red-600 text-white rounded disabled:opacity-50" onClick={() => eliminarUsuario(u)} disabled={!can('eliminar_usuario')}>Eliminar</button>
+                    <button className="px-2 py-1 bg-red-600 text-white rounded disabled:opacity-50" onClick={() => eliminarUsuario(u)} disabled={!can('eliminar_usuario') || isProtectedEmail(u.email)}>Eliminar</button>
                   </td>
                 </tr>
               ))}
@@ -419,7 +458,7 @@ const UsersManagementPage: React.FC = () => {
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-medium">Permisos: {selectedUser.email} ({selectedUser.rol})</h2>
             <div className="flex gap-2">
-              <button className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50" onClick={guardarPermisos} disabled={!can('editar_permisos')}>Guardar permisos</button>
+              <button className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50" onClick={guardarPermisos} disabled={!can('editar_permisos') || isProtectedEmail(selectedUser.email)}>Guardar permisos</button>
               <button className="px-3 py-1 border rounded" onClick={() => { setSelectedUser(null); setPermOverrides({}); }}>Cerrar</button>
             </div>
           </div>

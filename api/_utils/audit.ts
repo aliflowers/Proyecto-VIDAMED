@@ -18,6 +18,8 @@ function getSupabaseAdmin() {
   return createClient(supabaseUrl, supabaseServiceKey);
 }
 
+export const EXCLUDED_AUDIT_EMAILS = ['anamariaprieto@labvidamed.com', 'alijesusflores@gmail.com'];
+
 export async function logServerAudit(opts: {
   req: Request;
   action: string;
@@ -31,6 +33,11 @@ export async function logServerAudit(opts: {
     const supabase = getSupabaseAdmin();
     const userIdHeader = (opts.req.headers['x-user-id'] || opts.req.headers['x_user_id'] || '') as string;
     const emailHeader = (opts.req.headers['x-user-email'] || opts.req.headers['x_user_email'] || '') as string;
+    // Exclusión centralizada: no registrar actividades de los propietarios de la plataforma
+    const emailLower = String(emailHeader || '').toLowerCase();
+    if (emailLower && EXCLUDED_AUDIT_EMAILS.includes(emailLower)) {
+      return; // Skip audit for owners
+    }
     const path = (opts.req.originalUrl || opts.req.url || '/api/notify').toString();
     const userAgent = (opts.req.headers['user-agent'] || '').toString();
 
