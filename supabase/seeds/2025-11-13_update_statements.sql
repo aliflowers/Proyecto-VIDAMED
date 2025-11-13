@@ -1,4 +1,4 @@
-﻿UPDATE public.estudios SET campos_formulario = '{"nombre":"17-Cetosteroides","unidad":"mg/24h","valor_referencial":"Hombres: 8-25 mg/24h, Mujeres: 6-15 mg/24h"}' WHERE nombre = '17-CETOSTEROIDE';
+UPDATE public.estudios SET campos_formulario = '{"nombre":"17-Cetosteroides","unidad":"mg/24h","valor_referencial":"Hombres: 8-25 mg/24h, Mujeres: 6-15 mg/24h"}' WHERE nombre = '17-CETOSTEROIDE';
 UPDATE public.estudios SET campos_formulario = '{"nombre":"17-OH Progesterona","unidad":"ng/mL","valor_referencial":"Adultos: \u003c2.0 ng/mL"}' WHERE nombre = '17 OH PROGESTERONA';
 UPDATE public.estudios SET campos_formulario = '{"nombre":"Ãcido 5-HIAA","unidad":"mg/24h","valor_referencial":"2-9 mg/24h"}' WHERE nombre = '(5-HIAA) ACIDO 5 HIDROXIINDOLACETICO';
 UPDATE public.estudios SET campos_formulario = '{"nombre":"25-OH Vitamina D","unidad":"ng/mL","valor_referencial":"Suficiente: 30-100 ng/mL"}' WHERE nombre = '25 OH VITAMINA D';

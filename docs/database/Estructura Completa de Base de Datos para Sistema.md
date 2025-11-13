@@ -257,4 +257,3 @@ Se recomienda usar:
 [^25]: https://clockify.me/es/plantillas-informes-de-gastos
 
 [^26]: https://clickup.com/es-ES/blog/240449/plantillas-excel-para-la-gestion-del-dinero
-
