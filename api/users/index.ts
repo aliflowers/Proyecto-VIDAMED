@@ -1,12 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 import { normalizeModuleName, normalizeActionName, maybeRemapModuleForAction } from '../_utils/permissions.js';
 import { requireAdmin } from '../_utils/auth.js';
+import { handleCors } from '../_utils/cors.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabaseAdmin = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) : null;
 
 export default async function handler(req: any, res: any) {
+  if (handleCors(req, res)) return;
   try {
     if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
     const auth = await requireAdmin(req, res);

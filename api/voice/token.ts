@@ -7,7 +7,10 @@
  * - ELEVENLABS_API_KEY
  * - ELEVENLABS_AGENT_ID (opcional si se pasa ?agentId= en la query)
  */
+import { handleCors } from '../_utils/cors.js';
+
 export default async function handler(req: any, res: any) {
+  if (handleCors(req, res)) return;
   try {
     if (req.method !== 'GET') {
       res.status(405).json({ error: 'Method Not Allowed' });
