@@ -55,7 +55,7 @@ export default async function handler(req: any, res: any) {
 
     const list = Array.isArray(citas) ? (limit ? citas.slice(0, limit) : citas) : [];
 
-    const { sendAppointmentReminderEmail } = await import('../notify/appointment-email.js');
+    const { sendAppointmentReminderEmail } = await import('../notify/_appointment-email.js');
 
     const whatsappToken = getEnv('WHATSAPP_API_TOKEN');
     const whatsappPhoneNumberId = getEnv('WHATSAPP_PHONE_NUMBER_ID');

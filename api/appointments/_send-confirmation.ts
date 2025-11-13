@@ -20,7 +20,7 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ ok: false, error: 'Falta el correo del destinatario (to).' });
     }
 
-    const { sendAppointmentConfirmationEmail } = await import('../notify/appointment-email.js');
+    const { sendAppointmentConfirmationEmail } = await import('../notify/_appointment-email.js');
     const info = await sendAppointmentConfirmationEmail({
       to,
       patientName,

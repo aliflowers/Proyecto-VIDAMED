@@ -11,12 +11,11 @@ dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 import express from 'express';
 import type { Request, Response } from 'express';
 import cors from 'cors';
-import chatHandler from './chat.js';
+import chatHandler from './_chat.js';
 import tokenHandler from './voice/token.js';
-import interpretarHandler from './interpretar.js'; // Importar el nuevo manejador
-import notifyWhatsappHandler from './notify/whatsapp.js';
+import interpretarHandler from './_interpretar.js';
 import notifyEmailHandler from './notify/email.js';
-import { sendAppointmentConfirmationEmail } from './notify/appointment-email.js';
+import { sendAppointmentConfirmationEmail } from './notify/_appointment-email.js';
 // Eliminado: nodemailer no es necesario para recuperación de contraseña en dev
 import { bedrockChat } from './bedrock.js';
 import { DEFAULT_BEDROCK_MODEL } from './config.js';
@@ -89,7 +88,7 @@ app.post('/api/interpretar', async (req: Request, res: Response) => {
 // Notificaciones (dev mirror)
 app.post('/api/notify/whatsapp', async (req: Request, res: Response) => {
   try {
-    await (notifyWhatsappHandler as any)(req, res);
+    res.status(501).json({ error: 'WhatsApp notifications not implemented in dev' });
   } catch (err) {
     console.error('[dev-api] Uncaught error in /api/notify/whatsapp:', err);
     if (!res.headersSent) res.status(500).json({ error: 'Internal error in dev API. Check server logs.' });

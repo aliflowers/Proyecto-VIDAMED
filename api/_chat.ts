@@ -2,7 +2,7 @@ import { bedrockChat, type BedrockTool } from './bedrock.js';
 import { DEFAULT_BEDROCK_MODEL } from './config.js';
 import { createClient } from '@supabase/supabase-js';
 import { nextDay, format, isFuture, parseISO, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
-import { sendAppointmentConfirmationEmail } from './notify/appointment-email.js';
+import { sendAppointmentConfirmationEmail } from './notify/_appointment-email.js';
 
 /**
  * Vercel Serverless Function: /api/chat
