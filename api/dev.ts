@@ -23,6 +23,7 @@ import { DEFAULT_BEDROCK_MODEL } from './config.js';
 import { createClient } from '@supabase/supabase-js';
 import { logServerAudit } from './_utils/audit.js';
 import { normalizeModuleName, normalizeActionName, maybeRemapModuleForAction } from './_utils/permissions.js';
+import { requireAdmin, requireSelfOrAdmin } from './_utils/auth.js';
 
 // Configuración Supabase admin (para consultar y bloquear horarios)
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -306,6 +307,8 @@ app.get('/api/availability/slots', async (req: Request, res: Response) => {
 // POST /api/availability/block { date, slot, location, motivo? }
 app.post('/api/availability/block', async (req: Request, res: Response) => {
   try {
+    const auth = await requireAdmin(req, res)
+    if (!auth) return
     if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
     const { date, slot, location, motivo } = req.body || {};
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) return res.status(400).json({ error: 'Fecha inválida' });
@@ -356,6 +359,8 @@ app.post('/api/availability/block', async (req: Request, res: Response) => {
 // DELETE /api/availability/block { date, slot, location }
 app.delete('/api/availability/block', async (req: Request, res: Response) => {
   try {
+    const auth = await requireAdmin(req, res)
+    if (!auth) return
     if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
     const { date, slot, location } = req.body || {};
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) return res.status(400).json({ error: 'Fecha inválida' });
@@ -520,6 +525,8 @@ app.post('/api/generate-blog-post', async (req: Request, res: Response) => {
 // Listar perfiles de usuarios
 app.get('/api/users', async (_req: Request, res: Response) => {
   try {
+    const auth = await requireAdmin(_req, res)
+    if (!auth) return
     if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
     const { data, error } = await supabaseAdmin
       .from('user_profiles')
@@ -536,6 +543,8 @@ app.get('/api/users', async (_req: Request, res: Response) => {
 // Crear un nuevo usuario (auth + perfil + permisos opcionales)
 app.post('/api/users', async (req: Request, res: Response) => {
   try {
+    const auth = await requireAdmin(req, res)
+    if (!auth) return
     if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
     const { nombre, apellido, cedula, email, password, sede, rol, permissions } = req.body || {};
     if (!nombre || !apellido || !cedula || !email || !password || !sede || !rol) {
@@ -583,6 +592,8 @@ app.post('/api/users', async (req: Request, res: Response) => {
 // Actualizar usuario (auth + perfil); admite reemplazo de permisos
 app.put('/api/users/:id', async (req: Request, res: Response) => {
   try {
+    const auth = await requireAdmin(req, res)
+    if (!auth) return
     if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
     const userId = String(req.params.id);
     const { nombre, apellido, cedula, email, password, sede, rol, permissions } = req.body || {};
@@ -659,6 +670,8 @@ app.put('/api/users/:id', async (req: Request, res: Response) => {
 // Eliminar usuario (auth + cascade DB)
 app.delete('/api/users/:id', async (req: Request, res: Response) => {
   try {
+    const auth = await requireAdmin(req, res)
+    if (!auth) return
     if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
     const userId = String(req.params.id);
     if (!userId) return res.status(400).json({ error: 'Falta id de usuario' });
@@ -676,6 +689,8 @@ app.delete('/api/users/:id', async (req: Request, res: Response) => {
 // Permisos granulares: obtener overrides del usuario
 app.get('/api/users/:id/permissions', async (req: Request, res: Response) => {
   try {
+    const auth = await requireSelfOrAdmin(req, res, String(req.params.id))
+    if (!auth) return
     if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
     const userId = String(req.params.id);
     const { data, error } = await supabaseAdmin
@@ -700,6 +715,8 @@ app.get('/api/users/:id/permissions', async (req: Request, res: Response) => {
 // Permisos granulares: reemplazar overrides del usuario
 app.put('/api/users/:id/permissions', async (req: Request, res: Response) => {
   try {
+    const auth = await requireAdmin(req, res)
+    if (!auth) return
     if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
     const userId = String(req.params.id);
     const { permissions } = req.body || {};

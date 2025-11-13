@@ -1,259 +1,310 @@
-// Utilidades de permisos: tipadas, sin JSX, con exports explícitos
+import { useEffect, useMemo, useState } from 'react'
+import { apiFetch } from '@/services/apiFetch'
+import { PERMISSIONS_SCHEMA } from '@/constants/permissionsSchema'
+import { getDefaultAllowed, normalizeActionName, normalizeModuleName } from '@/utils/permissions'
 
-export type Rol = 'Administrador' | 'Lic.' | 'Asistente';
+type Rol = 'Administrador' | 'Lic.' | 'Asistente'
 
-export type PermissionOverrides = {
-  [modulo: string]: {
-    [accion: string]: boolean;
-  };
-};
-
-export interface HasPermissionUser {
-  role?: string | Rol | null;
-  overrides?: PermissionOverrides | null;
+type UserRow = {
+  user_id: string
+  nombre: string
+  apellido: string
+  cedula: string
+  email: string
+  sede: string
+  rol: Rol | string
 }
 
-/**
- * Normaliza el nombre del módulo recibido desde el frontend o API.
- * - Insensible a mayúsculas/minúsculas
- * - Reemplaza guiones/espacios por guiones bajos
- * - Aplica alias comunes para mantener consistencia con las claves internas
- */
-export function normalizeModuleName(moduloInput: string | null | undefined): string {
-  // Normalización base: minúsculas y reemplazo de espacios/guiones por guion bajo
-  const rawUnderscored = (moduloInput || '').toString().trim().toLowerCase().replace(/[\s-]+/g, '_');
+type PermissionItem = { module: string; action: string; allowed: boolean }
 
-  // Mapa de alias ampliado para cubrir variantes usadas en el frontend
-  const aliases: Record<string, string> = {
-    // Inventario
-    inventario: 'inventario',
-    inventarios: 'inventario',
-    inventory: 'inventario',
-    materiales: 'inventario',
-    // Pacientes
-    pacientes: 'pacientes',
-    paciente: 'pacientes',
-    patients: 'pacientes',
-    // Resultados
-    resultados: 'resultados',
-    resultado: 'resultados',
-    results: 'resultados',
-    // Citas y bloqueos
-    citas: 'citas',
-    cita: 'citas',
-    appointments: 'citas',
-    'citas_admin': 'citas',
-    dias_no_disponibles: 'dias_no_disponibles',
-    diasnodisponibles: 'dias_no_disponibles',
-    bloqueos: 'dias_no_disponibles',
-    // Estudios
-    estudios: 'estudios',
-    studies: 'estudios',
-    // Configuración del sitio
-    site_config: 'site_config',
-    settings: 'site_config',
-    // Blog y testimonios
-    publicaciones_blog: 'publicaciones_blog',
-    blog: 'publicaciones_blog',
-    posts: 'publicaciones_blog',
-    testimonios: 'testimonios',
-    testimonials: 'testimonios'
-  };
+type OverrideMap = Record<string, Record<string, boolean>>
 
-  // Intento directo con versión subrayada
-  if (aliases[rawUnderscored]) return aliases[rawUnderscored];
+export default function UsersManagementPage() {
+  const [users, setUsers] = useState<UserRow[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  // Intento con versión simplificada sin espacios/guiones/guiones bajos
-  const simplified = rawUnderscored.replace(/[_\s-]+/g, '');
-  return aliases[simplified] || rawUnderscored;
-}
+  const [nombre, setNombre] = useState('')
+  const [apellido, setApellido] = useState('')
+  const [cedula, setCedula] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [sede, setSede] = useState('Sede Principal Maracay')
+  const [rol, setRol] = useState<Rol>('Asistente')
+  const [selectedUser, setSelectedUser] = useState<UserRow | null>(null)
+  const [showEdit, setShowEdit] = useState(false)
+  const [showPerms, setShowPerms] = useState(false)
+  const [overrides, setOverrides] = useState<OverrideMap>({})
 
-/**
- * Normaliza nombres de acciones a su forma canónica.
- * Mantiene consistencia entre UI y comprobaciones `can()` en cada módulo.
- */
-export function normalizeActionName(actionInput: string | null | undefined): string {
-  const raw = (actionInput || '').toString().trim().toLowerCase().replace(/[\s-]+/g, '_');
-  const aliases: Record<string, string> = {
-    // Acciones CRUD genéricas
-    crear: 'crear',
-    editar: 'editar',
-    eliminar: 'eliminar',
-    ver: 'ver',
-    imprimir: 'imprimir',
+  const canSubmit = useMemo(() => {
+    return nombre && apellido && cedula && email && password && sede && rol
+  }, [nombre, apellido, cedula, email, password, sede, rol])
 
-    // Resultados
-    enviar: 'enviar_email', // alias genérico mapeado a email
-    enviar_whatsapp: 'enviar_whatsapp',
-    enviar_email: 'enviar_email',
-
-    // Inventario: aliases de UI históricos
-    crear_material: 'crear',
-    editar_material: 'editar',
-    eliminar_material: 'eliminar',
-
-    // Citas: equivalencias
-    gestionar: 'gestionar_disponibilidad',
-    gestionar_disponibilidad: 'gestionar_disponibilidad',
-    bloquear_dias: 'gestionar_disponibilidad',
-    desbloquear_dias: 'gestionar_disponibilidad',
-    reagendar: 'reprogramar',
-    reprogramar: 'reprogramar',
-
-    // Site config / estudios
-    actualizar_tasa_cambio: 'actualizar_tasa_cambio',
-  };
-  return aliases[raw] || raw;
-}
-
-/**
- * Algunas acciones pertenecen conceptualmente a otro módulo (p.ej. tasa de cambio → site_config).
- * Este helper remapea el módulo cuando aplique para que `hasPermission` evalúe correctamente.
- */
-function maybeRemapModuleForAction(moduloNorm: string, accionNorm: string): string {
-  // La acción de actualizar la tasa de cambio vive bajo site_config
-  if (accionNorm === 'actualizar_tasa_cambio' && moduloNorm === 'estudios') {
-    return 'site_config';
-  }
-  return moduloNorm;
-}
-
-// Eliminado duplicado de normalizeModuleName; usar la versión exportada arriba
-
-// Normaliza el objeto de overrides proveniente de API (posibles claves en mayúsculas)
-function normalizeOverrides(overrides: PermissionOverrides | null | undefined): PermissionOverrides | null {
-  if (!overrides) return null;
-  const norm: PermissionOverrides = {};
-  Object.keys(overrides).forEach((mod) => {
-    const modNormBase = normalizeModuleName(mod);
-    const actions = overrides[mod] || {};
-    Object.keys(actions).forEach((act) => {
-      const actNorm = normalizeActionName(act);
-      const modNorm = maybeRemapModuleForAction(modNormBase, actNorm);
-      if (!norm[modNorm]) norm[modNorm] = {};
-      norm[modNorm][actNorm] = Boolean(actions[act]);
-    });
-  });
-  return norm;
-}
-
-// Mapa por defecto alineado con la matriz de permisos de frontend
-const defaultPermissions: Record<Rol, Record<string, Record<string, boolean>>> = {
-  Administrador: new Proxy({}, {
-    get: () => new Proxy({}, { get: () => true })
-  }) as Record<string, Record<string, boolean>>, // Admin: todo permitido
-
-  'Lic.': {
-    // INVENTARIO: ver y eliminar; sin crear ni editar
-    inventario: {
-      ver: true,
-      crear: false,
-      editar: false,
-      eliminar: true,
-    },
-    // RESULTADOS: todo menos eliminar
-    resultados: {
-      ver: true,
-      crear: true,
-      editar: true,
-      eliminar: false,
-      imprimir: true,
-      enviar_whatsapp: true,
-      enviar_email: true,
-    },
-    // PACIENTES: ver, crear y editar
-    pacientes: {
-      ver: true,
-      crear: true,
-      editar: true,
-      eliminar: false,
-    },
-    // CITAS: acceso total a gestión
-    citas: new Proxy({}, { get: () => true }) as Record<string, boolean>,
-    dias_no_disponibles: new Proxy({}, { get: () => true }) as Record<string, boolean>,
-    // ESTUDIOS: ver; site_config: actualizar_tasa_cambio
-    estudios: { ver: true },
-    site_config: { actualizar_tasa_cambio: true, ver: true },
-    // BLOG/TESTIMONIOS: permitido por defecto
-    publicaciones_blog: new Proxy({}, { get: () => true }) as Record<string, boolean>,
-    testimonios: new Proxy({}, { get: () => true }) as Record<string, boolean>,
-  },
-
-  Asistente: {
-    // INVENTARIO y PACIENTES: solo ver
-    inventario: { ver: true },
-    // PACIENTES: ver y crear
-    pacientes: { ver: true, crear: true },
-    // RESULTADOS: ver, imprimir y enviar por WhatsApp/Email
-    resultados: { ver: true, imprimir: true, enviar: true, enviar_whatsapp: true, enviar_email: true },
-    // CITAS y días no disponibles: acceso total a gestión
-    citas: new Proxy({}, { get: () => true }) as Record<string, boolean>,
-    dias_no_disponibles: new Proxy({}, { get: () => true }) as Record<string, boolean>,
-    // ESTUDIOS: ver; site_config: actualizar_tasa_cambio
-    estudios: { ver: true },
-    site_config: { actualizar_tasa_cambio: true, ver: true },
-    // BLOG/TESTIMONIOS: permitido
-    publicaciones_blog: new Proxy({}, { get: () => true }) as Record<string, boolean>,
-    testimonios: new Proxy({}, { get: () => true }) as Record<string, boolean>,
-  },
-};
-
-/**
- * Normaliza el rol recibido desde `app_metadata.role` o cadenas libres.
- */
-export function normalizeRole(roleInput: string | Rol | null | undefined): Rol {
-  const raw = (roleInput || '').toString().trim().toLowerCase();
-  if (raw.startsWith('admin')) return 'Administrador';
-  if (raw.startsWith('lic')) return 'Lic.';
-  if (raw.startsWith('asis')) return 'Asistente';
-  // Por defecto, el rol más restrictivo
-  return 'Asistente';
-}
-
-/**
- * Obtiene permisos por defecto del rol indicado.
- */
-export function getDefaultAllowed(roleInput: string | Rol | null | undefined) {
-  const role = normalizeRole(roleInput);
-  return defaultPermissions[role];
-}
-
-/**
- * Determina si el usuario tiene permiso para `accion` en `modulo`.
- * Usa overrides del usuario si existen; de lo contrario, recurre a permisos por defecto del rol.
- */
-export function hasPermission(
-  user: HasPermissionUser | null | undefined,
-  modulo: string,
-  accion: string
-): boolean {
-  const role = normalizeRole(user?.role || null);
-  const userOverrides = normalizeOverrides(user?.overrides || null);
-  let moduloNorm = normalizeModuleName(modulo);
-  const accionNorm = normalizeActionName(accion);
-  moduloNorm = maybeRemapModuleForAction(moduloNorm, accionNorm);
-
-  // 1) Overrides explícitos del usuario tienen prioridad
-  if (userOverrides && userOverrides[moduloNorm] && typeof userOverrides[moduloNorm][accionNorm] === 'boolean') {
-    return Boolean(userOverrides[moduloNorm][accionNorm]);
+  async function loadUsers() {
+    setLoading(true)
+    setError(null)
+    try {
+      const resp = await apiFetch('/api/users', { method: 'GET' })
+      if (!resp.ok) throw new Error(`${resp.status}`)
+      const json = await resp.json()
+      setUsers(Array.isArray(json.users) ? json.users : [])
+    } catch (e: any) {
+      setError('No se pudieron cargar los usuarios')
+      setUsers([])
+    } finally {
+      setLoading(false)
+    }
   }
 
-  // 2) Permisos por defecto del rol
-  const defaults = defaultPermissions[role] || {};
-  const mod = defaults[moduloNorm];
+  useEffect(() => {
+    loadUsers()
+  }, [])
 
-  if (!mod) {
-    // Módulo no definido para el rol: por defecto false, excepto Admin que permite todo
-    if (role === 'Administrador') return true;
-    return false;
+  async function createUser() {
+    if (!canSubmit) return
+    setLoading(true)
+    setError(null)
+    try {
+      const resp = await apiFetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre, apellido, cedula, email, password, sede, rol })
+      })
+      if (!resp.ok) throw new Error(`${resp.status}`)
+      setNombre(''); setApellido(''); setCedula(''); setEmail(''); setPassword(''); setSede('Sede Principal Maracay'); setRol('Asistente')
+      await loadUsers()
+    } catch (e: any) {
+      setError('No se pudo crear el usuario')
+    } finally { setLoading(false) }
   }
 
-  // Acciones: si no está definida, se asume false excepto Admin
-  const allowed = (mod as Record<string, boolean>)[accionNorm];
-  if (typeof allowed === 'boolean') return allowed;
-  return role === 'Administrador';
+  async function deleteUser(userId: string) {
+    if (!userId) return
+    setLoading(true)
+    try {
+      const resp = await apiFetch(`/api/users/${userId}`, { method: 'DELETE' })
+      if (!resp.ok) throw new Error(`${resp.status}`)
+      await loadUsers()
+    } catch { setError('No se pudo eliminar el usuario') } finally { setLoading(false) }
+  }
+
+  async function openEdit(u: UserRow) {
+    setSelectedUser(u)
+    setShowEdit(true)
+  }
+
+  async function saveEdit() {
+    if (!selectedUser) return
+    setLoading(true)
+    try {
+      const payload: any = {
+        nombre: selectedUser.nombre,
+        apellido: selectedUser.apellido,
+        cedula: selectedUser.cedula,
+        email: selectedUser.email,
+        sede: selectedUser.sede,
+        rol: selectedUser.rol,
+      }
+      const resp = await apiFetch(`/api/users/${selectedUser.user_id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      })
+      if (!resp.ok) throw new Error(`${resp.status}`)
+      setShowEdit(false)
+      await loadUsers()
+    } catch { setError('No se pudo actualizar el usuario') } finally { setLoading(false) }
+  }
+
+  async function openPermissions(u: UserRow) {
+    setSelectedUser(u)
+    setOverrides({})
+    setShowPerms(true)
+    try {
+      const resp = await apiFetch(`/api/users/${u.user_id}/permissions`, { method: 'GET' })
+      if (!resp.ok) throw new Error(`${resp.status}`)
+      const json = await resp.json()
+      const list: PermissionItem[] = Array.isArray(json.permissions) ? json.permissions : []
+      const map: OverrideMap = {}
+      list.forEach(p => {
+        const m = normalizeModuleName(p.module)
+        const a = normalizeActionName(p.action)
+        if (!map[m]) map[m] = {}
+        map[m][a] = !!p.allowed
+      })
+      setOverrides(map)
+    } catch { setError('No se pudieron obtener los permisos') }
+  }
+
+  function cycleOverride(module: string, action: string, dir: 'allow' | 'deny' | 'unset') {
+    setOverrides(prev => {
+      const m = normalizeModuleName(module)
+      const a = normalizeActionName(action)
+      const copy = { ...prev }
+      copy[m] = { ...(copy[m] || {}) }
+      if (dir === 'unset') {
+        delete copy[m][a]
+      } else {
+        copy[m][a] = dir === 'allow'
+      }
+      return copy
+    })
+  }
+
+  async function saveOverrides() {
+    if (!selectedUser) return
+    const permissions: PermissionItem[] = []
+    Object.keys(overrides).forEach(m => {
+      Object.keys(overrides[m]).forEach(a => {
+        permissions.push({ module: normalizeModuleName(m), action: normalizeActionName(a), allowed: !!overrides[m][a] })
+      })
+    })
+    setLoading(true)
+    try {
+      const resp = await apiFetch(`/api/users/${selectedUser.user_id}/permissions`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ permissions })
+      })
+      if (!resp.ok) throw new Error(`${resp.status}`)
+      setShowPerms(false)
+    } catch { setError('No se pudieron guardar los overrides') } finally { setLoading(false) }
+  }
+
+  return (
+    <div className="p-6">
+      <h2 className="text-2xl font-semibold mb-4">Gestión de Usuarios</h2>
+      {error && <div className="text-red-600 mb-3">{error}</div>}
+
+      <div className="bg-light p-4 rounded shadow mb-6">
+        <h3 className="text-lg font-medium mb-3">Crear nuevo usuario</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <input className="border rounded p-2" placeholder="Nombre" value={nombre} onChange={e=>setNombre(e.target.value)} />
+          <input className="border rounded p-2" placeholder="Apellido" value={apellido} onChange={e=>setApellido(e.target.value)} />
+          <input className="border rounded p-2" placeholder="Número de Cédula" value={cedula} onChange={e=>setCedula(e.target.value)} />
+          <input className="border rounded p-2" placeholder="Correo electrónico" value={email} onChange={e=>setEmail(e.target.value)} />
+          <input className="border rounded p-2" type="password" placeholder="Contraseña" value={password} onChange={e=>setPassword(e.target.value)} />
+          <select className="border rounded p-2" value={sede} onChange={e=>setSede(e.target.value)}>
+            <option>Sede Principal Maracay</option>
+            <option>Sede La Morita</option>
+          </select>
+          <select className="border rounded p-2" value={rol} onChange={e=>setRol(e.target.value as Rol)}>
+            <option value="Asistente">Asistente</option>
+            <option value="Lic.">Lic.</option>
+            <option value="Administrador">Administrador</option>
+          </select>
+        </div>
+        <div className="mt-3">
+          <button disabled={!canSubmit || loading} onClick={createUser} className="px-4 py-2 bg-primary text-white rounded disabled:opacity-60">Crear usuario</button>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-lg font-medium">Usuarios</h3>
+        <button onClick={loadUsers} className="px-3 py-1 bg-primary text-white rounded">Refrescar</button>
+      </div>
+
+      <div className="overflow-x-auto bg-white rounded shadow">
+        <table className="min-w-full">
+          <thead>
+            <tr className="bg-gray-100 text-left">
+              <th className="p-2">Nombre</th>
+              <th className="p-2">Apellido</th>
+              <th className="p-2">Cédula</th>
+              <th className="p-2">Email</th>
+              <th className="p-2">Sede</th>
+              <th className="p-2">Rol</th>
+              <th className="p-2">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr><td className="p-3" colSpan={7}>Cargando...</td></tr>
+            )}
+            {!loading && users.length === 0 && (
+              <tr><td className="p-3" colSpan={7}>Sin usuarios</td></tr>
+            )}
+            {!loading && users.map(u => (
+              <tr key={u.user_id} className="border-t">
+                <td className="p-2">{u.nombre}</td>
+                <td className="p-2">{u.apellido}</td>
+                <td className="p-2">{u.cedula}</td>
+                <td className="p-2">{u.email}</td>
+                <td className="p-2">{u.sede}</td>
+                <td className="p-2">{u.rol}</td>
+                <td className="p-2 space-x-2">
+                  <button className="px-2 py-1 text-sm bg-secondary text-white rounded" onClick={()=>openPermissions(u)}>Permisos</button>
+                  <button className="px-2 py-1 text-sm bg-primary text-white rounded" onClick={()=>openEdit(u)}>Editar</button>
+                  <button className="px-2 py-1 text-sm bg-red-600 text-white rounded" onClick={()=>deleteUser(u.user_id)}>Eliminar</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {showEdit && selectedUser && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center">
+          <div className="bg-white p-4 rounded w-full max-w-2xl">
+            <h3 className="text-lg font-medium mb-3">Editar usuario</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <input className="border rounded p-2" value={selectedUser.nombre} onChange={e=>setSelectedUser({ ...selectedUser, nombre: e.target.value })} />
+              <input className="border rounded p-2" value={selectedUser.apellido} onChange={e=>setSelectedUser({ ...selectedUser, apellido: e.target.value })} />
+              <input className="border rounded p-2" value={selectedUser.cedula} onChange={e=>setSelectedUser({ ...selectedUser, cedula: e.target.value })} />
+              <input className="border rounded p-2" value={selectedUser.email} onChange={e=>setSelectedUser({ ...selectedUser, email: e.target.value })} />
+              <input className="border rounded p-2" value={selectedUser.sede} onChange={e=>setSelectedUser({ ...selectedUser, sede: e.target.value })} />
+              <select className="border rounded p-2" value={selectedUser.rol as string} onChange={e=>setSelectedUser({ ...selectedUser, rol: e.target.value })}>
+                <option value="Asistente">Asistente</option>
+                <option value="Lic.">Lic.</option>
+                <option value="Administrador">Administrador</option>
+              </select>
+            </div>
+            <div className="mt-4 flex gap-2 justify-end">
+              <button className="px-3 py-1" onClick={()=>setShowEdit(false)}>Cancelar</button>
+              <button className="px-3 py-1 bg-primary text-white rounded" onClick={saveEdit}>Guardar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPerms && selectedUser && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center">
+          <div className="bg-white p-4 rounded w-full max-w-4xl">
+            <h3 className="text-lg font-medium mb-3">Permisos: {selectedUser.nombre} {selectedUser.apellido}</h3>
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+              {Object.keys(PERMISSIONS_SCHEMA).map(m => {
+                const actions = PERMISSIONS_SCHEMA[m]
+                const defaults = getDefaultAllowed(selectedUser.rol)
+                return (
+                  <div key={m}>
+                    <div className="font-semibold mb-2 capitalize">{m.replace(/_/g,' ')}</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {actions.map(a => {
+                        const effDefault = !!(defaults?.[m]?.[a])
+                        const cur = overrides[m]?.[a]
+                        return (
+                          <div key={a} className="border rounded p-2 flex items-center justify-between">
+                            <div>
+                              <div className="capitalize">{a.replace(/_/g,' ')}</div>
+                              <div className="text-xs text-gray-600">Default rol: {effDefault ? 'Permitido' : 'Denegado'}</div>
+                              {cur !== undefined && <div className="text-xs">Override: {cur ? 'Permitido' : 'Denegado'}</div>}
+                            </div>
+                            <div className="flex gap-2">
+                              <button className="px-2 py-1 bg-green-600 text-white rounded" onClick={()=>cycleOverride(m,a,'allow')}>Permitir</button>
+                              <button className="px-2 py-1 bg-red-600 text-white rounded" onClick={()=>cycleOverride(m,a,'deny')}>Denegar</button>
+                              <button className="px-2 py-1 bg-gray-300 rounded" onClick={()=>cycleOverride(m,a,'unset')}>Quitar</button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="mt-4 flex gap-2 justify-end">
+              <button className="px-3 py-1" onClick={()=>setShowPerms(false)}>Cerrar</button>
+              <button className="px-3 py-1 bg-primary text-white rounded" onClick={saveOverrides}>Guardar overrides</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
-
-// Nota: normalizeRole ya existe más arriba en este archivo. Se evita duplicado.
-
-export default hasPermission;

@@ -19,8 +19,8 @@ export default defineConfig(({ mode }) => {
     plugins: [
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
-        manifestFilename: 'manifest.json', // Forzar el nombre del archivo
+        includeAssets: ['favicon.svg', 'pwa-512x512.svg'],
+        manifestFilename: 'manifest.webmanifest',
         manifest: {
           name: 'Laboratorio Clínico VidaMed',
           short_name: 'VidaMed',

@@ -4,17 +4,50 @@ import { logAudit } from '@/services/audit';
 import { BlogPost } from '@/types';
 import { Loader, Plus, Edit, Trash2 } from 'lucide-react';
 import PostForm from '@/components/admin/PostForm';
+import { hasPermission, normalizeRole } from '@/utils/permissions';
+import { apiFetch } from '@/services/apiFetch';
 
 const PostsAdminPage: React.FC = () => {
-    const [posts, setPosts] = useState<BlogPost[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingPost, setEditingPost] = useState<BlogPost | null>(null);
+  const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingPost, setEditingPost] = useState<BlogPost | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string>('Asistente');
+  const [currentUserOverrides, setCurrentUserOverrides] = useState<Record<string, Record<string, boolean>>>({});
+  const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+  const can = (action: string) => {
+    const roleRaw = currentUserRole || 'Asistente';
+    const roleNorm = normalizeRole(roleRaw);
+    const allowed = roleNorm === 'Administrador'
+      ? true
+      : hasPermission({ role: roleNorm, overrides: currentUserOverrides }, 'PUBLICACIONES_BLOG', action);
+    return allowed;
+  };
 
-    useEffect(() => {
-        fetchPosts();
-    }, []);
+  useEffect(() => {
+    fetchPosts();
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const userId = user?.id;
+        const metaRol = (user?.user_metadata as any)?.rol || 'Asistente';
+        setCurrentUserRole(metaRol);
+        if (userId) {
+          const resp = await apiFetch(`${API_BASE}/users/${userId}/permissions`);
+          if (resp.ok) {
+            const json = await resp.json();
+            const overrides: Record<string, Record<string, boolean>> = {};
+            (json.permissions || []).forEach((p: any) => {
+              if (!overrides[p.module]) overrides[p.module] = {};
+              overrides[p.module][p.action] = Boolean(p.allowed);
+            });
+            setCurrentUserOverrides(overrides);
+          }
+        }
+      } catch {}
+    })();
+  }, []);
 
     const fetchPosts = async () => {
         setIsLoading(true);
@@ -171,7 +204,7 @@ const PostsAdminPage: React.FC = () => {
         <div>
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-3xl font-bold text-dark">Gestión de Publicaciones del Blog</h1>
-                <button onClick={() => { setEditingPost(null); setIsModalOpen(true); }} className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-dark flex items-center">
+                <button onClick={() => { if (!can('crear')) return; setEditingPost(null); setIsModalOpen(true); }} className={`px-4 py-2 rounded-md flex items-center ${!can('crear') ? 'bg-primary/50 text-white cursor-not-allowed' : 'bg-primary text-white hover:bg-primary-dark'}`}>
                     <Plus size={20} className="mr-2" />
                     Crear Nueva Publicación
                 </button>
@@ -196,8 +229,8 @@ const PostsAdminPage: React.FC = () => {
                                 <td className="py-4 px-6 whitespace-nowrap text-gray-500">{post.author}</td>
                                 <td className="py-4 px-6 whitespace-nowrap text-gray-500">{post.date}</td>
                                 <td className="py-4 px-6 whitespace-nowrap text-right text-sm font-medium">
-                                    <button onClick={() => { setEditingPost(post); setIsModalOpen(true); }} className="text-indigo-600 hover:text-indigo-900 mr-4"><Edit size={18} /></button>
-                                    <button onClick={() => handleDelete(post.id)} className="text-red-600 hover:text-red-900"><Trash2 size={18} /></button>
+                                    <button onClick={() => { if (!can('editar')) return; setEditingPost(post); setIsModalOpen(true); }} className={`${!can('editar') ? 'text-indigo-300 cursor-not-allowed' : 'text-indigo-600 hover:text-indigo-900'} mr-4`}><Edit size={18} /></button>
+                                    <button onClick={() => { if (!can('eliminar')) return; handleDelete(post.id); }} className={`${!can('eliminar') ? 'text-red-300 cursor-not-allowed' : 'text-red-600 hover:text-red-900'}`}><Trash2 size={18} /></button>
                                 </td>
                             </tr>
                         ))}

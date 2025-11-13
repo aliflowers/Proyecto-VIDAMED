@@ -110,11 +110,7 @@ export function normalizeActionName(actionInput: string | null | undefined): str
  * Algunas acciones pertenecen conceptualmente a otro módulo (p.ej. tasa de cambio → site_config).
  * Este helper remapea el módulo cuando aplique para que `hasPermission` evalúe correctamente.
  */
-function maybeRemapModuleForAction(moduloNorm: string, accionNorm: string): string {
-  // La acción de actualizar la tasa de cambio vive bajo site_config
-  if (accionNorm === 'actualizar_tasa_cambio' && moduloNorm === 'estudios') {
-    return 'site_config';
-  }
+function maybeRemapModuleForAction(moduloNorm: string, _accionNorm: string): string {
   return moduloNorm;
 }
 

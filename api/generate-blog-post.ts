@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { bedrockChat } from './bedrock.js';
 import { DEFAULT_BEDROCK_MODEL } from './config.js';
 import { logServerAudit } from './_utils/audit.js';
+import { requireAdmin } from './_utils/auth.js';
 
 /**
  * Vercel Serverless Function: /api/generate-blog-post
@@ -15,6 +16,9 @@ export default async function handler(req: Request, res: Response) {
     if (req.method !== 'POST') {
       return res.status(405).json({ error: 'Method Not Allowed' });
     }
+
+    const auth = await requireAdmin(req as any, res as any);
+    if (!auth) return;
 
     const apiToken = process.env.AWS_BEARER_TOKEN_BEDROCK;
     if (!apiToken) {

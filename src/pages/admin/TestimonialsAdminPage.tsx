@@ -4,15 +4,46 @@ import { logAudit } from '@/services/audit';
 import { Testimonial } from '@/types';
 import { Loader, Check, X, Trash2, Star } from 'lucide-react';
 import TestimonialViewer from '@/components/admin/TestimonialViewer';
+import { hasPermission, normalizeRole } from '@/utils/permissions';
+import { apiFetch } from '@/services/apiFetch';
 
 const TestimonialsAdminPage: React.FC = () => {
-    const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [viewingTestimonial, setViewingTestimonial] = useState<Testimonial | null>(null);
+  const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [viewingTestimonial, setViewingTestimonial] = useState<Testimonial | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string>('Asistente');
+  const [currentUserOverrides, setCurrentUserOverrides] = useState<Record<string, Record<string, boolean>>>({});
+  const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+  const can = (action: string) => {
+    const roleRaw = currentUserRole || 'Asistente';
+    const roleNorm = normalizeRole(roleRaw);
+    const allowed = roleNorm === 'Administrador' ? true : hasPermission({ role: roleNorm, overrides: currentUserOverrides }, 'TESTIMONIOS', action);
+    return allowed;
+  };
 
     useEffect(() => {
         fetchTestimonials();
+        (async () => {
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            const userId = user?.id;
+            const metaRol = (user?.user_metadata as any)?.rol || 'Asistente';
+            setCurrentUserRole(metaRol);
+            if (userId) {
+              const resp = await apiFetch(`${API_BASE}/users/${userId}/permissions`);
+              if (resp.ok) {
+                const json = await resp.json();
+                const overrides: Record<string, Record<string, boolean>> = {};
+                (json.permissions || []).forEach((p: any) => {
+                  if (!overrides[p.module]) overrides[p.module] = {};
+                  overrides[p.module][p.action] = Boolean(p.allowed);
+                });
+                setCurrentUserOverrides(overrides);
+              }
+            }
+          } catch {}
+        })();
     }, []);
 
     const fetchTestimonials = async () => {
@@ -41,6 +72,7 @@ const TestimonialsAdminPage: React.FC = () => {
     };
 
     const handleApprove = async (id: number, currentStatus: boolean) => {
+        if (!can('editar')) return;
         const newStatus = !currentStatus;
         const { error } = await supabase
             .from('testimonios')
@@ -68,6 +100,7 @@ const TestimonialsAdminPage: React.FC = () => {
     };
 
     const handleDelete = async (id: number) => {
+        if (!can('eliminar')) return;
         if (window.confirm('¿Estás seguro de que quieres eliminar este testimonio?')) {
             const t = testimonials.find(t => t.id === id);
             const { error } = await supabase.from('testimonios').delete().eq('id', id);
@@ -130,10 +163,10 @@ const TestimonialsAdminPage: React.FC = () => {
                                     </span>
                                 </td>
                                 <td className="py-4 px-6 text-right">
-                                    <button onClick={() => handleApprove(testimonial.id, !!testimonial.is_approved)} className={`mr-4 ${testimonial.is_approved ? 'text-yellow-500' : 'text-green-500'}`}>
+                                    <button onClick={() => handleApprove(testimonial.id, !!testimonial.is_approved)} className={`mr-4 ${!can('editar') ? 'text-yellow-200 cursor-not-allowed' : (testimonial.is_approved ? 'text-yellow-500' : 'text-green-500')}`}>
                                         {testimonial.is_approved ? <X size={18} /> : <Check size={18} />}
                                     </button>
-                                    <button onClick={() => handleDelete(testimonial.id)} className="text-red-600 hover:text-red-900"><Trash2 size={18} /></button>
+                                    <button onClick={() => handleDelete(testimonial.id)} className={`${!can('eliminar') ? 'text-red-300 cursor-not-allowed' : 'text-red-600 hover:text-red-900'}`}><Trash2 size={18} /></button>
                                 </td>
                             </tr>
                         ))}

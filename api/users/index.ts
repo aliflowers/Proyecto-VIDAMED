@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { normalizeModuleName, normalizeActionName, maybeRemapModuleForAction } from '../_utils/permissions.js';
+import { requireAdmin } from '../_utils/auth.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -8,6 +9,8 @@ const supabaseAdmin = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY ? createClient(S
 export default async function handler(req: any, res: any) {
   try {
     if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
+    const auth = await requireAdmin(req, res);
+    if (!auth) return;
 
     if (req.method === 'GET') {
       const { data, error } = await supabaseAdmin

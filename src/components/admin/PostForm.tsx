@@ -6,6 +6,8 @@ import BlogAiGeneratorModal from './BlogAiGeneratorModal';
 import { BlogPost } from '@/types';
 import showdown from 'showdown';
 import { apiFetch } from '@/services/apiFetch';
+import { hasPermission, normalizeRole } from '@/utils/permissions';
+import { supabase } from '@/services/supabaseClient';
 
 interface PostFormProps {
     post?: BlogPost | null;
@@ -29,6 +31,8 @@ const PostForm: React.FC<PostFormProps> = ({ post, onSave, onCancel, isLoading }
     const [file, setFile] = useState<File | null>(null);
     const [isAiModalOpen, setIsAiModalOpen] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [currentUserRole, setCurrentUserRole] = useState<string>('Asistente');
+    const [currentUserOverrides, setCurrentUserOverrides] = useState<Record<string, Record<string, boolean>>>({});
 
     useEffect(() => {
         if (post) {
@@ -46,6 +50,34 @@ const PostForm: React.FC<PostFormProps> = ({ post, onSave, onCancel, isLoading }
         }
     }, [post]);
 
+    useEffect(() => {
+        (async () => {
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                const userId = user?.id;
+                const metaRol = (user?.user_metadata as any)?.rol || 'Asistente';
+                setCurrentUserRole(metaRol);
+                if (userId) {
+                    const resp = await apiFetch('/api/users/' + userId + '/permissions');
+                    if (resp.ok) {
+                        const json = await resp.json();
+                        const overrides: Record<string, Record<string, boolean>> = {};
+                        (json.permissions || []).forEach((p: any) => {
+                            if (!overrides[p.module]) overrides[p.module] = {};
+                            overrides[p.module][p.action] = Boolean(p.allowed);
+                        });
+                        setCurrentUserOverrides(overrides);
+                    }
+                }
+            } catch {}
+        })();
+    }, []);
+
+    const canCreateViaAI = () => {
+        const roleNorm = normalizeRole(currentUserRole || 'Asistente');
+        return roleNorm === 'Administrador' ? true : hasPermission({ role: roleNorm, overrides: currentUserOverrides }, 'PUBLICACIONES_BLOG', 'crear');
+    };
+
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
@@ -62,6 +94,10 @@ const PostForm: React.FC<PostFormProps> = ({ post, onSave, onCancel, isLoading }
     };
 
     const handleGenerateAiPost = async (params: any) => {
+        if (!canCreateViaAI()) {
+            alert('No autorizado para generar contenido con IA');
+            return;
+        }
         setIsGenerating(true);
         try {
             const response = await apiFetch('/api/generate-blog-post', {
@@ -118,8 +154,8 @@ const PostForm: React.FC<PostFormProps> = ({ post, onSave, onCancel, isLoading }
                     {!post && (
                         <button
                             type="button"
-                            onClick={() => setIsAiModalOpen(true)}
-                            className="flex items-center px-4 py-2 bg-secondary text-white rounded-md hover:bg-secondary-dark"
+                            onClick={() => { if (!canCreateViaAI()) return; setIsAiModalOpen(true); }}
+                            className={`flex items-center px-4 py-2 rounded-md ${!canCreateViaAI() ? 'bg-secondary/50 text-white cursor-not-allowed' : 'bg-secondary text-white hover:bg-secondary-dark'}`}
                         >
                             <Sparkles size={18} className="mr-2" />
                             Generar con IA

@@ -78,8 +78,5 @@ export function normalizeActionName(actionInput: string | null | undefined): str
 }
 
 export function maybeRemapModuleForAction(moduloNorm: string, accionNorm: string): string {
-  if (accionNorm === 'actualizar_tasa_cambio' && moduloNorm === 'estudios') {
-    return 'site_config';
-  }
   return moduloNorm;
 }

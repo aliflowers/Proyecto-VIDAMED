@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { normalizeModuleName, normalizeActionName, maybeRemapModuleForAction } from '../../_utils/permissions.js';
+import { requireAdmin, requireSelfOrAdmin } from '../../_utils/auth.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -13,6 +14,8 @@ export default async function handler(req: any, res: any) {
     if (!userId) return res.status(400).json({ error: 'Falta id de usuario' });
 
     if (req.method === 'GET') {
+      const auth = await requireSelfOrAdmin(req, res, userId);
+      if (!auth) return;
       const { data, error } = await supabaseAdmin
         .from('user_permissions')
         .select('module, action, allowed')
@@ -29,6 +32,8 @@ export default async function handler(req: any, res: any) {
     }
 
     if (req.method === 'PUT') {
+      const auth = await requireAdmin(req, res);
+      if (!auth) return;
       const { permissions } = req.body || {};
       if (!Array.isArray(permissions)) return res.status(400).json({ error: 'permissions debe ser un arreglo' });
 

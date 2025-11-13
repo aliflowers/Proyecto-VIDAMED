@@ -18,14 +18,19 @@ function mergeHeaders(existing: HeadersInit | undefined, addition: Record<string
 }
 
 export async function apiFetch(input: string, init?: RequestInit): Promise<Response> {
-  const { data: auth } = await supabase.auth.getUser();
-  const userId = auth?.user?.id || null;
-  const email = (auth?.user?.email || '').toLowerCase();
+  const { data: session } = await supabase.auth.getSession();
+  const accessToken = session?.session?.access_token || null;
+  const user = session?.session?.user || null;
+  const userId = user?.id || null;
+  const email = (user?.email || '').toLowerCase();
 
   const auditHeaders: Record<string, string> = {};
   if (userId) auditHeaders['x-user-id'] = userId;
   if (email) auditHeaders['x-user-email'] = email;
 
-  const headers = mergeHeaders(init?.headers, auditHeaders);
+  const headers = mergeHeaders(
+    init?.headers,
+    accessToken ? { ...auditHeaders, Authorization: `Bearer ${accessToken}` } : auditHeaders
+  );
   return fetch(input, { ...(init || {}), headers });
 }

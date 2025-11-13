@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from 'react';
+import { apiFetch } from '@/services/apiFetch';
 import { supabase } from '@/services/supabaseClient';
 import { logAudit } from '@/services/audit';
 import { toast } from 'react-toastify';
@@ -223,7 +224,7 @@ const InventoryPage = () => {
         // Overrides
         if (API_BASE) {
           try {
-            const resp = await fetch(`${API_BASE}/users/${userId}/permissions`);
+            const resp = await apiFetch(`${API_BASE}/users/${userId}/permissions`);
             if (resp.ok) {
               const json = await resp.json();
               const overrides: Record<string, Record<string, boolean>> = {};
