@@ -10,7 +10,7 @@ import { logServerAudit } from './_utils/audit.js';
 import notifyEmailHandler from './notify/email.js';
 import { sendAppointmentConfirmationEmail, sendAppointmentReminderEmail } from './notify/appointment-email.js';
 // Eliminado: nodemailer ya no es necesario para recuperación de contraseña
-
+const app = express();
 async function startServer() {
     // Forzar la carga del archivo .env desde la raíz del proyecto
     dotenv.config({ path: path.resolve(__dirname, '../../.env') });
@@ -33,7 +33,7 @@ async function startServer() {
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
     const BEDROCK_MODEL = process.env.BEDROCK_DEFAULT_MODEL || 'openai.gpt-oss-120b-1:0';
     
-    const app = express();
+    
     const port = process.env.PORT || 3001;
 
     app.use(cors());
@@ -967,10 +967,11 @@ ${valuesContext}
       }
     });
 
-    app.listen(port, () => {
-      console.log(`Servidor escuchando en el puerto ${port}`);
-      console.log(`[IA] Modelo Bedrock activo: ${BEDROCK_MODEL}`);
-    });
+    
+    // Log para verificar el modelo de Bedrock durante el inicio (cold start)
+console.log(`[IA] Modelo Bedrock activo: ${BEDROCK_MODEL}`);
+
+// Exportar la app para Vercel (requisito de entorno Serverless)
 
 }
 
@@ -978,3 +979,5 @@ startServer().catch(error => {
     console.error("Error fatal al iniciar el servidor:", error);
     process.exit(1);
 });
+// Exporta la 'app' (ahora global) para que Vercel la use [1]
+export default app;
