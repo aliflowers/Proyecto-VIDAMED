@@ -40,7 +40,7 @@ async function startServer() {
     app.use(express.json());
 
     // Endpoint para enviar recordatorios de citas del día siguiente
-    app.post('/api/reminders/send-next-day', async (req: Request, res: Response) => {
+    app.post('/api/reminders/send-next-day', async (_req: Request, res: Response) => {
         try {
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1);
@@ -243,7 +243,7 @@ Consultas de Estudios:
     const stripReasoningBlocks = (s: string): string => {
         if (!s) return s;
         const cleaned = s.replace(/<(reasoning|think|thinking)>[\s\S]*?<\/(reasoning|think|thinking)>/gi, '').trim();
-        return cleaned.replace(/^\s*Reasoning:\s*[\s\S]*$/im, (m) => '').trim();
+        return cleaned.replace(/^\s*Reasoning:\s*[\s\S]*$/im, '').trim();
     };
 
     const applyOutputGuardrails = (text: string, userMsg?: string): string => {
@@ -967,7 +967,6 @@ ${valuesContext}
       }
     });
 
-    const PORT = process.env.PORT || 3001;
     app.listen(port, () => {
       console.log(`Servidor escuchando en el puerto ${port}`);
       console.log(`[IA] Modelo Bedrock activo: ${BEDROCK_MODEL}`);

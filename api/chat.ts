@@ -236,7 +236,7 @@ Consultas de Estudios:
     const stripReasoningBlocks = (s: string): string => {
       if (!s) return s;
       const cleaned = s.replace(/<(reasoning|think|thinking)>[\s\S]*?<\/(reasoning|think|thinking)>/gi, '').trim();
-      return cleaned.replace(/^\s*Reasoning:\s*[\s\S]*$/im, (m) => '').trim();
+      return cleaned.replace(/^\s*Reasoning:\s*[\s\S]*$/im, '').trim();
     };
 
     const applyOutputGuardrails = (text: string, userMsg?: string): string => {

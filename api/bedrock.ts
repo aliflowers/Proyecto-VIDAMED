@@ -98,7 +98,7 @@ function stripReasoning(s: string): string {
   // Remueve etiquetas comunes de razonamiento (OpenAI-compatible en Bedrock)
   const cleaned = s.replace(/<(reasoning|think|thinking)>[\s\S]*?<\/(reasoning|think|thinking)>/gi, '').trim();
   // También remueve prefijos "Reasoning:" si aparecen en texto plano
-  return cleaned.replace(/^\s*Reasoning:\s*[\s\S]*$/im, (m) => '').trim();
+  return cleaned.replace(/^\s*Reasoning:\s*[\s\S]*$/im, '').trim();
 }
 
 export type { BedrockMessage, BedrockTool };

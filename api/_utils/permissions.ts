@@ -77,6 +77,6 @@ export function normalizeActionName(actionInput: string | null | undefined): str
   return aliases[raw] || raw;
 }
 
-export function maybeRemapModuleForAction(moduloNorm: string, accionNorm: string): string {
+export function maybeRemapModuleForAction(moduloNorm: string, _accionNorm: string): string {
   return moduloNorm;
 }
