@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.51.0",
+    "@elevenlabs/react": "^0.3.0",
     "lucide-react": "^0.525.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
@@ -23,7 +24,10 @@
     "react-icons": "^5.5.0",
     "date-fns": "^4.1.0",
     "browser-image-compression": "^2.0.2",
-    "showdown": "^2.1.0"
+    "showdown": "^2.1.0",
+    "embla-carousel-react": "^8.6.0",
+    "embla-carousel-autoplay": "^8.6.0",
+    "recharts": "^3.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
