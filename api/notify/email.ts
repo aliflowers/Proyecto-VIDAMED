@@ -292,7 +292,7 @@ async function buildResultPdf(data: any): Promise<Buffer> {
       const startX = leftMargin;
       let startY = (doc as any).y;
 
-      const logoPath = resolveAsset('assets/vidamed_logo.png');
+      const logoPath = resolveAsset('public/assets/vidamed_logo.png');
       try {
         // En PDFKit, al especificar x/y no es necesario usar align.
         // Eliminar align evita el error de tipo en @types/pdfkit.
@@ -619,7 +619,7 @@ export default async function notifyEmailHandler(req: Request, res: Response) {
     const patientName = `${nombres} ${apellidos}`.trim();
 
     // Preparar logo inline por CID si existe
-    const logoPath = resolveAsset('assets/vidamed_logo.png');
+    const logoPath = resolveAsset('public/assets/vidamed_logo.png');
     const hasLogo = fs.existsSync(logoPath);
     const logoCid = hasLogo ? 'vidamed-logo' : undefined;
     const html = buildEmailHtml({

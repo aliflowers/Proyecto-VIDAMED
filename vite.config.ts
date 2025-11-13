@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.svg', 'pwa-512x512.svg'],
+        includeAssets: ['favicon.svg', 'pwa-512x512.svg', 'assets/vidamed_logo.png'],
         manifestFilename: 'manifest.webmanifest',
         manifest: {
           name: 'Laboratorio Clínico VidaMed',
