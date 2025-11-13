@@ -1,0 +1,192 @@
+// COPIA DE SEGURIDAD Y DOCUMENTACIÓN DE LA FUNCIONALIDAD DE GENERACIÓN DE ARTÍCULOS CON IA
+// Fecha: 19 de Agosto de 2025
+// Este archivo contiene la implementación completa del formulario de posts con la integración de Gemini.
+// Se ha revertido temporalmente debido a un problema de resolución de tipos en el entorno de desarrollo.
+
+/*
+import React, { useState, useEffect } from 'react';
+import { BlogPost } from '../../types';
+import { Sparkles } from 'lucide-react';
+import BlogAiGeneratorModal from './BlogAiGeneratorModal';
+import { generateBlogPost } from '../../src/services/geminiService';
+
+interface PostFormProps {
+    post?: BlogPost | null;
+    onSave: (post: Omit<BlogPost, 'id' | 'date'> | BlogPost, file?: File) => void;
+    onCancel: () => void;
+    isLoading: boolean;
+}
+
+const PostForm: React.FC<PostFormProps> = ({ post, onSave, onCancel, isLoading }) => {
+    // Estado para manejar los datos del formulario principal
+    const [formData, setFormData] = useState({
+        title: '',
+        summary: '',
+        content: '',
+        category: '',
+        imageUrl: '',
+        author: '',
+        meta_title: '',
+        meta_description: '',
+        keywords: ''
+    });
+    const [file, setFile] = useState<File | null>(null);
+    
+    // Estados para controlar el modal de IA y el estado de carga de la generación
+    const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
+
+    // Efecto para poblar el formulario cuando se está editando un post existente
+    useEffect(() => {
+        if (post) {
+            setFormData({
+                title: post.title,
+                summary: post.summary,
+                content: post.content || '',
+                category: post.category,
+                imageUrl: post.imageUrl,
+                author: post.author,
+                meta_title: post.meta_title || '',
+                meta_description: post.meta_description || '',
+                keywords: Array.isArray(post.keywords) ? post.keywords.join(', ') : '',
+            });
+        }
+    }, [post]);
+
+    // Manejador de cambios para los inputs del formulario
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    // Manejador para el input de archivo de imagen
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files.length > 0) {
+            setFile(e.target.files[0]);
+        }
+    };
+
+    // Función principal que se ejecuta al generar contenido con IA
+    const handleGenerateAiPost = async (params: any) => {
+        setIsGenerating(true);
+        try {
+            // Construcción del prompt avanzado para Gemini
+            const prompt = `
+                Actúa como un experto en SEO y redactor de contenido para el sector salud en Venezuela.
+                Tu tarea es generar un artículo de blog completo para un laboratorio clínico ubicado en Maracay, Estado Aragua.
+                El artículo debe ser informativo, profesional y optimizado para motores de búsqueda.
+                
+                Parámetros:
+                - Tema: ${params.topic}
+                - Tipo de publicación: ${params.postType}
+                - Tono: ${params.tone}
+                - Público Objetivo: ${params.targetAudience}
+                - Categorías a mencionar: ${params.categories.join(', ')}
+
+                Basado en esto, genera una respuesta en formato JSON con la siguiente estructura:
+                {
+                  "titulo_articulo": "Un título atractivo y claro para el post.",
+                  "contenido_html": "El contenido completo del artículo en formato HTML. Usa etiquetas como <h2>, <p>, <ul>, <li>, <strong>.",
+                  "resumen": "Un resumen corto y atractivo de 1-2 frases para la tarjeta de vista previa del blog.",
+                  "meta_titulo": "Un meta título optimizado para SEO (máximo 60 caracteres) que incluya el tema y la ubicación 'Maracay' o 'Aragua'.",
+                  "meta_descripcion": "Una meta descripción atractiva (máximo 160 caracteres) que invite al clic e incluya palabras clave.",
+                  "keywords": "Una lista de 15 a 20 palabras clave relevantes separadas por coma, mezclando términos generales, locales (Maracay, Aragua, Venezuela) y de larga cola."
+                }
+            `;
+
+            // Llamada al servicio de Gemini
+            const result = await generateBlogPost(prompt);
+            const parsedResult = JSON.parse(result);
+
+            // Autocompletado del formulario con la respuesta de la IA
+            setFormData(prev => ({
+                ...prev,
+                title: parsedResult.titulo_articulo || '',
+                content: parsedResult.contenido_html || '',
+                summary: parsedResult.resumen || '',
+                meta_title: parsedResult.meta_titulo || '',
+                meta_description: parsedResult.meta_descripcion || '',
+                keywords: parsedResult.keywords || '',
+            }));
+
+            setIsAiModalOpen(false);
+        } catch (error) {
+            console.error("Error generating AI post:", error);
+            alert("Hubo un error al generar el contenido. Por favor, intenta de nuevo.");
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    // Manejador para el envío del formulario principal
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const postToSave = {
+            ...formData,
+            id: post?.id || '',
+            date: post?.date || '',
+            keywords: formData.keywords ? formData.keywords.split(',').map(k => k.trim()) : [],
+        };
+        onSave(postToSave, file || undefined);
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl flex flex-col max-h-[90vh]">
+                <header className="p-6 border-b flex justify-between items-center">
+                    <h2 className="text-2xl font-bold">{post ? 'Editar Publicación' : 'Crear Nueva Publicación'}</h2>
+                    {/* Botón para abrir el modal de IA, solo visible al crear un nuevo post */}
+                    {!post && (
+                        <button
+                            type="button"
+                            onClick={() => setIsAiModalOpen(true)}
+                            className="flex items-center px-4 py-2 bg-secondary text-white rounded-md hover:bg-secondary-dark"
+                        >
+                            <Sparkles size={18} className="mr-2" />
+                            Generar con IA
+                        </button>
+                    )}
+                </header>
+                <form onSubmit={handleSubmit} className="flex-grow overflow-y-auto p-8 space-y-6">
+                    <input name="title" value={formData.title} onChange={handleChange} placeholder="Título" required className="w-full p-2 border rounded" />
+                    <input name="category" value={formData.category} onChange={handleChange} placeholder="Categoría" required className="w-full p-2 border rounded" />
+                    <textarea name="summary" value={formData.summary} onChange={handleChange} placeholder="Resumen (texto corto para la tarjeta)" required className="w-full p-2 border rounded" rows={3} />
+                    <textarea name="content" value={formData.content} onChange={handleChange} placeholder="Contenido completo del artículo" required className="w-full p-2 border rounded" rows={10} />
+                    <p className="text-xs text-gray-500">Puedes usar Markdown para formatear el texto. Ej: `# Título`, `**negrita**`, `*cursiva*`.</p>
+                    <input name="author" value={formData.author} onChange={handleChange} placeholder="Autor" required className="w-full p-2 border rounded" />
+                    
+                    <div className="pt-4 border-t">
+                        <h3 className="text-lg font-semibold mb-2">Datos SEO</h3>
+                        <input name="meta_title" value={formData.meta_title} onChange={handleChange} placeholder="Meta Título (para Google)" className="w-full p-2 border rounded mb-4" />
+                        <textarea name="meta_description" value={formData.meta_description} onChange={handleChange} placeholder="Meta Descripción (para Google)" className="w-full p-2 border rounded mb-4" rows={2} />
+                        <input name="keywords" value={formData.keywords} onChange={handleChange} placeholder="Palabras Clave (separadas por coma)" className="w-full p-2 border rounded" />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">Imagen</label>
+                        <input name="imageUrl" value={formData.imageUrl} onChange={handleChange} placeholder="URL de la Imagen" className="w-full p-2 border rounded mt-1" />
+                        <p className="text-center text-sm text-gray-500 my-2">O</p>
+                        <input type="file" onChange={handleFileChange} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20" />
+                    </div>
+                </form>
+                <div className="flex justify-end space-x-4 p-6 border-t bg-gray-50 rounded-b-lg">
+                    <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancelar</button>
+                    <button type="button" onClick={handleSubmit} disabled={isLoading} className="px-4 py-2 bg-primary text-white rounded hover:bg-primary-dark disabled:bg-gray-400">
+                        {isLoading ? 'Guardando...' : 'Guardar'}
+                    </button>
+                </div>
+            </div>
+            {/* Renderizado condicional del modal de IA */}
+            {isAiModalOpen && (
+                <BlogAiGeneratorModal
+                    onGenerate={handleGenerateAiPost}
+                    onClose={() => setIsAiModalOpen(false)}
+                    isLoading={isGenerating}
+                />
+            )}
+        </div>
+    );
+};
+
+export default PostForm;
+*/
