@@ -6,7 +6,9 @@ import { DayPicker, SelectMultipleEventHandler } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import { format, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { hasPermission } from '@/utils/permissions';
+import { hasPermission, normalizeRole } from '@/utils/permissions';
+import { logAudit } from '@/services/audit';
+import { apiFetch } from '@/services/apiFetch';
 
 const RescheduleModal: React.FC<{ appointment: Appointment, onSave: (id: number, newDate: string) => void, onCancel: () => void }> = ({ appointment, onSave, onCancel }) => {
     const [newDateTime, setNewDateTime] = useState(appointment.fecha_cita.substring(0, 16));
@@ -63,38 +65,70 @@ const AppointmentsAdminPage: React.FC = () => {
     const [currentUserRole, setCurrentUserRole] = useState<string>('Asistente');
     const [currentUserOverrides, setCurrentUserOverrides] = useState<Record<string, Record<string, boolean>>>({});
     const [currentUserSede, setCurrentUserSede] = useState<string | null>(null);
-    const API_BASE = import.meta.env.VITE_API_BASE || '';
-    const can = (action: string) => hasPermission({ role: currentUserRole || 'Asistente', overrides: currentUserOverrides }, 'CITAS', action);
+    const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+    const can = (action: string) => {
+        const roleRaw = currentUserRole || 'Asistente';
+        const roleNorm = normalizeRole(roleRaw);
+        const overridesForModule = currentUserOverrides['CITAS'] || {};
+        const bypass = roleNorm === 'Administrador';
+        const allowed = bypass ? true : hasPermission({ role: roleNorm, overrides: currentUserOverrides }, 'CITAS', action);
+        console.groupCollapsed(`🔐 PermEval [CITAS] action=${action}`);
+        console.log('• role_raw:', roleRaw);
+        console.log('• role_norm:', roleNorm, 'bypass_admin:', bypass);
+        console.log('• override(action):', overridesForModule[action]);
+        console.log('• overrides_count(CITAS):', Object.keys(overridesForModule).length);
+        console.log('• result:', allowed ? 'permitido' : 'bloqueado');
+        console.groupEnd();
+        return allowed;
+    };
 
     useEffect(() => {
         const fetchRoleAndOverrides = async () => {
             try {
-                const { data: { user } } = await supabase.auth.getUser();
+                const { data: { user }, error: authError } = await supabase.auth.getUser();
+                if (authError) throw authError;
                 const userId = user?.id;
-                let roleFromDB = 'Asistente';
-                if (userId) {
-                    const { data: profile } = await supabase
-                        .from('user_profiles')
-                        .select('rol, sede')
-                        .eq('user_id', userId)
-                        .maybeSingle();
-                    roleFromDB = profile?.rol || 'Asistente';
-                    setCurrentUserSede(profile?.sede || null);
+                if (!userId) return;
+                const metaRol = (user?.user_metadata as any)?.rol || null;
+                let effectiveRole: string = metaRol || 'Asistente';
+                const { data: profData, error: profErr } = await supabase
+                    .from('user_profiles')
+                    .select('rol, sede')
+                    .eq('user_id', userId)
+                    .limit(1);
+                if (!profErr && Array.isArray(profData) && profData.length > 0) {
+                    const prof = profData[0] as any;
+                    effectiveRole = prof?.rol || effectiveRole;
+                    setCurrentUserSede(prof?.sede || null);
                 }
-                setCurrentUserRole(roleFromDB);
+                setCurrentUserRole(effectiveRole);
                 if (API_BASE) {
                     try {
-                        const resp = await fetch(`${API_BASE}/permissions/overrides`);
+                        const resp = await apiFetch(`${API_BASE}/users/${userId}/permissions`);
                         if (resp.ok) {
                             const json = await resp.json();
-                            setCurrentUserOverrides(json?.overrides || {});
+                            const overrides: Record<string, Record<string, boolean>> = {};
+                            (json.permissions || []).forEach((p: any) => {
+                                if (!overrides[p.module]) overrides[p.module] = {};
+                                overrides[p.module][p.action] = Boolean(p.allowed);
+                            });
+                            setCurrentUserOverrides(overrides || {});
                         }
-                    } catch {
+                    } catch (e) {
                         // Ignorar errores de overrides
                     }
                 }
+                console.groupCollapsed('👤 CITAS: Carga de rol, sede y overrides');
+                console.log('• user_id:', userId);
+                console.log('• meta_rol:', metaRol);
+                console.log('• effective_role:', effectiveRole);
+                console.log('• sede:', currentUserSede);
+                console.log('• overrides(CITAS):', (currentUserOverrides || {})['CITAS'] || {});
+                console.log('• overrides_total_modules:', Object.keys(currentUserOverrides || {}).length);
+                console.groupEnd();
             } catch (e) {
                 console.error('[CITAS] Error cargando permisos:', e);
+                setCurrentUserRole((prev) => prev || 'Asistente');
             }
         };
         fetchRoleAndOverrides();
@@ -102,23 +136,41 @@ const AppointmentsAdminPage: React.FC = () => {
 
     // Restricción por sede: Lic. y Asistente solo pueden actuar sobre citas de su sede
     const isBranchAllowedForAppointment = (app: Appointment) => {
-        if (currentUserRole === 'Lic.' || currentUserRole === 'Asistente') {
-            if (!currentUserSede) return false;
-            return app.ubicacion === currentUserSede;
+        const roleRaw = currentUserRole || 'Asistente';
+        const roleNorm = normalizeRole(roleRaw);
+        if (roleNorm === 'Lic.' || roleNorm === 'Asistente') {
+            if (!currentUserSede) {
+                console.warn('🏷️ CITAS: Sede no establecida para usuario', { roleNorm });
+                return false;
+            }
+            const allowedBranch = app.ubicacion === currentUserSede;
+            if (!allowedBranch) {
+                console.warn('🚫 CITAS: Sede no coincide', { appLocation: app.ubicacion, userSede: currentUserSede, roleNorm });
+            }
+            return allowedBranch;
         }
         return true;
     };
 
     // Permiso efectivo por acción considerando sede y rol
     const isAppointmentActionAllowed = (app: Appointment, action: string) => {
-        if (currentUserRole === 'Lic.') {
-            return can(action) && isBranchAllowedForAppointment(app);
-        }
-        if (currentUserRole === 'Asistente') {
+        const roleNorm = normalizeRole(currentUserRole || 'Asistente');
+        let result: boolean;
+        if (roleNorm === 'Lic.') {
+            result = can(action) && isBranchAllowedForAppointment(app);
+        } else if (roleNorm === 'Asistente') {
             // Para asistentes, permitir si es su sede, aunque el permiso global esté desmarcado
-            return isBranchAllowedForAppointment(app);
+            result = isBranchAllowedForAppointment(app);
+        } else {
+            result = can(action);
         }
-        return can(action);
+        console.groupCollapsed(`🎛️ CITAS: Decision action=${action} id=${app.id}`);
+        console.log('• role_norm:', roleNorm);
+        console.log('• app_location:', app.ubicacion);
+        console.log('• user_sede:', currentUserSede);
+        console.log('• decision:', result ? 'permitido' : 'bloqueado');
+        console.groupEnd();
+        return result;
     };
 
     // Mensajes “No autorizado”
@@ -190,8 +242,10 @@ const AppointmentsAdminPage: React.FC = () => {
         let error;
         if (wasSelected) {
             ({ error } = await supabase.from('dias_no_disponibles').delete().eq('fecha', formattedDate));
+            await logAudit({ action: 'Desbloquear día', module: 'Citas', entity: 'dias_no_disponibles', entityId: null, metadata: { fecha: formattedDate }, success: !error });
         } else {
             ({ error } = await supabase.from('dias_no_disponibles').insert({ fecha: formattedDate }));
+            await logAudit({ action: 'Bloquear día', module: 'Citas', entity: 'dias_no_disponibles', entityId: null, metadata: { fecha: formattedDate }, success: !error });
         }
         if (error) {
             alert(`Error al actualizar la disponibilidad: ${error.message}`);
@@ -206,6 +260,7 @@ const AppointmentsAdminPage: React.FC = () => {
         const { error } = await supabase.from('citas').update({ status }).eq('id', id);
         if (error) alert(error.message);
         else fetchAppointments();
+        await logAudit({ action: 'Actualizar estado', module: 'Citas', entity: 'citas', entityId: id, metadata: { status }, success: !error });
     };
 
     const handleReschedule = async (id: number, newDate: string) => {
@@ -218,6 +273,7 @@ const AppointmentsAdminPage: React.FC = () => {
             setEditingAppointment(null);
             fetchAppointments();
         }
+        await logAudit({ action: 'Reagendar', module: 'Citas', entity: 'citas', entityId: id, metadata: { nueva_fecha: isoStringInVenezuelaTime }, success: !error });
     };
 
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -237,7 +293,7 @@ const AppointmentsAdminPage: React.FC = () => {
             const date = format(dateObj, 'yyyy-MM-dd');
             const location = getLocationForAvailability();
             const url = `/api/availability/slots?date=${encodeURIComponent(date)}&location=${encodeURIComponent(location)}`;
-            const res = await fetch(url);
+            const res = await apiFetch(url);
             if (!res.ok) throw new Error(`Error consultando horarios: ${res.status}`);
             const json = await res.json();
             setAvailableSlots(Array.isArray(json.available) ? json.available : []);
@@ -271,21 +327,25 @@ const AppointmentsAdminPage: React.FC = () => {
             const isCurrentlyAvailable = availableSlots.includes(slot);
             const endpoint = '/api/availability/block';
             const options: RequestInit = {
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                },
                 body: JSON.stringify({ date, slot, location }),
             };
             let res: Response;
             if (isCurrentlyAvailable) {
                 // Bloquear horario
-                res = await fetch(endpoint, { ...options, method: 'POST' });
+                res = await apiFetch(endpoint, { ...options, method: 'POST' });
             } else {
                 // Desbloquear horario
-                res = await fetch(endpoint, { ...options, method: 'DELETE' });
+                res = await apiFetch(endpoint, { ...options, method: 'DELETE' });
             }
             if (!res.ok) {
                 const text = await res.text();
+                await logAudit({ action: isCurrentlyAvailable ? 'Bloquear horario' : 'Desbloquear horario', module: 'Citas', entity: 'disponibilidad_horarios', entityId: null, metadata: { fecha: date, slot, ubicacion: location, response_status: res.status }, success: false });
                 throw new Error(text || 'Fallo actualizando disponibilidad');
             }
+            await logAudit({ action: isCurrentlyAvailable ? 'Bloquear horario' : 'Desbloquear horario', module: 'Citas', entity: 'disponibilidad_horarios', entityId: null, metadata: { fecha: date, slot, ubicacion: location }, success: true });
             // Recargar slots tras éxito
             await loadSlotsForDate(selectedDate);
         } catch (e: any) {
@@ -354,20 +414,20 @@ const AppointmentsAdminPage: React.FC = () => {
                                     <td className="py-4 px-6 text-right">
                                         <button
                                             onClick={() => {
-                                                if (!isAppointmentActionAllowed(app, 'reagendar')) { markDenied(app.id, 'reagendar'); return; }
+                                                if (!isAppointmentActionAllowed(app, 'reprogramar')) { console.warn('🚫 CITAS: Reagendar denegado', { id: app.id, role: currentUserRole || 'Asistente', sede: currentUserSede }); markDenied(app.id, 'reprogramar'); return; }
                                                 setEditingAppointment(app);
                                             }}
-                                            className={`mr-4 ${!isAppointmentActionAllowed(app, 'reagendar') ? 'text-indigo-300 cursor-not-allowed' : 'text-indigo-600 hover:text-indigo-900'}`}
+                                            className={`mr-4 ${!isAppointmentActionAllowed(app, 'reprogramar') ? 'text-indigo-300 cursor-not-allowed' : 'text-indigo-600 hover:text-indigo-900'}`}
                                             title="Reagendar"
                                         >
                                             <Edit size={18} />
                                         </button>
-                                        {denied[app.id]?.reagendar && (
+                                        {denied[app.id]?.reprogramar && (
                                             <span className="ml-1 text-[10px] text-red-600">No está autorizado</span>
                                         )}
                                         <button
                                             onClick={() => {
-                                                if (!isAppointmentActionAllowed(app, 'confirmar')) { markDenied(app.id, 'confirmar'); return; }
+                                                if (!isAppointmentActionAllowed(app, 'confirmar')) { console.warn('🚫 CITAS: Confirmar denegado', { id: app.id, role: currentUserRole || 'Asistente', sede: currentUserSede }); markDenied(app.id, 'confirmar'); return; }
                                                 handleUpdateStatus(app.id, 'Confirmada');
                                             }}
                                             className={`mr-4 ${!isAppointmentActionAllowed(app, 'confirmar') ? 'text-green-300 cursor-not-allowed' : 'text-green-600 hover:text-green-900'}`}
@@ -380,7 +440,7 @@ const AppointmentsAdminPage: React.FC = () => {
                                         )}
                                         <button
                                             onClick={() => {
-                                                if (!isAppointmentActionAllowed(app, 'cancelar')) { markDenied(app.id, 'cancelar'); return; }
+                                                if (!isAppointmentActionAllowed(app, 'cancelar')) { console.warn('🚫 CITAS: Cancelar denegado', { id: app.id, role: currentUserRole || 'Asistente', sede: currentUserSede }); markDenied(app.id, 'cancelar'); return; }
                                                 handleUpdateStatus(app.id, 'Cancelada');
                                             }}
                                             className={`${!isAppointmentActionAllowed(app, 'cancelar') ? 'text-red-300 cursor-not-allowed' : 'text-red-600 hover:text-red-900'}`}
@@ -447,7 +507,7 @@ const AppointmentsAdminPage: React.FC = () => {
                                                         className={`${baseClasses} ${stateClasses} ${disabled ? 'opacity-60 pointer-events-none' : ''} ${!can('gestionar_disponibilidad') ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                         title={isAvailable ? 'Disponible: clic para bloquear' : (isBusy ? 'No disponible: clic para desbloquear' : 'Clic para cambiar estado')}
                                                         onClick={() => {
-                                                            if (!can('gestionar_disponibilidad')) { setDeniedAvailability(true); setTimeout(() => setDeniedAvailability(false), 3000); return; }
+                                                            if (!can('gestionar_disponibilidad')) { console.warn('🚫 CITAS: Gestionar disponibilidad denegado', { role: currentUserRole || 'Asistente', sede: currentUserSede }); setDeniedAvailability(true); setTimeout(() => setDeniedAvailability(false), 3000); return; }
                                                             toggleSlotAvailability(slot);
                                                         }}
                                                     >

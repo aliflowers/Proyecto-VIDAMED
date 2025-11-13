@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { createClient } from '@supabase/supabase-js';
+import { logServerAudit } from '../_utils/audit.js';
 
 function getEnv(name: string): string | undefined {
   return process.env[name] || process.env[`PRIVATE_${name}`];
@@ -9,12 +10,30 @@ export default async function notifyWhatsappHandler(req: Request, res: Response)
   try {
     const { result_id } = req.body || {};
     if (!result_id) {
+      await logServerAudit({
+        req,
+        action: 'Enviar vía WhatsApp',
+        module: 'Resultados',
+        entity: 'resultados_pacientes',
+        entityId: null,
+        metadata: { reason: 'Falta result_id' },
+        success: false,
+      });
       return res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'Falta result_id en el cuerpo de la petición.' });
     }
 
     const supabaseUrl = getEnv('SUPABASE_URL');
     const supabaseServiceKey = getEnv('SUPABASE_SERVICE_ROLE_KEY') || getEnv('SUPABASE_SERVICE_ROLE');
     if (!supabaseUrl || !supabaseServiceKey) {
+      await logServerAudit({
+        req,
+        action: 'Enviar vía WhatsApp',
+        module: 'Resultados',
+        entity: 'resultados_pacientes',
+        entityId: result_id,
+        metadata: { reason: 'ENV_MISSING' },
+        success: false,
+      });
       return res.status(500).json({ ok: false, code: 'ENV_MISSING', message: 'SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY no configurados.' });
     }
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
@@ -25,6 +44,15 @@ export default async function notifyWhatsappHandler(req: Request, res: Response)
     const defaultCountry = getEnv('WHATSAPP_DEFAULT_COUNTRY_CODE');
 
     if (!whatsappToken || !whatsappPhoneNumberId) {
+      await logServerAudit({
+        req,
+        action: 'Enviar vía WhatsApp',
+        module: 'Resultados',
+        entity: 'resultados_pacientes',
+        entityId: result_id,
+        metadata: { reason: 'ENV_MISSING_WHATSAPP' },
+        success: false,
+      });
       return res.status(500).json({ ok: false, code: 'ENV_MISSING', message: 'WHATSAPP_API_TOKEN o WHATSAPP_PHONE_NUMBER_ID no configurados.' });
     }
 
@@ -35,9 +63,27 @@ export default async function notifyWhatsappHandler(req: Request, res: Response)
       .maybeSingle();
 
     if (error) {
+      await logServerAudit({
+        req,
+        action: 'Enviar vía WhatsApp',
+        module: 'Resultados',
+        entity: 'resultados_pacientes',
+        entityId: result_id,
+        metadata: { reason: 'DB_ERROR', message: error.message },
+        success: false,
+      });
       return res.status(500).json({ ok: false, code: 'DB_ERROR', message: error.message });
     }
     if (!data) {
+      await logServerAudit({
+        req,
+        action: 'Enviar vía WhatsApp',
+        module: 'Resultados',
+        entity: 'resultados_pacientes',
+        entityId: result_id,
+        metadata: { reason: 'NOT_FOUND' },
+        success: false,
+      });
       return res.status(404).json({ ok: false, code: 'NOT_FOUND', message: 'Resultado no encontrado.' });
     }
 
@@ -52,6 +98,15 @@ export default async function notifyWhatsappHandler(req: Request, res: Response)
     const nombreEstudio = estudio.nombre || 'Estudio clínico';
 
     if (!telefono || !String(telefono).trim()) {
+      await logServerAudit({
+        req,
+        action: 'Enviar vía WhatsApp',
+        module: 'Resultados',
+        entity: 'resultados_pacientes',
+        entityId: result_id,
+        metadata: { reason: 'NO_PHONE' },
+        success: false,
+      });
       return res.status(400).json({ ok: false, code: 'NO_PHONE', message: 'Paciente sin teléfono registrado.' });
     }
 
@@ -88,11 +143,38 @@ export default async function notifyWhatsappHandler(req: Request, res: Response)
 
     const json = await resp.json().catch(() => ({}));
     if (!resp.ok) {
+      await logServerAudit({
+        req,
+        action: 'Enviar vía WhatsApp',
+        module: 'Resultados',
+        entity: 'resultados_pacientes',
+        entityId: result_id,
+        metadata: { to, paciente: `${nombres} ${apellidos}`.trim(), provider_error: json?.error || json },
+        success: false,
+      });
       return res.status(resp.status).json({ ok: false, code: 'WHATSAPP_API_ERROR', message: json?.error?.message || 'Error en WhatsApp API', details: json });
     }
 
+    await logServerAudit({
+      req,
+      action: 'Enviar vía WhatsApp',
+      module: 'Resultados',
+      entity: 'resultados_pacientes',
+      entityId: result_id,
+      metadata: { to, paciente: `${nombres} ${apellidos}`.trim() },
+      success: true,
+    });
     return res.status(200).json({ ok: true, code: 'SENT', message: `WhatsApp enviado a ${nombres} ${apellidos}.`, provider: json });
   } catch (err: any) {
+    await logServerAudit({
+      req,
+      action: 'Enviar vía WhatsApp',
+      module: 'Resultados',
+      entity: 'resultados_pacientes',
+      entityId: (req.body?.result_id ?? null),
+      metadata: { reason: 'UNEXPECTED', message: err?.message || String(err) },
+      success: false,
+    });
     return res.status(500).json({ ok: false, code: 'UNEXPECTED', message: err?.message || 'Error inesperado en WhatsApp.' });
   }
 }

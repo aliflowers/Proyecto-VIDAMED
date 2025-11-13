@@ -6,6 +6,12 @@
       "maxDuration": 30
     }
   },
+  "crons": [
+    {
+      "path": "/api/reminders/send-next-day?token=UwvhauqTKLgS0UOJIuHigzzlckxO02cT5KaChIT7waGxTEd63UF37U5EG3hAtSgH",
+      "schedule": "0 16 * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/:path*",

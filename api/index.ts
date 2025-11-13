@@ -2,11 +2,11 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
-import { GoogleGenerativeAI, Part, Tool, SchemaType, Content } from '@google/generative-ai';
-import { DEFAULT_GEMINI_MODEL } from './config.js';
+import { bedrockChat, BedrockMessage, BedrockTool } from './bedrock.js';
 import { nextDay, format, isFuture, parseISO } from 'date-fns';
 import path from 'path';
 import notifyWhatsappHandler from './notify/whatsapp.js';
+import { logServerAudit } from './_utils/audit.js';
 import notifyEmailHandler from './notify/email.js';
 import { sendAppointmentConfirmationEmail, sendAppointmentReminderEmail } from './notify/appointment-email.js';
 // Eliminado: nodemailer ya no es necesario para recuperación de contraseña
@@ -16,13 +16,13 @@ async function startServer() {
     dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
     // Usar directamente las variables privadas del entorno
-    const geminiApiKey = process.env.GEMINI_API_KEY;
+    const bedrockToken = process.env.AWS_BEARER_TOKEN_BEDROCK;
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (!geminiApiKey || !supabaseUrl || !supabaseServiceKey) {
+    if (!bedrockToken || !supabaseUrl || !supabaseServiceKey) {
         const missing = [
-            !geminiApiKey ? 'GEMINI_API_KEY' : null,
+            !bedrockToken ? 'AWS_BEARER_TOKEN_BEDROCK' : null,
             !supabaseUrl ? 'SUPABASE_URL' : null,
             !supabaseServiceKey ? 'SUPABASE_SERVICE_ROLE_KEY' : null,
         ].filter(Boolean);
@@ -31,7 +31,7 @@ async function startServer() {
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-    const genAI = new GoogleGenerativeAI(geminiApiKey);
+    const BEDROCK_MODEL = process.env.BEDROCK_DEFAULT_MODEL || 'openai.gpt-oss-120b-1:0';
     
     const app = express();
     const port = process.env.PORT || 3001;
@@ -136,7 +136,7 @@ async function startServer() {
     // --- INICIO DE LA ARQUITECTURA DE ENRUTADOR v2.0 ---
 
     const classifierSystemInstruction = `Tu única función es clasificar la intención del último mensaje del usuario en una de las siguientes categorías: CONSULTA_ESTUDIO, AGENDAR_CITA, SALUDO, DESCONOCIDO. Responde únicamente con la categoría.`;
-    const entityExtractorSystemInstruction = `Tu única función es extraer el nombre del examen o estudio médico del texto del usuario. Si no hay un nombre de estudio claro, responde con "NO_ENCONTRADO". Responde únicamente con el nombre del estudio.`;
+    const entityExtractorSystemInstruction = `Tu única función es extraer el nombre del examen o estudio médico del texto del usuario. Devuelve SOLO un nombre de estudio, sin comas ni texto extra. Si el texto menciona varios estudios, devuelve el más claro (idealmente el último mencionado). Si no hay un nombre de estudio claro, responde con "NO_ENCONTRADO". Responde únicamente con el nombre del estudio.`;
     
     // Saneador robusto del nombre de estudio extraído desde la IA
     const sanitizeExtractedStudyName = (raw: string): string | null => {
@@ -158,11 +158,34 @@ async function startServer() {
         if (!cleaned || cleaned.toUpperCase() === 'NO_ENCONTRADO') return null;
         return cleaned;
     };
+    // Normalizador sin acentos para coincidencias robustas
+    const normalize = (s: string) =>
+        String(s || '')
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '');
+
+    // Mapeo de sinónimos comunes a nombres canónicos en BD
+    const toCanonicalStudyName = (raw: string): string => {
+        const t = normalize(String(raw || ''));
+        if (/(hemograma|hematologia\s+completa)/.test(t)) return 'HEMATOLOGIA COMPLETA CON PLAQUETAS';
+        if (/(examen|analisis|an[aá]lisis).*orina/.test(t)) {
+            if (!/(catecolaminas|citrato|oxalato|cocaina)/.test(t)) return 'EXAMEN DE ORINA';
+        }
+        if (/(perfil\s+lipidico|lipidico)/.test(t)) return 'PERFIL LIPIDICO';
+        return raw;
+    };
+
+    // Split básico de múltiples estudios en una sola frase
+    const splitStudyQueries = (text: string): string[] => {
+        if (!text) return [];
+        let s = String(text);
+        s = s.replace(/\s+y\s+/gi, ',').replace(/\s+e\s+/gi, ',');
+        const parts = s.split(/[\,\n]/).map(p => p.trim()).filter(Boolean);
+        return parts.filter(p => p.length >= 3);
+    };
     
-    const conversationalSystemInstruction: Content = {
-        role: 'user',
-        parts: [{
-            text: `
+    const conversationalSystemInstruction = `
 Eres VidaBot, asistente de VidaMed. Debes agendar citas siguiendo un flujo ESTRICTO de slot-filling, preguntando UNA sola cosa por turno.
 Orden de slots:
 1) Estudios solicitados (uno o varios). Si son varios, pide la lista completa.
@@ -181,9 +204,7 @@ Consultas de Estudios:
 - Responde con: nombre del estudio, categoría, descripción, preparación, tipo de muestra, costo (USD y Bs), y tiempo de entrega (ELISA/Otros) tomando de "tiempo_entrega_elisa_otro" o, si falta, de "tiempo_entrega".
 - Si hay varios estudios similares, menciona los nombres adicionales y ofrece ayudar a elegir.
 - Mantén un tono conciso y técnico; ofrece agendar al final si aplica.
-            `
-        }]
-    };
+    `;
 
     // Guardrails de salida: anti-duplicación y validación de cédula (7–9 dígitos)
     const collapseInnerDupesInToken = (token: string): string => {
@@ -219,7 +240,17 @@ Consultas de Estudios:
         return sanitized.join('\n');
     };
 
-    const applyOutputGuardrails = (text: string, userMsg?: string): string => enforceCedulaRule(fixEchoDupes(text), userMsg);
+    const stripReasoningBlocks = (s: string): string => {
+        if (!s) return s;
+        const cleaned = s.replace(/<(reasoning|think|thinking)>[\s\S]*?<\/(reasoning|think|thinking)>/gi, '').trim();
+        return cleaned.replace(/^\s*Reasoning:\s*[\s\S]*$/im, (m) => '').trim();
+    };
+
+    const applyOutputGuardrails = (text: string, userMsg?: string): string => {
+        const noDupes = fixEchoDupes(text);
+        const noReasoning = stripReasoningBlocks(noDupes);
+        return enforceCedulaRule(noReasoning, userMsg);
+    };
 
     // --- FUNCIONES DE HERRAMIENTAS ---
     const getNextDateForDay = (dayName: string): string => {
@@ -397,42 +428,126 @@ Consultas de Estudios:
         } catch (error: any) { console.error("Error inesperado en scheduleAppointment:", error); return { error: "Lo siento, ocurrió un error interno inesperado.", details: error.message }; }
     };
     
-    const tools: Tool[] = [{
-        functionDeclarations: [
-          { name: 'getStudiesInfo', description: 'Obtiene información detallada de un estudio: categoría, descripción, preparación, precios USD/Bs, tiempo de entrega ELISA/Otros y tipo de muestra.', parameters: { type: SchemaType.OBJECT, properties: { studyName: { type: SchemaType.STRING, description: 'Nombre del estudio a consultar (texto libre).' } }, required: ['studyName'] } },
-          { name: 'getAvailability', description: 'Verifica disponibilidad de una fecha. Acepta días de la semana o fecha YYYY-MM-DD.', parameters: { type: SchemaType.OBJECT, properties: { date: { type: SchemaType.STRING, description: 'Día (lunes a sábado) o fecha YYYY-MM-DD.' } }, required: ['date'] } },
-          { name: 'getAvailableHours', description: 'Lista horas disponibles (HH:mm) para una fecha confirmada.', parameters: { type: SchemaType.OBJECT, properties: { date: { type: SchemaType.STRING, description: 'Fecha YYYY-MM-DD.' } }, required: ['date'] } },
-          { name: 'scheduleAppointment', description: 'Crea la cita en la base de datos después de confirmar todos los datos.', parameters: {
-              type: SchemaType.OBJECT,
-              properties: {
-                patientInfo: {
-                  type: SchemaType.OBJECT,
-                  properties: {
-                    primer_nombre: { type: SchemaType.STRING },
-                    segundo_nombre: { type: SchemaType.STRING },
-                    primer_apellido: { type: SchemaType.STRING },
-                    segundo_apellido: { type: SchemaType.STRING },
-                    cedula: { type: SchemaType.STRING },
-                    telefono: { type: SchemaType.STRING },
-                    email: { type: SchemaType.STRING },
-                    direccion: { type: SchemaType.STRING },
-                    ciudad_domicilio: { type: SchemaType.STRING, description: 'Requerida si ubicación es "Servicio a Domicilio". Valores: Maracay | La Colonia Tovar' },
-                  },
-                  required: ['primer_nombre','primer_apellido','cedula','telefono'],
-                },
-                studies: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-                date: { type: SchemaType.STRING },
-                time: { type: SchemaType.STRING, description: 'Hora de la cita en formato HH:mm (24h)' },
-                location: { type: SchemaType.STRING, description: 'Ubicación normalizada: "Sede Principal Maracay" | "Sede La Colonia Tovar" | "Servicio a Domicilio"' },
-              },
-              required: ['patientInfo','studies','date','time','location'],
+    const bedrockTools: BedrockTool[] = [
+      {
+        type: 'function',
+        function: {
+          name: 'getStudiesInfo',
+          description: 'Obtiene información detallada de un estudio: categoría, descripción, preparación, precios USD/Bs, tiempo de entrega ELISA/Otros y tipo de muestra.',
+          parameters: {
+            type: 'object',
+            properties: {
+              studyName: { type: 'string', description: 'Nombre del estudio a consultar (texto libre).' }
             },
-          },
-        ],
-    }];
+            required: ['studyName']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'getAvailability',
+          description: 'Verifica disponibilidad de una fecha. Acepta días de la semana o fecha YYYY-MM-DD.',
+          parameters: {
+            type: 'object',
+            properties: {
+              date: { type: 'string', description: 'Día (lunes a sábado) o fecha YYYY-MM-DD.' }
+            },
+            required: ['date']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'getAvailableHours',
+          description: 'Lista horas disponibles (HH:mm) para una fecha confirmada.',
+          parameters: {
+            type: 'object',
+            properties: {
+              date: { type: 'string', description: 'Fecha YYYY-MM-DD.' }
+            },
+            required: ['date']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'scheduleAppointment',
+          description: 'Crea la cita en la base de datos después de confirmar todos los datos.',
+          parameters: {
+            type: 'object',
+            properties: {
+              patientInfo: {
+                type: 'object',
+                properties: {
+                  primer_nombre: { type: 'string' },
+                  segundo_nombre: { type: 'string' },
+                  primer_apellido: { type: 'string' },
+                  segundo_apellido: { type: 'string' },
+                  cedula: { type: 'string' },
+                  telefono: { type: 'string' },
+                  email: { type: 'string' },
+                  direccion: { type: 'string' },
+                  ciudad_domicilio: { type: 'string', description: 'Requerida si ubicación es "Servicio a Domicilio". Valores: Maracay | La Colonia Tovar' },
+                },
+                required: ['primer_nombre','primer_apellido','cedula','telefono'],
+              },
+              studies: { type: 'array', items: { type: 'string' } },
+              date: { type: 'string' },
+              time: { type: 'string', description: 'Hora de la cita en formato HH:mm (24h)' },
+              location: { type: 'string', description: 'Ubicación normalizada: "Sede Principal Maracay" | "Sede La Colonia Tovar" | "Servicio a Domicilio"' },
+            },
+            required: ['patientInfo','studies','date','time','location'],
+          }
+        }
+      }
+    ];
     
-    const model = genAI.getGenerativeModel({ model: DEFAULT_GEMINI_MODEL, generationConfig: { temperature: 0.2, topP: 0.9 } });
-    const conversationalModel = genAI.getGenerativeModel({ model: DEFAULT_GEMINI_MODEL, systemInstruction: conversationalSystemInstruction, tools, generationConfig: { temperature: 0.2, topP: 0.9 } });
+    const toBedrockMessages = (history: any[]): BedrockMessage[] => {
+      const msgs: BedrockMessage[] = [];
+      for (const m of Array.isArray(history) ? history : []) {
+        const role = m.role === 'model' ? 'assistant' : (m.role || 'user');
+        const parts = Array.isArray(m.parts) ? m.parts : [];
+        const text = parts.map((p: any) => typeof p?.text === 'string' ? p.text : '').filter(Boolean).join('\n').trim();
+        if (text) msgs.push({ role, content: text });
+      }
+      return msgs;
+    };
+
+    function buildAssistantToolCallMessage(toolCalls: Array<{ id?: string; name: string; arguments: any }>): BedrockMessage {
+      return {
+        role: 'assistant',
+        // Bedrock/OpenAI requieren content presente aunque esté vacío cuando se incluyen tool_calls
+        content: '',
+        tool_calls: toolCalls.map((tc) => ({
+          id: tc.id,
+          type: 'function',
+          function: { name: tc.name, arguments: JSON.stringify(tc.arguments ?? {}) },
+        })),
+      };
+    }
+
+    async function runBedrockToolCalls(toolCalls: Array<{ id?: string; name: string; arguments: any }>): Promise<{ toolMessages: BedrockMessage[]; metaPayload?: any }> {
+      const toolMessages: BedrockMessage[] = [];
+      let metaPayload: any = null;
+      for (const tc of toolCalls) {
+        let result: any;
+        if (tc.name === 'getAvailability') result = await getAvailability(tc.arguments || {});
+        else if (tc.name === 'getAvailableHours') result = await getAvailableHours(tc.arguments || {});
+        else if (tc.name === 'scheduleAppointment') result = await scheduleAppointment(tc.arguments || {});
+        else if (tc.name === 'getStudiesInfo') result = await getStudiesInfo(tc.arguments || {});
+        else result = { error: `Función '${tc.name}' no válida en este contexto.` };
+        if (result?.error && result?.meta && !metaPayload) metaPayload = result.meta;
+        toolMessages.push({
+          role: 'tool',
+          tool_call_id: tc.id || '',
+          content: JSON.stringify(result),
+        });
+      }
+      return { toolMessages, metaPayload };
+    }
 
     // --- LÓGICA DEL ENRUTADOR v2.0 (CORREGIDA) ---
     app.post('/api/chat', async (req: Request, res: Response) => {
@@ -441,21 +556,71 @@ Consultas de Estudios:
         if (!history || history.length === 0) {
           return res.status(400).json({ error: 'El historial de la conversación es requerido.' });
         }
-        const lastUserMessage = history[history.length - 1].parts[0].text;
+        const lastUserMessage = history[history.length - 1]?.parts?.[0]?.text || '';
 
-        // 1. Clasificar la intención del usuario
-        const classifierChat = model.startChat({ history: [{ role: 'user', parts: [{ text: classifierSystemInstruction }] }] });
-        const intentResult = await classifierChat.sendMessage(lastUserMessage);
-        const intent = intentResult.response.text().trim();
+        // 1. Clasificar la intención del usuario con Bedrock
+        const intentResp = await bedrockChat({
+          model: BEDROCK_MODEL,
+          messages: [
+            { role: 'system', content: classifierSystemInstruction },
+            { role: 'user', content: lastUserMessage },
+          ],
+          temperature: 0.0,
+          top_p: 0.9,
+        });
+        const intent = intentResp.text.trim().toUpperCase();
         console.log(`Intención Detectada: ${intent}`);
 
         // 2. Actuar según la intención (Switch Lógico Corregido)
         switch (intent) {
             case 'CONSULTA_ESTUDIO': {
-                const extractorChat = model.startChat({ history: [{ role: 'user', parts: [{ text: entityExtractorSystemInstruction }] }] });
-                const extractorResult = await extractorChat.sendMessage(lastUserMessage);
-                const rawExtracted = extractorResult.response.text().trim();
-                const studyName = sanitizeExtractedStudyName(rawExtracted) || rawExtracted;
+                // Intentar detectar múltiples estudios directamente del texto del usuario
+                const requested = splitStudyQueries(lastUserMessage).map(toCanonicalStudyName);
+                if (requested.length >= 2) {
+                    const pieces: string[] = [];
+                    for (const name of requested) {
+                        const studyInfoResult = await getStudiesInfo({ studyName: name }) as any;
+                        if (studyInfoResult.error) { pieces.push(studyInfoResult.error); continue; }
+                        if (studyInfoResult.studies && studyInfoResult.studies.length > 0) {
+                            const study = studyInfoResult.studies[0];
+                            const tiempoEntregaBase = (study.tiempo_entrega_quimioluminiscencia && study.tiempo_entrega_quimioluminiscencia !== 'N/A') ? study.tiempo_entrega_quimioluminiscencia : study.tiempo_entrega_elisa_otro;
+                            const tiempoEntrega = tiempoEntregaBase || 'N/A';
+                            const muestra = study.tipo_de_muestra || 'N/A';
+                            const precioUsd = typeof study.costo_usd !== 'undefined' ? study.costo_usd : 'N/D';
+                            const precioBs = typeof study.costo_bs !== 'undefined' ? study.costo_bs : 'N/D';
+                            const descripcionValida = study.descripcion && String(study.descripcion).trim().toLowerCase() !== 'null';
+                            const preparacionValida = study.preparacion && String(study.preparacion).trim().toLowerCase() !== 'null';
+                            let block = `Aquí tienes la información sobre "${study.nombre}":\n- Categoría: ${study.categoria}\n`;
+                            if (descripcionValida) block += `- Descripción: ${study.descripcion}\n`;
+                            if (preparacionValida) block += `- Preparación: ${study.preparacion}\n`;
+                            block += `- Tipo de muestra: ${muestra}\n- Costo: ${precioUsd} USD / ${precioBs} Bs.\n- Tiempo de Entrega: ${tiempoEntrega}`;
+                            if (studyInfoResult.studies.length > 1) {
+                                const otherNames = studyInfoResult.studies.slice(1).map((s: any) => s.nombre).join(', ');
+                                block += `\nTambién encontré otros estudios similares: ${otherNames}.`;
+                            }
+                            pieces.push(block);
+                        } else {
+                            pieces.push(studyInfoResult.result || `No se encontró información para "${name}".`);
+                        }
+                    }
+                    const header = 'Sí, claro. Aquí te muestro la información de los estudios que me preguntaste:';
+                    const responseText = header + '\n\n' + pieces.join('\n\n') + '\n\n¿Te gustaría agendar una cita para alguno de estos estudios o consultar otro?';
+                    return res.status(200).json({ response: applyOutputGuardrails(responseText, lastUserMessage) });
+                }
+
+                // Flujo estándar: extraer un único estudio y aplicar sinónimos canónicos
+                const extractorResp = await bedrockChat({
+                  model: BEDROCK_MODEL,
+                  messages: [
+                    { role: 'system', content: entityExtractorSystemInstruction },
+                    { role: 'user', content: lastUserMessage },
+                  ],
+                  temperature: 0.0,
+                  top_p: 0.9,
+                });
+                const rawExtracted = extractorResp.text.trim();
+                const studyNameRaw = sanitizeExtractedStudyName(rawExtracted) || rawExtracted;
+                const studyName = toCanonicalStudyName(studyNameRaw);
 
                 if (studyName === 'NO_ENCONTRADO' || !studyName) {
                     return res.status(200).json({ response: "Claro, con gusto te ayudo. ¿Qué estudio o examen te gustaría consultar?" });
@@ -470,7 +635,6 @@ Consultas de Estudios:
                 let responseText = "";
                 if (studyInfoResult.studies && studyInfoResult.studies.length > 0) {
                     const study = studyInfoResult.studies[0];
-                    // Seleccionar el mejor tiempo de entrega disponible: preferir Quimioluminiscencia si no es 'N/A', si no, ELISA/Otros
                     const tiempoEntregaBase = (study.tiempo_entrega_quimioluminiscencia && study.tiempo_entrega_quimioluminiscencia !== 'N/A') ? study.tiempo_entrega_quimioluminiscencia : study.tiempo_entrega_elisa_otro;
                     const tiempoEntrega = tiempoEntregaBase || 'N/A';
                     const muestra = study.tipo_de_muestra || 'N/A';
@@ -478,8 +642,8 @@ Consultas de Estudios:
                     const precioBs = typeof study.costo_bs !== 'undefined' ? study.costo_bs : 'N/D';
                     const descripcionValida = study.descripcion && String(study.descripcion).trim().toLowerCase() !== 'null';
                     const preparacionValida = study.preparacion && String(study.preparacion).trim().toLowerCase() !== 'null';
-
-                    responseText = `Aquí tienes la información sobre "${study.nombre}":\n- Categoría: ${study.categoria}\n`;
+                    const header = 'Sí, claro. Aquí te muestro la información del estudio que me preguntaste:';
+                    responseText = `${header}\n\nAquí tienes la información sobre "${study.nombre}":\n- Categoría: ${study.categoria}\n`;
                     if (descripcionValida) {
                         responseText += `- Descripción: ${study.descripcion}\n`;
                     }
@@ -500,42 +664,46 @@ Consultas de Estudios:
             }
 
             case 'AGENDAR_CITA': {
-                const conversationalChat = conversationalModel.startChat({ history });
-                const conversationalResult = await conversationalChat.sendMessage(lastUserMessage);
-                const conversationalResponse = conversationalResult.response;
-                const conversationalFunctionCalls = conversationalResponse.functionCalls();
-
-                if (conversationalFunctionCalls && conversationalFunctionCalls.length > 0) {
-                    const toolResponses: Part[] = [];
-                    let metaPayload: any = null;
-                    for (const call of conversationalFunctionCalls) {
-                        const { name, args } = call;
-                        let functionResult;
-                        if (name === 'getAvailability') functionResult = await getAvailability(args as any);
-                        else if (name === 'getAvailableHours') functionResult = await getAvailableHours(args as any);
-                        else if (name === 'scheduleAppointment') functionResult = await scheduleAppointment(args as any);
-                        else functionResult = { error: `Función '${name}' no válida en este contexto.` };
-                        if ((functionResult as any)?.error && (functionResult as any)?.meta && !metaPayload) metaPayload = (functionResult as any).meta;
-                        toolResponses.push({ functionResponse: { name, response: functionResult } });
-                    }
-                    const secondResult = await conversationalChat.sendMessage(toolResponses);
-                        return res.status(200).json({ response: applyOutputGuardrails(secondResult.response.text(), lastUserMessage), meta: metaPayload || undefined });
-                    }
-                    return res.status(200).json({ response: applyOutputGuardrails(conversationalResponse.text(), lastUserMessage) });
+                const baseMessages: BedrockMessage[] = [
+                  { role: 'system', content: conversationalSystemInstruction },
+                  ...toBedrockMessages(history),
+                ];
+                const first = await bedrockChat({
+                  model: BEDROCK_MODEL,
+                  messages: baseMessages,
+                  tools: bedrockTools,
+                  temperature: 0.2,
+                  top_p: 0.9,
+                });
+                if (first.toolCalls && first.toolCalls.length > 0) {
+                  const assistantToolMsg = buildAssistantToolCallMessage(first.toolCalls);
+                  const { toolMessages, metaPayload } = await runBedrockToolCalls(first.toolCalls);
+                  const second = await bedrockChat({
+                    model: BEDROCK_MODEL,
+                    messages: [...baseMessages, assistantToolMsg, ...toolMessages],
+                    tools: bedrockTools,
+                    temperature: 0.2,
+                    top_p: 0.9,
+                  });
+                  return res.status(200).json({ response: applyOutputGuardrails(second.text, lastUserMessage), meta: metaPayload || undefined });
+                }
+                return res.status(200).json({ response: applyOutputGuardrails(first.text, lastUserMessage) });
             }
 
             case 'SALUDO':
             case 'DESCONOCIDO':
             default: {
                 // Para saludos o intenciones no reconocidas, damos una respuesta conversacional simple sin herramientas
-                const simpleChat = model.startChat({
-                    history: [
-                        { role: 'user', parts: [{ text: 'Eres un asistente de laboratorio amable y servicial llamado VidaBot.' }] },
-                        { role: 'model', parts: [{ text: '¡Hola! Soy VidaBot. ¿Cómo puedo ayudarte?' }] }
-                    ]
+                const simple = await bedrockChat({
+                  model: BEDROCK_MODEL,
+                  messages: [
+                    { role: 'system', content: 'Eres un asistente de laboratorio amable y servicial llamado VidaBot.' },
+                    { role: 'user', content: lastUserMessage },
+                  ],
+                  temperature: 0.2,
+                  top_p: 0.9,
                 });
-                const result = await simpleChat.sendMessage(lastUserMessage);
-                return res.status(200).json({ response: applyOutputGuardrails(result.response.text(), lastUserMessage) });
+                return res.status(200).json({ response: applyOutputGuardrails(simple.text, lastUserMessage) });
             }
         }
       } catch (error: any) {
@@ -581,8 +749,13 @@ Instrucciones estrictas:
 - No incluyas comentarios, explicaciones adicionales, ni bloques de código triple.
 `;
 
-        const genResult = await model.generateContent(prompt);
-        const rawText = genResult.response.text();
+        const genResult = await bedrockChat({
+          model: BEDROCK_MODEL,
+          messages: [{ role: 'system', content: 'Eres un generador de artículos para el Blog del Laboratorio Clínico VidaMed.' }, { role: 'user', content: prompt }],
+          temperature: 0.2,
+          top_p: 0.9,
+        });
+        const rawText = genResult.text;
 
         // Intentar parsear JSON de forma robusta
         const jsonMatch = rawText.match(/\{[\s\S]*\}/);
@@ -611,9 +784,32 @@ Instrucciones estrictas:
           keywords: typeof parsed.keywords === 'string' ? parsed.keywords : [topic, 'salud', 'laboratorio clínico'].concat(safeCategories).join(', '),
         };
 
+        try {
+          await logServerAudit({
+            req,
+            action: 'Generar contenido blog',
+            module: 'Blog',
+            entity: 'publicaciones_blog',
+            entityId: null,
+            metadata: { topic, postType: type, categories: safeCategories, tone: style, targetAudience: audience },
+            success: true,
+          });
+        } catch {}
+
         return res.status(200).json(responsePayload);
       } catch (error: any) {
         console.error('Error en /api/generate-blog-post:', error);
+        try {
+          await logServerAudit({
+            req,
+            action: 'Generar contenido blog',
+            module: 'Blog',
+            entity: 'publicaciones_blog',
+            entityId: null,
+            metadata: { topic: req.body?.topic, error: error?.message || String(error) },
+            success: false,
+          });
+        } catch {}
         return res.status(500).json({ error: 'Error generando el artículo con IA.', details: error.message });
       }
     });
@@ -722,20 +918,24 @@ ${valuesContext}
       const motivoEstudio: string | undefined = rawData?.motivo_estudio || undefined;
     const studyName = study?.nombre || 'Estudio no especificado';
     
-        console.log('🧬 Construyendo el prompt para Gemini...', { patientName, studyName, resultValues });
+        console.log('🧬 Construyendo el prompt para Bedrock...', { patientName, studyName, resultValues });
     
         // 2. Construir el prompt para la IA
         const prompt = buildMedicalAnalysisPrompt(patientName, studyName, resultValues, motivoEstudio);
         console.log('📝 Prompt final construido:', prompt);
     
-        // 3. Llamar a la API de Gemini
-        console.log('🤖 Llamando a la API de Gemini...');
-        const model = genAI.getGenerativeModel({ model: DEFAULT_GEMINI_MODEL });
-        const generationResult = await model.generateContent(prompt);
-        const response = await generationResult.response;
-        const interpretation = await response.text();
-    
-        console.log('✅ Respuesta recibida de Gemini:', interpretation);
+        // 3. Llamar a la API de Bedrock (OpenAI-compatible)
+        console.log('🤖 Llamando a la API de Bedrock...');
+        const analysisResult = await bedrockChat({
+          model: BEDROCK_MODEL,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.2,
+          top_p: 0.9,
+          max_completion_tokens: 2048,
+        });
+        const interpretation = analysisResult.text;
+
+        console.log('✅ Respuesta recibida de Bedrock:', interpretation);
     
         // 4. Enviar la interpretación como respuesta
         console.log('✔️ Enviando respuesta exitosa al cliente.');
@@ -770,7 +970,7 @@ ${valuesContext}
     const PORT = process.env.PORT || 3001;
     app.listen(port, () => {
       console.log(`Servidor escuchando en el puerto ${port}`);
-      console.log(`[IA] Modelo Gemini activo: ${DEFAULT_GEMINI_MODEL}`);
+      console.log(`[IA] Modelo Bedrock activo: ${BEDROCK_MODEL}`);
     });
 
 }

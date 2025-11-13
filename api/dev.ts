@@ -18,9 +18,12 @@ import notifyWhatsappHandler from './notify/whatsapp.js';
 import notifyEmailHandler from './notify/email.js';
 import { sendAppointmentConfirmationEmail } from './notify/appointment-email.js';
 // Eliminado: nodemailer no es necesario para recuperación de contraseña en dev
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { DEFAULT_GEMINI_MODEL } from './config.js';
+import { bedrockChat } from './bedrock.js';
+import { DEFAULT_BEDROCK_MODEL } from './config.js';
 import { createClient } from '@supabase/supabase-js';
+import { logServerAudit } from './_utils/audit.js';
+import { normalizeModuleName, normalizeActionName, maybeRemapModuleForAction } from './_utils/permissions.js';
+import { requireAdmin, requireSelfOrAdmin } from './_utils/auth.js';
 
 // Configuración Supabase admin (para consultar y bloquear horarios)
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -158,8 +161,8 @@ app.get('/api/health', (_req: Request, res: Response) => {
 });
 
 app.get('/api/diag', (_req: Request, res: Response) => {
-  const hasGemini =
-    Boolean(process.env.GEMINI_API_KEY) || Boolean(process.env.VITE_GEMINI_API_KEY);
+  const hasBedrockToken = Boolean(process.env.AWS_BEARER_TOKEN_BEDROCK);
+  const hasBedrockModel = Boolean(process.env.BEDROCK_DEFAULT_MODEL);
   const hasSupabaseUrl =
     Boolean(process.env.SUPABASE_URL) || Boolean(process.env.VITE_SUPABASE_URL);
   const hasServiceRole =
@@ -175,7 +178,8 @@ app.get('/api/diag', (_req: Request, res: Response) => {
   res.status(200).json({
     ok: true,
     env: {
-      GEMINI_API_KEY: hasGemini,
+      AWS_BEARER_TOKEN_BEDROCK: hasBedrockToken,
+      BEDROCK_DEFAULT_MODEL: hasBedrockModel,
       SUPABASE_URL: hasSupabaseUrl,
       SUPABASE_SERVICE_ROLE: hasServiceRole,
       ELEVENLABS_API_KEY: hasElevenApi,
@@ -264,8 +268,38 @@ app.get('/api/availability/slots', async (req: Request, res: Response) => {
     const unavailableSet = new Set<string>([...blockedSlotSet, ...bookedSet]);
     const available = isDayBlocked ? [] : allSlots.filter(s => !unavailableSet.has(s));
     res.status(200).json({ date, location, isDayBlocked, available, unavailable: Array.from(unavailableSet) });
+
+    // Auditoría: lectura de slots
+    try {
+      const userIdHeader = (req.headers['x-user-id'] || req.headers['x_user_id'] || '') as string;
+      const emailHeader = (req.headers['x-user-email'] || req.headers['x_user_email'] || '') as string;
+      const excluded = ['anamariaprieto@labvidamed.com', 'alijesusflores@gmail.com'];
+      const shouldLog = Boolean(userIdHeader || emailHeader) && !excluded.includes(String(emailHeader).toLowerCase());
+      if (shouldLog) {
+        await logServerAudit({
+          req,
+          action: 'Leer slots disponibles',
+          module: 'Citas',
+          entity: 'horarios',
+          entityId: null,
+          metadata: { date, location, isDayBlocked, available_count: available.length },
+          success: true,
+        });
+      }
+    } catch {}
   } catch (e: any) {
     console.error('[dev-api] Error en /api/availability/slots:', e);
+    try {
+      await logServerAudit({
+        req,
+        action: 'Leer slots disponibles',
+        module: 'Citas',
+        entity: 'horarios',
+        entityId: null,
+        metadata: { date: String(req.query.date || ''), location: String(req.query.location || ''), error: e?.message || String(e) },
+        success: false,
+      });
+    } catch {}
     res.status(500).json({ error: e.message || 'Error interno' });
   }
 });
@@ -273,6 +307,8 @@ app.get('/api/availability/slots', async (req: Request, res: Response) => {
 // POST /api/availability/block { date, slot, location, motivo? }
 app.post('/api/availability/block', async (req: Request, res: Response) => {
   try {
+    const auth = await requireAdmin(req, res)
+    if (!auth) return
     if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
     const { date, slot, location, motivo } = req.body || {};
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) return res.status(400).json({ error: 'Fecha inválida' });
@@ -284,8 +320,38 @@ app.post('/api/availability/block', async (req: Request, res: Response) => {
       .insert({ fecha: date, hora: slot, ubicacion: loc, motivo: motivo || null });
     if (error) throw error;
     res.status(200).json({ ok: true });
+
+    // Auditoría: bloquear horario
+    try {
+      const userIdHeader = (req.headers['x-user-id'] || req.headers['x_user_id'] || '') as string;
+      const emailHeader = (req.headers['x-user-email'] || req.headers['x_user_email'] || '') as string;
+      const excluded = ['anamariaprieto@labvidamed.com', 'alijesusflores@gmail.com'];
+      const shouldLog = Boolean(userIdHeader || emailHeader) && !excluded.includes(String(emailHeader).toLowerCase());
+      if (shouldLog) {
+        await logServerAudit({
+          req,
+          action: 'Bloquear horario',
+          module: 'Citas',
+          entity: 'disponibilidad_horarios',
+          entityId: null,
+          metadata: { fecha: date, slot, ubicacion: loc, motivo: motivo || null },
+          success: true,
+        });
+      }
+    } catch {}
   } catch (e: any) {
     console.error('[dev-api] Error en /api/availability/block:', e);
+    try {
+      await logServerAudit({
+        req,
+        action: 'Bloquear horario',
+        module: 'Citas',
+        entity: 'disponibilidad_horarios',
+        entityId: null,
+        metadata: { fecha: req.body?.date, slot: req.body?.slot, ubicacion: req.body?.location, error: e?.message || String(e) },
+        success: false,
+      });
+    } catch {}
     res.status(500).json({ ok: false, error: e.message || 'Error interno' });
   }
 });
@@ -293,6 +359,8 @@ app.post('/api/availability/block', async (req: Request, res: Response) => {
 // DELETE /api/availability/block { date, slot, location }
 app.delete('/api/availability/block', async (req: Request, res: Response) => {
   try {
+    const auth = await requireAdmin(req, res)
+    if (!auth) return
     if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
     const { date, slot, location } = req.body || {};
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) return res.status(400).json({ error: 'Fecha inválida' });
@@ -307,8 +375,38 @@ app.delete('/api/availability/block', async (req: Request, res: Response) => {
       .eq('ubicacion', loc);
     if (error) throw error;
     res.status(200).json({ ok: true });
+
+    // Auditoría: desbloquear horario
+    try {
+      const userIdHeader = (req.headers['x-user-id'] || req.headers['x_user_id'] || '') as string;
+      const emailHeader = (req.headers['x-user-email'] || req.headers['x_user_email'] || '') as string;
+      const excluded = ['anamariaprieto@labvidamed.com', 'alijesusflores@gmail.com'];
+      const shouldLog = Boolean(userIdHeader || emailHeader) && !excluded.includes(String(emailHeader).toLowerCase());
+      if (shouldLog) {
+        await logServerAudit({
+          req,
+          action: 'Desbloquear horario',
+          module: 'Citas',
+          entity: 'disponibilidad_horarios',
+          entityId: null,
+          metadata: { fecha: date, slot, ubicacion: loc },
+          success: true,
+        });
+      }
+    } catch {}
   } catch (e: any) {
     console.error('[dev-api] Error en DELETE /api/availability/block:', e);
+    try {
+      await logServerAudit({
+        req,
+        action: 'Desbloquear horario',
+        module: 'Citas',
+        entity: 'disponibilidad_horarios',
+        entityId: null,
+        metadata: { fecha: req.body?.date, slot: req.body?.slot, ubicacion: req.body?.location, error: e?.message || String(e) },
+        success: false,
+      });
+    } catch {}
     res.status(500).json({ ok: false, error: e.message || 'Error interno' });
   }
 });
@@ -316,10 +414,15 @@ app.delete('/api/availability/block', async (req: Request, res: Response) => {
 // Blog post generator (dev mirror)
 app.post('/api/generate-blog-post', async (req: Request, res: Response) => {
   try {
-    const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY no configurada en entorno de desarrollo.' });
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: DEFAULT_GEMINI_MODEL });
+    // Selección robusta del modelo: evita Nova en la API OpenAI-compatible
+    const candidateModel = process.env.BEDROCK_DEFAULT_MODEL || DEFAULT_BEDROCK_MODEL;
+    const BEDROCK_MODEL = /^amazon\.nova/.test(String(candidateModel))
+      ? DEFAULT_BEDROCK_MODEL
+      : candidateModel;
+
+    if (!process.env.AWS_BEARER_TOKEN_BEDROCK) {
+      return res.status(500).json({ error: 'AWS_BEARER_TOKEN_BEDROCK no configurado en entorno de desarrollo.' });
+    }
 
     const { topic, postType, categories, tone, targetAudience } = req.body || {};
     if (!topic || typeof topic !== 'string') {
@@ -352,8 +455,16 @@ app.post('/api/generate-blog-post', async (req: Request, res: Response) => {
       `  }\n` +
       `- No incluyas comentarios, explicaciones adicionales, ni bloques de código triple.\n`;
 
-    const genResult = await model.generateContent(prompt);
-    const rawText = genResult.response.text();
+    const genResult = await bedrockChat({
+      model: BEDROCK_MODEL,
+      messages: [
+        { role: 'system', content: 'Eres un generador de artículos para el Blog del Laboratorio Clínico VidaMed.' },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.2,
+      top_p: 0.9,
+    });
+    const rawText = genResult.text;
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     let parsed: any;
     try {
@@ -377,10 +488,32 @@ app.post('/api/generate-blog-post', async (req: Request, res: Response) => {
       meta_descripcion: typeof parsed.meta_descripcion === 'string' ? parsed.meta_descripcion.trim() : '',
       keywords: typeof parsed.keywords === 'string' ? parsed.keywords : [topic, 'salud', 'laboratorio clínico'].concat(safeCategories).join(', '),
     };
+    try {
+      await logServerAudit({
+        req,
+        action: 'Generar contenido blog',
+        module: 'Blog',
+        entity: 'publicaciones_blog',
+        entityId: null,
+        metadata: { topic, postType: type, categories: safeCategories, tone: style, targetAudience: audience },
+        success: true,
+      });
+    } catch {}
 
     return res.status(200).json(responsePayload);
   } catch (err: any) {
     console.error('[dev-api] Error en /api/generate-blog-post:', err);
+    try {
+      await logServerAudit({
+        req,
+        action: 'Generar contenido blog',
+        module: 'Blog',
+        entity: 'publicaciones_blog',
+        entityId: null,
+        metadata: { topic: req.body?.topic, error: err?.message || String(err) },
+        success: false,
+      });
+    } catch {}
     if (!res.headersSent) res.status(500).json({ error: 'Error generando el artículo con IA.', details: err.message });
   }
 });
@@ -392,6 +525,8 @@ app.post('/api/generate-blog-post', async (req: Request, res: Response) => {
 // Listar perfiles de usuarios
 app.get('/api/users', async (_req: Request, res: Response) => {
   try {
+    const auth = await requireAdmin(_req, res)
+    if (!auth) return
     if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
     const { data, error } = await supabaseAdmin
       .from('user_profiles')
@@ -408,6 +543,8 @@ app.get('/api/users', async (_req: Request, res: Response) => {
 // Crear un nuevo usuario (auth + perfil + permisos opcionales)
 app.post('/api/users', async (req: Request, res: Response) => {
   try {
+    const auth = await requireAdmin(req, res)
+    if (!auth) return
     if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
     const { nombre, apellido, cedula, email, password, sede, rol, permissions } = req.body || {};
     if (!nombre || !apellido || !cedula || !email || !password || !sede || !rol) {
@@ -419,6 +556,7 @@ app.post('/api/users', async (req: Request, res: Response) => {
       password,
       email_confirm: true,
       user_metadata: { nombre, apellido, cedula, sede, rol },
+      app_metadata: { role: rol },
     });
     if (created.error) throw created.error;
     const userId = created.data.user?.id;
@@ -430,12 +568,16 @@ app.post('/api/users', async (req: Request, res: Response) => {
     if (profErr) throw profErr;
 
     if (Array.isArray(permissions) && permissions.length > 0) {
-      const toInsert = permissions.map((p: any) => ({
-        user_id: userId,
-        module: String(p.module),
-        action: String(p.action),
-        allowed: Boolean(p.allowed),
-      }));
+      const toInsert = permissions.map((p: any) => {
+        const actNorm = normalizeActionName(p.action);
+        const modNorm = maybeRemapModuleForAction(normalizeModuleName(p.module), actNorm);
+        return {
+          user_id: userId,
+          module: modNorm,
+          action: actNorm,
+          allowed: Boolean(p.allowed),
+        };
+      });
       const { error: permErr } = await supabaseAdmin.from('user_permissions').insert(toInsert);
       if (permErr) throw permErr;
     }
@@ -450,6 +592,8 @@ app.post('/api/users', async (req: Request, res: Response) => {
 // Actualizar usuario (auth + perfil); admite reemplazo de permisos
 app.put('/api/users/:id', async (req: Request, res: Response) => {
   try {
+    const auth = await requireAdmin(req, res)
+    if (!auth) return
     if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
     const userId = String(req.params.id);
     const { nombre, apellido, cedula, email, password, sede, rol, permissions } = req.body || {};
@@ -466,6 +610,11 @@ app.put('/api/users/:id', async (req: Request, res: Response) => {
     if (sede) meta.sede = String(sede);
     if (rol) meta.rol = String(rol);
     if (Object.keys(meta).length > 0) updatePayload.user_metadata = meta;
+
+    // Sincronizar rol también a app_metadata para políticas RLS basadas en JWT
+    if (rol) {
+      updatePayload.app_metadata = { role: String(rol) };
+    }
 
     if (Object.keys(updatePayload).length > 0) {
       const upd = await (supabaseAdmin as any).auth.admin.updateUserById(userId, updatePayload);
@@ -496,12 +645,16 @@ app.put('/api/users/:id', async (req: Request, res: Response) => {
         .eq('user_id', userId);
       if (delErr) throw delErr;
       if (permissions.length > 0) {
-        const toInsert = permissions.map((p: any) => ({
-          user_id: userId,
-          module: String(p.module),
-          action: String(p.action),
-          allowed: Boolean(p.allowed),
-        }));
+        const toInsert = permissions.map((p: any) => {
+          const actNorm = normalizeActionName(p.action);
+          const modNorm = maybeRemapModuleForAction(normalizeModuleName(p.module), actNorm);
+          return {
+            user_id: userId,
+            module: modNorm,
+            action: actNorm,
+            allowed: Boolean(p.allowed),
+          };
+        });
         const { error: permErr } = await supabaseAdmin.from('user_permissions').insert(toInsert);
         if (permErr) throw permErr;
       }
@@ -517,6 +670,8 @@ app.put('/api/users/:id', async (req: Request, res: Response) => {
 // Eliminar usuario (auth + cascade DB)
 app.delete('/api/users/:id', async (req: Request, res: Response) => {
   try {
+    const auth = await requireAdmin(req, res)
+    if (!auth) return
     if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
     const userId = String(req.params.id);
     if (!userId) return res.status(400).json({ error: 'Falta id de usuario' });
@@ -534,6 +689,8 @@ app.delete('/api/users/:id', async (req: Request, res: Response) => {
 // Permisos granulares: obtener overrides del usuario
 app.get('/api/users/:id/permissions', async (req: Request, res: Response) => {
   try {
+    const auth = await requireSelfOrAdmin(req, res, String(req.params.id))
+    if (!auth) return
     if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
     const userId = String(req.params.id);
     const { data, error } = await supabaseAdmin
@@ -541,7 +698,14 @@ app.get('/api/users/:id/permissions', async (req: Request, res: Response) => {
       .select('module, action, allowed')
       .eq('user_id', userId);
     if (error) throw error;
-    res.status(200).json({ permissions: data || [] });
+
+    const permissions = (data || []).map((p: any) => {
+      const actNorm = normalizeActionName(p.action);
+      const modNorm = maybeRemapModuleForAction(normalizeModuleName(p.module), actNorm);
+      return { module: modNorm, action: actNorm, allowed: Boolean(p.allowed) };
+    });
+
+    res.status(200).json({ permissions });
   } catch (e: any) {
     console.error('[dev-api] Error en GET /api/users/:id/permissions:', e);
     res.status(500).json({ error: e.message || 'Error interno' });
@@ -551,6 +715,8 @@ app.get('/api/users/:id/permissions', async (req: Request, res: Response) => {
 // Permisos granulares: reemplazar overrides del usuario
 app.put('/api/users/:id/permissions', async (req: Request, res: Response) => {
   try {
+    const auth = await requireAdmin(req, res)
+    if (!auth) return
     if (!supabaseAdmin) return res.status(500).json({ error: 'Supabase admin no configurado' });
     const userId = String(req.params.id);
     const { permissions } = req.body || {};
@@ -562,12 +728,16 @@ app.put('/api/users/:id/permissions', async (req: Request, res: Response) => {
       .eq('user_id', userId);
     if (delErr) throw delErr;
     if (permissions.length > 0) {
-      const toInsert = permissions.map((p: any) => ({
-        user_id: userId,
-        module: String(p.module),
-        action: String(p.action),
-        allowed: Boolean(p.allowed),
-      }));
+      const toInsert = permissions.map((p: any) => {
+        const actNorm = normalizeActionName(p.action);
+        const modNorm = maybeRemapModuleForAction(normalizeModuleName(p.module), actNorm);
+        return {
+          user_id: userId,
+          module: modNorm,
+          action: actNorm,
+          allowed: Boolean(p.allowed),
+        };
+      });
       const { error: permErr } = await supabaseAdmin.from('user_permissions').insert(toInsert);
       if (permErr) throw permErr;
     }

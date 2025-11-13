@@ -4,6 +4,8 @@ import { FaWhatsapp } from 'react-icons/fa';
 import { formatDate } from '@/utils/formatters';
 import { supabase } from '@/services/supabaseClient';
 import { toast } from 'react-toastify';
+import { logAudit } from '@/services/audit';
+import { apiFetch } from '@/services/apiFetch';
 
 interface GlobalResult {
   id: number;
@@ -77,7 +79,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   const notifyWhatsapp = async (resultId: number) => {
     setSendingWhatsappId(resultId);
     try {
-      const resp = await fetch('/api/notify/whatsapp', {
+      const resp = await apiFetch('/api/notify/whatsapp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ result_id: resultId }),
@@ -85,6 +87,22 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
       const data = await resp.json().catch(() => ({}));
       if (resp.ok && data?.ok) {
         toast.success(data?.message || 'WhatsApp enviado correctamente');
+        try {
+          const r = localResults.find(x => x.id === resultId);
+          await logAudit({
+            action: 'Enviar',
+            module: 'RESULTADOS',
+            entity: 'resultado',
+            entityId: resultId,
+            metadata: {
+              canal: 'whatsapp',
+              estudio: r?.nombre_estudio,
+              paciente: r ? `${r.paciente_nombres} ${r.paciente_apellidos}` : undefined,
+            },
+          });
+        } catch (e) {
+          console.warn('[AUDIT] Error registrando envío por WhatsApp:', e);
+        }
       } else {
         const code = data?.code || 'UNKNOWN_ERROR';
         if (code === 'NO_PHONE') {
@@ -109,7 +127,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   const notifyEmail = async (resultId: number) => {
     setSendingEmailId(resultId);
     try {
-      const resp = await fetch('/api/notify/email', {
+      const resp = await apiFetch('/api/notify/email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ result_id: resultId }),
@@ -117,6 +135,22 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
       const data = await resp.json().catch(() => ({}));
       if (resp.ok && data?.ok) {
         toast.success(data?.message || 'Email enviado correctamente');
+        try {
+          const r = localResults.find(x => x.id === resultId);
+          await logAudit({
+            action: 'Enviar',
+            module: 'RESULTADOS',
+            entity: 'resultado',
+            entityId: resultId,
+            metadata: {
+              canal: 'email',
+              estudio: r?.nombre_estudio,
+              paciente: r ? `${r.paciente_nombres} ${r.paciente_apellidos}` : undefined,
+            },
+          });
+        } catch (e) {
+          console.warn('[AUDIT] Error registrando envío por Email:', e);
+        }
       } else {
         const code = data?.code || 'UNKNOWN_ERROR';
         if (code === 'NO_EMAIL') {
@@ -686,6 +720,20 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                     setEditingResult(updatedResult);
                     if (onResultUpdated) onResultUpdated(updatedResult);
                     toast.success('Resultado actualizado correctamente');
+                    try {
+                      await logAudit({
+                        action: 'Editar',
+                        module: 'RESULTADOS',
+                        entity: 'resultado',
+                        entityId: editingResult.id,
+                        metadata: {
+                          estudio: editingResult.nombre_estudio,
+                          tipo: 'manual',
+                        },
+                      });
+                    } catch (e) {
+                      console.warn('[AUDIT] Error registrando auditoría de edición de resultado:', e);
+                    }
                     // Cerrar modal tras guardar
                     setIsEditOpen(false);
                   } catch (err: any) {

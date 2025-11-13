@@ -24,6 +24,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
   const [deniedEdit, setDeniedEdit] = useState<Record<number, boolean>>({});
 
   const markDenied = (id: number) => {
+    console.warn('🚫 INVENTARIO: Edición denegada en tabla', { id });
     setDeniedEdit(prev => ({ ...prev, [id]: true }));
     setTimeout(() => setDeniedEdit(prev => ({ ...prev, [id]: false })), 3000);
   };
@@ -73,6 +74,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
     }
     setSelectedItems(newSelected);
     setSelectAll(newSelected.size === items.length);
+    console.log('🧩 INVENTARIO: Toggle selección fila', { id, nextState: newSelected.has(id) });
   };
 
   if (isLoading) {
@@ -275,7 +277,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                   <div className="flex items-center justify-center gap-2">
                     <button
                       onClick={() => {
-                        if (!canEdit) { markDenied(item.id); return; }
+                        if (!canEdit) { console.warn('🚫 INVENTARIO: Intento de editar sin permisos (tabla)', { id: item.id }); markDenied(item.id); return; }
                         onEdit(item);
                       }}
                       className={`${!canEdit ? 'text-blue-300 cursor-not-allowed' : 'text-blue-600 hover:text-blue-900'} transition-colors`}

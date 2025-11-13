@@ -61,7 +61,7 @@ const InventoryCard: React.FC<InventoryCardProps> = ({ item, onEdit, index = 0, 
       <div className="mt-4 flex justify-end items-center gap-2">
         <button
           onClick={() => {
-            if (!canEdit) { setDenied(true); setTimeout(() => setDenied(false), 3000); return; }
+            if (!canEdit) { console.warn('🚫 INVENTARIO: Intento de editar sin permisos (card)', { id: item.id }); setDenied(true); setTimeout(() => setDenied(false), 3000); return; }
             onEdit(item);
           }}
           className={`${!canEdit ? 'text-blue-300 cursor-not-allowed' : 'text-blue-500 hover:text-blue-700'}`}

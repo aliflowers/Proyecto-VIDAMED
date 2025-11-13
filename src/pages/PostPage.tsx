@@ -8,18 +8,18 @@ import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 
 const PostPage: React.FC = () => {
-    const { id } = useParams<{ id: string }>();
+    const { slug } = useParams<{ slug: string }>();
     const [post, setPost] = useState<BlogPost | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchPost = async () => {
-            if (!id) return;
+            if (!slug) return;
             const { data, error } = await supabase
                 .from('publicaciones_blog')
                 .select('*')
-                .eq('id', id)
+                .eq('slug', slug)
                 .single();
 
             if (error) {
@@ -45,7 +45,7 @@ const PostPage: React.FC = () => {
         };
 
         fetchPost();
-    }, [id]);
+    }, [slug]);
 
     const metaTitle = post?.meta_title || post?.title || 'Blog de VidaMed';
     const metaDescription = post?.meta_description || post?.summary || '';
