@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from '@/services/apiFetch'
+import { User as UserIcon, Mail, IdCard, Building, Shield } from 'lucide-react'
 import { PERMISSIONS_SCHEMA } from '@/constants/permissionsSchema'
 import { getDefaultAllowed, normalizeActionName, normalizeModuleName } from '@/utils/permissions'
 
@@ -228,10 +229,12 @@ export default function UsersManagementPage() {
                 <td className="p-2">{u.email}</td>
                 <td className="p-2">{u.sede}</td>
                 <td className="p-2">{u.rol}</td>
-                <td className="p-2 space-x-2">
-                  <button className="px-2 py-1 text-sm bg-secondary text-white rounded" onClick={()=>openPermissions(u)}>Permisos</button>
-                  <button className="px-2 py-1 text-sm bg-primary text-white rounded" onClick={()=>openEdit(u)}>Editar</button>
-                  <button className="px-2 py-1 text-sm bg-red-600 text-white rounded" onClick={()=>deleteUser(u.user_id)}>Eliminar</button>
+                <td className="p-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button className="px-2 py-1 text-sm bg-secondary text-white rounded" onClick={()=>openPermissions(u)}>Permisos</button>
+                    <button className="px-2 py-1 text-sm bg-primary text-white rounded" onClick={()=>openEdit(u)}>Editar</button>
+                    <button className="px-2 py-1 text-sm bg-red-600 text-white rounded" onClick={()=>deleteUser(u.user_id)}>Eliminar</button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -243,17 +246,53 @@ export default function UsersManagementPage() {
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center">
           <div className="bg-white p-4 rounded w-full max-w-2xl">
             <h3 className="text-lg font-medium mb-3">Editar usuario</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <input className="border rounded p-2" value={selectedUser.nombre} onChange={e=>setSelectedUser({ ...selectedUser, nombre: e.target.value })} />
-              <input className="border rounded p-2" value={selectedUser.apellido} onChange={e=>setSelectedUser({ ...selectedUser, apellido: e.target.value })} />
-              <input className="border rounded p-2" value={selectedUser.cedula} onChange={e=>setSelectedUser({ ...selectedUser, cedula: e.target.value })} />
-              <input className="border rounded p-2" value={selectedUser.email} onChange={e=>setSelectedUser({ ...selectedUser, email: e.target.value })} />
-              <input className="border rounded p-2" value={selectedUser.sede} onChange={e=>setSelectedUser({ ...selectedUser, sede: e.target.value })} />
-              <select className="border rounded p-2" value={selectedUser.rol as string} onChange={e=>setSelectedUser({ ...selectedUser, rol: e.target.value })}>
-                <option value="Asistente">Asistente</option>
-                <option value="Lic.">Lic.</option>
-                <option value="Administrador">Administrador</option>
-              </select>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Nombre</label>
+                <div className="relative">
+                  <UserIcon size={16} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input className="border rounded p-2 pl-8 w-full" value={selectedUser.nombre} onChange={e=>setSelectedUser({ ...selectedUser, nombre: e.target.value })} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Apellido</label>
+                <div className="relative">
+                  <UserIcon size={16} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input className="border rounded p-2 pl-8 w-full" value={selectedUser.apellido} onChange={e=>setSelectedUser({ ...selectedUser, apellido: e.target.value })} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Cédula</label>
+                <div className="relative">
+                  <IdCard size={16} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input className="border rounded p-2 pl-8 w-full" value={selectedUser.cedula} onChange={e=>setSelectedUser({ ...selectedUser, cedula: e.target.value })} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Email</label>
+                <div className="relative">
+                  <Mail size={16} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input className="border rounded p-2 pl-8 w-full" value={selectedUser.email} onChange={e=>setSelectedUser({ ...selectedUser, email: e.target.value })} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Sede</label>
+                <div className="relative">
+                  <Building size={16} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input className="border rounded p-2 pl-8 w-full" value={selectedUser.sede} onChange={e=>setSelectedUser({ ...selectedUser, sede: e.target.value })} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Rol</label>
+                <div className="relative">
+                  <Shield size={16} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <select className="border rounded p-2 pl-8 w-full" value={selectedUser.rol as string} onChange={e=>setSelectedUser({ ...selectedUser, rol: e.target.value })}>
+                    <option value="Asistente">Asistente</option>
+                    <option value="Lic.">Lic.</option>
+                    <option value="Administrador">Administrador</option>
+                  </select>
+                </div>
+              </div>
             </div>
             <div className="mt-4 flex gap-2 justify-end">
               <button className="px-3 py-1" onClick={()=>setShowEdit(false)}>Cancelar</button>
@@ -300,7 +339,7 @@ export default function UsersManagementPage() {
             </div>
             <div className="mt-4 flex gap-2 justify-end">
               <button className="px-3 py-1" onClick={()=>setShowPerms(false)}>Cerrar</button>
-              <button className="px-3 py-1 bg-primary text-white rounded" onClick={saveOverrides}>Guardar overrides</button>
+              <button className="px-3 py-1 bg-primary text-white rounded" onClick={saveOverrides}>Guardar permisos</button>
             </div>
           </div>
         </div>
