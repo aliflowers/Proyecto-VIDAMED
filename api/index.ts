@@ -3,7 +3,6 @@ import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 import { bedrockChat, BedrockMessage, BedrockTool } from './bedrock.js';
 import { nextDay, format, isFuture, parseISO } from 'date-fns';
-import path from 'path';
 import { logServerAudit } from './_utils/audit.js';
 import notifyEmailHandler from './notify/email.js';
 import { sendAppointmentConfirmationEmail, sendAppointmentReminderEmail } from './notify/_appointment-email.js';
@@ -118,6 +117,22 @@ async function startServer() {
         } catch (error: any) {
             console.error('Error enviando confirmación de cita:', error);
             return res.status(500).json({ ok: false, error: error?.message || 'Error interno' });
+        }
+    });
+
+    app.get('/api/availability/slots', async (req: Request, res: Response) => {
+        try {
+            const date = String(req.query.date || '').trim();
+            if (!date) {
+                return res.status(400).json({ error: 'Falta la fecha (YYYY-MM-DD).' });
+            }
+            const result = await getAvailableHours({ date });
+            if ((result as any)?.error) {
+                return res.status(400).json(result);
+            }
+            return res.status(200).json(result);
+        } catch (e: any) {
+            return res.status(500).json({ error: e?.message || 'Error interno' });
         }
     });
 
