@@ -4,7 +4,6 @@ import { createClient } from '@supabase/supabase-js';
 import { nextDay, format, isFuture, parseISO, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { sendAppointmentConfirmationEmail } from './notify/_appointment-email.js';
 import { logServerAudit } from './_utils/audit.js';
-import { logServerAudit } from './_utils/audit.js';
 
 /**
  * Vercel Serverless Function: /api/chat
@@ -43,7 +42,6 @@ export default async function handler(req: any, res: any) {
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const bedrockConfig = { model: DEFAULT_BEDROCK_MODEL, temperature: 0.2, top_p: 0.9 };
     let lastModelUsed: string | undefined;
-    let lastModelUsed: string | undefined = undefined;
 
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     const { history } = body || {};
