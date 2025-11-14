@@ -1,6 +1,5 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import { bedrockChat, BedrockMessage, BedrockTool } from './bedrock.js';
 import { nextDay, format, isFuture, parseISO } from 'date-fns';
@@ -11,9 +10,7 @@ import { sendAppointmentConfirmationEmail, sendAppointmentReminderEmail } from '
 // Eliminado: nodemailer ya no es necesario para recuperación de contraseña
 const app = express();
 async function startServer() {
-    if (!process.env.VERCEL) {
-        dotenv.config({ path: path.resolve(process.cwd(), '.env') });
-    }
+    
 
     // Usar directamente las variables privadas del entorno
     const bedrockToken = process.env.AWS_BEARER_TOKEN_BEDROCK;
