@@ -26,7 +26,7 @@ export async function bedrockChat(options: {
   top_p?: number;
   max_completion_tokens?: number;
   baseUrl?: string;
-}): Promise<{ text: string; raw: any; toolCalls?: Array<{ id?: string; name: string; arguments: any }> }> {
+}): Promise<{ text: string; raw: any; toolCalls?: Array<{ id?: string; name: string; arguments: any }>; modelUsed: string }> {
   const token = process.env.AWS_BEARER_TOKEN_BEDROCK;
   if (!token) {
     throw new Error('AWS_BEARER_TOKEN_BEDROCK no está configurada en el entorno.');
@@ -34,6 +34,7 @@ export async function bedrockChat(options: {
 
   const baseUrl = options.baseUrl || process.env.BEDROCK_OPENAI_BASE_URL || 'https://bedrock-runtime.us-west-2.amazonaws.com/openai/v1';
   const model = options.model || process.env.BEDROCK_DEFAULT_MODEL || 'amazon.nova-micro-v1:0';
+  let modelUsed = model;
 
   const body: Record<string, any> = {
     model,
@@ -61,6 +62,7 @@ export async function bedrockChat(options: {
     const isModelNotFound = resp.status === 404 && /model_not_found/i.test(errText);
     if (isModelNotFound) {
       const fallbackBody = { ...body, model: 'openai.gpt-oss-120b-1:0' };
+      modelUsed = 'openai.gpt-oss-120b-1:0';
       resp = await fetch(`${baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -103,7 +105,7 @@ export async function bedrockChat(options: {
     }));
   }
 
-  return { text, raw: data, toolCalls };
+  return { text, raw: data, toolCalls, modelUsed };
 }
 
 function safeJson(s: string) {

@@ -3,6 +3,8 @@ import { DEFAULT_BEDROCK_MODEL } from './config.js';
 import { createClient } from '@supabase/supabase-js';
 import { nextDay, format, isFuture, parseISO, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { sendAppointmentConfirmationEmail } from './notify/_appointment-email.js';
+import { logServerAudit } from './_utils/audit.js';
+import { logServerAudit } from './_utils/audit.js';
 
 /**
  * Vercel Serverless Function: /api/chat
@@ -40,6 +42,8 @@ export default async function handler(req: any, res: any) {
 
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const bedrockConfig = { model: DEFAULT_BEDROCK_MODEL, temperature: 0.2, top_p: 0.9 };
+    let lastModelUsed: string | undefined;
+    let lastModelUsed: string | undefined = undefined;
 
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     const { history } = body || {};
@@ -801,6 +805,7 @@ Consultas de Estudios:
         ],
       });
       intent = intentResult.text.trim();
+      lastModelUsed = intentResult.modelUsed;
     }
     console.log(`Intención Detectada: ${intent}`);
 
@@ -841,6 +846,9 @@ Consultas de Estudios:
           }
           const header = 'Sí, claro. Aquí te muestro la información de los estudios que me preguntaste:';
           const responseText = header + '\n\n' + pieces.join('\n\n') + '\n\n¿Te gustaría agendar una cita para alguno de estos estudios o consultar otro?';
+          try {
+            await logServerAudit({ req, action: 'Chat IA – consulta múltiple', module: 'IA', entity: 'chat', entityId: null, metadata: { model_used: lastModelUsed || 'N/A', intent }, success: true });
+          } catch {}
           res.status(200).json({ response: applyOutputGuardrails(responseText, lastUserMessage) });
           return;
         }
@@ -857,6 +865,7 @@ Consultas de Estudios:
           ],
         });
         const rawExtracted = extractorResult.text.trim();
+        lastModelUsed = extractorResult.modelUsed;
         const studyNameRaw = sanitizeExtractedStudyName(rawExtracted) || rawExtracted;
         const studyName = toCanonicalStudyName(studyNameRaw);
 
@@ -896,6 +905,9 @@ Consultas de Estudios:
         }
 
         responseText += '\n\n¿Te gustaría agendar una cita para este estudio o consultar otro?';
+        try {
+          await logServerAudit({ req, action: 'Chat IA – consulta estudio', module: 'IA', entity: 'chat', entityId: null, metadata: { model_used: lastModelUsed || 'N/A', intent, studyName }, success: true });
+        } catch {}
         res.status(200).json({ response: applyOutputGuardrails(responseText, lastUserMessage) });
         return;
       }
@@ -915,6 +927,7 @@ Consultas de Estudios:
           messages: baseMessages,
           tools: bedrockTools,
         });
+        lastModelUsed = first.modelUsed;
         if (first.toolCalls && first.toolCalls.length > 0) {
           const { toolMsgs, metaPayload } = await runBedrockToolCalls(first.toolCalls);
           const assistantToolCallMsg = buildAssistantToolCallMessage(first.raw, first.toolCalls);
@@ -926,15 +939,25 @@ Consultas de Estudios:
             messages: [...baseMessages, assistantToolCallMsg, ...toolMsgs],
             tools: bedrockTools,
           });
+          lastModelUsed = second.modelUsed;
+          try {
+            await logServerAudit({ req, action: 'Chat IA – agendar cita', module: 'IA', entity: 'chat', entityId: null, metadata: { model_used: lastModelUsed || 'N/A', intent, tool_calls: true }, success: true });
+          } catch {}
           res.status(200).json({ response: applyOutputGuardrails(second.text, lastUserMessage), meta: metaPayload || undefined });
           return;
         }
+        try {
+          await logServerAudit({ req, action: 'Chat IA – agendar cita', module: 'IA', entity: 'chat', entityId: null, metadata: { model_used: lastModelUsed || 'N/A', intent, tool_calls: false }, success: true });
+        } catch {}
         res.status(200).json({ response: applyOutputGuardrails(first.text, lastUserMessage) });
         return;
       }
 
       case 'SALUDO': {
         // Saludo breve y humano, manteniendo foco en el dominio
+        try {
+          await logServerAudit({ req, action: 'Chat IA – saludo', module: 'IA', entity: 'chat', entityId: null, metadata: { model_used: lastModelUsed || 'N/A', intent }, success: true });
+        } catch {}
         res.status(200).json({
           response: 'Hola, soy VidaBot de VidaMed. ¿Prefieres consultar estudios y precios o agendar una cita?',
         });
@@ -952,6 +975,9 @@ Consultas de Estudios:
               availability?.result ||
               availability?.error ||
               'No pude verificar la disponibilidad en este momento. Intenta con otro día o una fecha en formato AAAA-MM-DD.';
+            try {
+              await logServerAudit({ req, action: 'Chat IA – disponibilidad', module: 'IA', entity: 'chat', entityId: null, metadata: { model_used: lastModelUsed || 'N/A', intent }, success: true });
+            } catch {}
             res.status(200).json({ response: text });
             return;
           }
@@ -970,6 +996,7 @@ Consultas de Estudios:
             messages: baseMessages,
             tools: bedrockTools,
           });
+          lastModelUsed = first.modelUsed;
           if (first.toolCalls && first.toolCalls.length > 0) {
             const { toolMsgs } = await runBedrockToolCalls(first.toolCalls);
             const assistantToolCallMsg = buildAssistantToolCallMessage(first.raw, first.toolCalls);
@@ -981,9 +1008,16 @@ Consultas de Estudios:
               messages: [...baseMessages, assistantToolCallMsg, ...toolMsgs],
               tools: bedrockTools,
             });
+            lastModelUsed = second.modelUsed;
+            try {
+              await logServerAudit({ req, action: 'Chat IA – flujo de agenda', module: 'IA', entity: 'chat', entityId: null, metadata: { model_used: lastModelUsed || 'N/A', intent, tool_calls: true }, success: true });
+            } catch {}
             res.status(200).json({ response: applyOutputGuardrails(second.text, lastUserMessage) });
             return;
           }
+          try {
+            await logServerAudit({ req, action: 'Chat IA – flujo de agenda', module: 'IA', entity: 'chat', entityId: null, metadata: { model_used: lastModelUsed || 'N/A', intent, tool_calls: false }, success: true });
+          } catch {}
           res.status(200).json({ response: applyOutputGuardrails(first.text, lastUserMessage) });
           return;
         }
@@ -999,6 +1033,10 @@ Consultas de Estudios:
             { role: 'user', content: `Mensaje: "${lastUserMessage}"` },
           ],
         });
+        lastModelUsed = concise.modelUsed;
+        try {
+          await logServerAudit({ req, action: 'Chat IA – mensaje conciso', module: 'IA', entity: 'chat', entityId: null, metadata: { model_used: lastModelUsed || 'N/A', intent }, success: true });
+        } catch {}
         res.status(200).json({ response: applyOutputGuardrails(concise.text, lastUserMessage).trim() });
         return;
       }
