@@ -6,6 +6,7 @@ import { nextDay, format, isFuture, parseISO } from 'date-fns';
 import { logServerAudit } from './_utils/audit.js';
 import notifyEmailHandler from './notify/email.js';
 import { sendAppointmentConfirmationEmail, sendAppointmentReminderEmail } from './notify/_appointment-email.js';
+import availabilitySlotsHandler from './availability/_slots.js';
 // Eliminado: nodemailer ya no es necesario para recuperación de contraseña
 const app = express();
 async function startServer() {
@@ -121,19 +122,7 @@ async function startServer() {
     });
 
     app.get('/api/availability/slots', async (req: Request, res: Response) => {
-        try {
-            const date = String(req.query.date || '').trim();
-            if (!date) {
-                return res.status(400).json({ error: 'Falta la fecha (YYYY-MM-DD).' });
-            }
-            const result = await getAvailableHours({ date });
-            if ((result as any)?.error) {
-                return res.status(400).json(result);
-            }
-            return res.status(200).json(result);
-        } catch (e: any) {
-            return res.status(500).json({ error: e?.message || 'Error interno' });
-        }
+        await (availabilitySlotsHandler as any)(req, res);
     });
 
     // Flujo nativo de Supabase: la recuperación de contraseña se gestiona vía enlace.
