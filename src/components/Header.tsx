@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import Logo from '@/components/Logo';
 import { Menu, X } from 'lucide-react';
@@ -13,6 +13,17 @@ const navLinks = [
 
 const Header: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
 
   const activeLinkClass = 'text-primary font-semibold';
   const inactiveLinkClass = 'text-gray-600 hover:text-primary transition-colors';
@@ -64,7 +75,7 @@ const Header: React.FC = () => {
       </div>
       {/* Mobile Menu */}
       {isOpen && (
-        <div className="lg:hidden bg-white border-t border-gray-200">
+        <div className="lg:hidden bg-white border-t border-gray-200 max-h-[80vh] overflow-y-auto">
           <nav className="flex flex-col items-center space-y-4 p-4">
             {navLinks.map((link) => (
               <NavLink

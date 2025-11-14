@@ -140,7 +140,7 @@ const ChatWidget: React.FC = () => {
             </button>
 
             {isOpen && (
-                <div className="fixed bottom-24 right-6 w-full max-w-sm h-[70vh] max-h-[600px] bg-white rounded-lg shadow-2xl flex flex-col z-50 animate-fade-in-up">
+                <div className="fixed bottom-24 inset-x-4 sm:inset-auto sm:right-6 w-auto sm:w-[360px] max-w-[calc(100vw-2rem)] sm:max-w-sm h-[70vh] max-h-[600px] bg-white rounded-lg shadow-2xl flex flex-col z-50 animate-fade-in-up">
                     <header className="bg-primary text-white p-4 flex justify-between items-center rounded-t-lg">
                         <div className="flex items-center space-x-2">
                             <Bot size={20} />

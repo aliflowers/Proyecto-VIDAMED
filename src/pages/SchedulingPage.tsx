@@ -296,6 +296,7 @@ const SchedulingPage: React.FC = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
                                         <DayPicker
+                                            className="w-full"
                                             mode="single"
                                             selected={formData.date}
                                             onSelect={(day) => setFormData(prev => ({ ...prev, date: day }))}

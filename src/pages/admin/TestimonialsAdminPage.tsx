@@ -133,7 +133,8 @@ const TestimonialsAdminPage: React.FC = () => {
         <div>
             <h1 className="text-3xl font-bold text-dark mb-6">Gestión de Testimonios</h1>
             <div className="bg-white shadow-md rounded-lg overflow-hidden">
-                <table className="min-w-full">
+                <div className="overflow-x-auto max-w-full">
+                <table className="min-w-full text-sm">
                     <thead className="bg-gray-50">
                         <tr>
                             <th className="py-3 px-6 text-left">Autor</th>
@@ -172,6 +173,7 @@ const TestimonialsAdminPage: React.FC = () => {
                         ))}
                     </tbody>
                 </table>
+                </div>
             </div>
             {viewingTestimonial && (
                 <TestimonialViewer

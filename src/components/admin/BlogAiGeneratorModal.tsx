@@ -46,7 +46,7 @@ const BlogAiGeneratorModal: React.FC<BlogAiGeneratorModalProps> = ({ onGenerate,
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-2xl">
+      <div className="bg-white rounded-lg shadow-xl p-4 sm:p-8 w-full max-w-2xl max-h-[85vh] overflow-y-auto">
         <h2 className="text-2xl font-bold mb-6">Generar Artículo con IA</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -92,7 +92,7 @@ const BlogAiGeneratorModal: React.FC<BlogAiGeneratorModalProps> = ({ onGenerate,
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Categorías de Estudios a Mencionar</label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-2 border rounded max-h-32 overflow-y-auto">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-2 border rounded max-h-32 sm:max-h-48 overflow-y-auto">
               <div key="general">
                 <label className="flex items-center space-x-2">
                   <input type="checkbox" onChange={() => handleCheckboxChange('Conocimiento General')} checked={formData.categories.includes('Conocimiento General')} />
@@ -110,7 +110,7 @@ const BlogAiGeneratorModal: React.FC<BlogAiGeneratorModalProps> = ({ onGenerate,
             </div>
           </div>
 
-          <div className="flex justify-end space-x-4 mt-6">
+          <div className="flex flex-col sm:flex-row justify-end gap-3 sm:space-x-4 mt-6">
             <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancelar</button>
             <button type="submit" disabled={isLoading} className="px-4 py-2 bg-secondary text-white rounded hover:bg-secondary-dark disabled:bg-gray-400 flex items-center">
               {isLoading ? <><Loader size={18} className="animate-spin mr-2" /> Generando...</> : 'Generar Artículo'}

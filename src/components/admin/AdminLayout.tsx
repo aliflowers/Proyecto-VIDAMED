@@ -53,6 +53,17 @@ const AdminLayout: React.FC = () => {
         })();
     }, []);
 
+    useEffect(() => {
+        if (sidebarOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => {
+            document.body.style.overflow = '';
+        };
+    }, [sidebarOpen]);
+
     const handleLogout = async () => {
         await supabase.auth.signOut();
         navigate('/login');
@@ -134,14 +145,14 @@ const AdminLayout: React.FC = () => {
             {/* Sidebar */}
             <>
                 {/* Desktop */}
-                <aside className="hidden lg:flex lg:w-64 xl:w-72 bg-dark text-white flex-col">
+                <aside className="hidden lg:flex lg:w-64 xl:w-72 bg-dark text-white flex-col overflow-y-auto max-h-screen">
                     {sidebarContent}
                 </aside>
 
                 {/* Mobile */}
                 <aside className={`lg:hidden fixed inset-y-0 left-0 z-30 w-64 bg-dark text-white flex flex-col transform ${
                     sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-                } transition-transform duration-300 ease-in-out`}>
+                } transition-transform duration-300 ease-in-out overflow-y-auto max-h-screen`}>
                     {sidebarContent}
                 </aside>
             </>
