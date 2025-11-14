@@ -1,12 +1,18 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
-import { bedrockChat, BedrockMessage, BedrockTool } from './bedrock.js';
 import { nextDay, format, isFuture, parseISO } from 'date-fns';
-import { logServerAudit } from './_utils/audit.js';
+import { bedrockChat, BedrockMessage, BedrockTool } from './bedrock.js';
 import notifyEmailHandler from './notify/email.js';
-import { sendAppointmentConfirmationEmail, sendAppointmentReminderEmail } from './notify/_appointment-email.js';
 import availabilitySlotsHandler from './availability/_slots.js';
+import blockAvailabilityHandler from './availability/_block.js';
+import sendConfirmationHandler from './appointments/_send-confirmation.js';
+import sendNextDayHandler from './reminders/_send-next-day.js';
+import chatHandler from './_chat.js';
+import generateBlogHandler from './_generate-blog-post.js';
+import interpretarHandler from './_interpretar.js';
+import { logServerAudit } from './_utils/audit.js';
+import { sendAppointmentConfirmationEmail, sendAppointmentReminderEmail } from './notify/_appointment-email.js';
 // Eliminado: nodemailer ya no es necesario para recuperación de contraseña
 const app = express();
 async function startServer() {
@@ -33,96 +39,22 @@ async function startServer() {
     app.use(cors());
     app.use(express.json());
 
-    // Endpoint para enviar recordatorios de citas del día siguiente
-    app.post('/api/reminders/send-next-day', async (_req: Request, res: Response) => {
-        try {
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            const yyyy = tomorrow.getFullYear();
-            const mm = String(tomorrow.getMonth() + 1).padStart(2, '0');
-            const dd = String(tomorrow.getDate()).padStart(2, '0');
-            const tzDatePrefix = `${yyyy}-${mm}-${dd}`;
-
-            const { data: citas, error: citasErr } = await supabaseAdmin
-                .from('citas')
-                .select('id, paciente_id, fecha_cita, ubicacion, estudios_solicitados')
-                .like('fecha_cita', tzDatePrefix + '%');
-            if (citasErr) throw citasErr;
-
-            const results: Array<{ citaId: string; email?: string; sent?: boolean; error?: string }> = [];
-            for (const c of (citas || [])) {
-                try {
-                    const { data: paciente, error: pErr } = await supabaseAdmin
-                        .from('pacientes')
-                        .select('id, nombres, apellidos, email, telefono, cedula_identidad')
-                        .eq('id', c.paciente_id)
-                        .single();
-                    if (pErr) throw pErr;
-                    const email = (paciente as any)?.email;
-                    if (!email) {
-                        results.push({ citaId: c.id, email: undefined, sent: false, error: 'Paciente sin email' });
-                        continue;
-                    }
-                    await sendAppointmentReminderEmail({
-                        to: email,
-                        patientName: `${(paciente as any)?.nombres || ''} ${(paciente as any)?.apellidos || ''}`.trim(),
-                        location: c.ubicacion,
-                        studies: Array.isArray(c.estudios_solicitados) ? c.estudios_solicitados : [],
-                        dateIso: c.fecha_cita,
-                        phone: (paciente as any)?.telefono || undefined,
-                        cedula: (paciente as any)?.cedula_identidad || undefined,
-                    });
-                    results.push({ citaId: c.id, email, sent: true });
-                } catch (e: any) {
-                    results.push({ citaId: c.id, email: undefined, sent: false, error: e?.message || String(e) });
-                }
-            }
-
-            res.status(200).json({ ok: true, count: results.length, results });
-        } catch (e: any) {
-            console.error('Error en send-next-day reminders:', e);
-            res.status(500).json({ ok: false, error: e?.message || 'Error interno' });
-        }
+    app.all('/api/reminders/send-next-day', async (req: Request, res: Response) => {
+        await (sendNextDayHandler as any)(req, res);
     });
 
-    // Endpoint para enviar confirmación de cita (usado por SchedulingPage)
     app.post('/api/appointments/send-confirmation', async (req: Request, res: Response) => {
-        try {
-            const {
-                to,
-                patientName,
-                cedula,
-                phone,
-                location,
-                studies,
-                dateIso,
-                summaryText,
-            } = req.body || {};
-
-            if (!to || typeof to !== 'string') {
-                return res.status(400).json({ ok: false, error: 'Falta el correo del destinatario (to).' });
-            }
-
-            const info = await sendAppointmentConfirmationEmail({
-                to,
-                patientName,
-                cedula,
-                phone,
-                location,
-                studies,
-                dateIso,
-                summaryText,
-            });
-
-            return res.status(200).json({ ok: true, messageId: info.messageId });
-        } catch (error: any) {
-            console.error('Error enviando confirmación de cita:', error);
-            return res.status(500).json({ ok: false, error: error?.message || 'Error interno' });
-        }
+        await (sendConfirmationHandler as any)(req, res);
     });
 
     app.get('/api/availability/slots', async (req: Request, res: Response) => {
         await (availabilitySlotsHandler as any)(req, res);
+    });
+    app.post('/api/availability/block', async (req: Request, res: Response) => {
+        await (blockAvailabilityHandler as any)(req, res);
+    });
+    app.delete('/api/availability/block', async (req: Request, res: Response) => {
+        await (blockAvailabilityHandler as any)(req, res);
     });
 
     // Flujo nativo de Supabase: la recuperación de contraseña se gestiona vía enlace.
@@ -132,6 +64,14 @@ async function startServer() {
     // Eliminado: confirmación OTP (migrado al flujo nativo)
 
     // --- INICIO DE LA ARQUITECTURA DE ENRUTADOR v2.0 ---
+
+    app.post('/api/chat', async (req: Request, res: Response) => {
+        await (chatHandler as any)(req, res);
+    });
+
+    app.post('/api/generate-blog-post', async (req: Request, res: Response) => {
+        await (generateBlogHandler as any)(req, res);
+    });
 
     const classifierSystemInstruction = `Tu única función es clasificar la intención del último mensaje del usuario en una de las siguientes categorías: CONSULTA_ESTUDIO, AGENDAR_CITA, SALUDO, DESCONOCIDO. Responde únicamente con la categoría.`;
     const entityExtractorSystemInstruction = `Tu única función es extraer el nombre del examen o estudio médico del texto del usuario. Devuelve SOLO un nombre de estudio, sin comas ni texto extra. Si el texto menciona varios estudios, devuelve el más claro (idealmente el último mencionado). Si no hay un nombre de estudio claro, responde con "NO_ENCONTRADO". Responde únicamente con el nombre del estudio.`;
@@ -815,6 +755,10 @@ Instrucciones estrictas:
     });
 
     // --- ANÁLISIS DE RESULTADOS MÉDICOS CON IA ---
+
+    app.post('/api/interpretar', async (req: Request, res: Response) => {
+        await (interpretarHandler as any)(req, res);
+    });
 
     function buildMedicalAnalysisPrompt(patientName: string, studyName: string, resultValues: Record<string, any>, motivoEstudio?: string): string {
       let valuesContext = '';
