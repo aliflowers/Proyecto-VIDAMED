@@ -55,7 +55,7 @@ const AboutPage: React.FC = () => {
                             </p>
                         </div>
                         <div>
-                            <img src="/Image_fx (38).jpg" alt="Equipo del laboratorio VidaMed" className="rounded-lg shadow-xl w-full h-auto object-cover" />
+                            <img src="/Equipo vidamed2.png" alt="Equipo del laboratorio VidaMed" className="rounded-lg shadow-xl w-full h-auto object-cover" />
                         </div>
                     </div>
                 </div>
@@ -68,21 +68,26 @@ const AboutPage: React.FC = () => {
                         <h2 className="text-3xl font-bold text-dark">Conoce a Nuestro Equipo Directivo</h2>
                         <p className="mt-2 text-lg text-gray-600">Los líderes que guían nuestra misión.</p>
                     </div>
-                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
                         <div className="text-center">
-                            <img src="/Image_fx (40).jpg" alt="Directora del Laboratorio" className="w-48 h-48 mx-auto rounded-full shadow-lg object-cover" />
-                            <h3 className="mt-4 text-xl font-semibold text-dark">Dra. Elena Torres</h3>
-                            <p className="text-primary">Directora General y Fundadora</p>
+                            <img src="/Lic.png" alt="Directora del Laboratorio" className="w-48 h-48 mx-auto rounded-full shadow-lg object-cover" />
+                            <h3 className="mt-4 text-xl font-semibold text-dark">Lic. Esp. Liseth Castillo</h3>
+                            <p className="text-primary">Micólogo Clínico</p>
                         </div>
                         <div className="text-center">
-                            <img src="/Image_fx (41).jpg" alt="Gerente de Calidad" className="w-48 h-48 mx-auto rounded-full shadow-lg object-cover" />
-                            <h3 className="mt-4 text-xl font-semibold text-dark">Lcdo. Javier Rios</h3>
-                            <p className="text-primary">Gerente de Calidad</p>
+                            <img src="/Ana2.png" alt="Directora General" className="w-48 h-48 mx-auto rounded-full shadow-lg object-cover" />
+                            <h3 className="mt-4 text-xl font-semibold text-dark">Lic. Esp. Ana María Prieto</h3>
+                            <p className="text-primary">Gerente Empresarial</p>
                         </div>
                         <div className="text-center">
-                            <img src="/Image_fx (42).jpg" alt="Jefa de Atención al Paciente" className="w-48 h-48 mx-auto rounded-full shadow-lg object-cover" />
-                            <h3 className="mt-4 text-xl font-semibold text-dark">Lcda. Isabel Luna</h3>
-                            <p className="text-primary">Jefa de Atención al Paciente</p>
+                            <img src="/Katherine.png" alt="Citotecnologo Clínico" className="w-48 h-48 mx-auto rounded-full shadow-lg object-cover" />
+                            <h3 className="mt-4 text-xl font-semibold text-dark">Katherine Mier y Terán</h3>
+                            <p className="text-primary">Citotecnologo Clínico</p>
+                        </div>
+                        <div className="text-center">
+                            <img src="/Ysvette.png" alt="Jefa de Atención al Paciente" className="w-48 h-48 mx-auto rounded-full shadow-lg object-cover" />
+                            <h3 className="mt-4 text-xl font-semibold text-dark">Lic. MSc. Ysvette Vázquez</h3>
+                            <p className="text-primary">Bacterióloga</p>
                         </div>
                     </div>
                 </div>
