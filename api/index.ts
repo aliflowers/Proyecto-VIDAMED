@@ -307,7 +307,6 @@ Consultas de Estudios:
             return { error: 'La fecha debe tener formato YYYY-MM-DD para listar horas.', meta: { type: 'error', code: 'INVALID_DATE_FORMAT', slot: 'date', format: 'YYYY-MM-DD' } };
         }
         try {
-            // Verificar si la fecha está bloqueada
             const { data: blocked, error: blockedErr } = await supabaseAdmin
                 .from('dias_no_disponibles')
                 .select('fecha')
@@ -317,24 +316,27 @@ Consultas de Estudios:
                 return { error: `La fecha ${date} no está disponible. Indica otra fecha.`, meta: { type: 'error', code: 'DATE_BLOCKED', slot: 'date' } };
             }
 
-            // Generar slots de 30 minutos entre 07:00 y 17:00
-            const startHour = 7, endHour = 17;
             const slots: string[] = [];
-            for (let h = startHour; h < endHour; h++) {
+            for (let h = 7; h < 17; h++) {
                 slots.push(`${String(h).padStart(2,'0')}:00`);
                 slots.push(`${String(h).padStart(2,'0')}:30`);
             }
 
-            // Obtener citas existentes para evitar choques
-            const tzDatePrefix = `${date}T`;
+            const dayStart = `${date}T00:00:00-04:00`;
+            const dayEnd = `${date}T23:59:59-04:00`;
             const { data: appointments, error: apErr } = await supabaseAdmin
                 .from('citas')
                 .select('fecha_cita')
-                .like('fecha_cita', tzDatePrefix + '%');
+                .gte('fecha_cita', dayStart)
+                .lte('fecha_cita', dayEnd);
             if (apErr) throw apErr;
-            const bookedTimes = new Set<string>((appointments || []).map((r: any) => String(r.fecha_cita).slice(11,16)));
-            
-            // Excluir horarios bloqueados manualmente (horarios_no_disponibles) por ubicación por defecto
+            const bookedTimes = new Set<string>((appointments || []).map((r: any) => {
+                const d = new Date(r.fecha_cita);
+                const hh = d.getHours().toString().padStart(2,'0');
+                const mm = d.getMinutes().toString().padStart(2,'0');
+                return `${hh}:${mm}`;
+            }));
+
             const DEFAULT_LOCATION = 'Sede Principal Maracay';
             const { data: blockedSlots, error: bsErr } = await supabaseAdmin
                 .from('horarios_no_disponibles')
@@ -342,7 +344,7 @@ Consultas de Estudios:
                 .eq('fecha', date)
                 .eq('ubicacion', DEFAULT_LOCATION);
             if (bsErr) throw bsErr;
-            const blockedSet = new Set<string>((blockedSlots || []).map((r: any) => String(r.hora)));
+            const blockedSet = new Set<string>((blockedSlots || []).map((r: any) => String(r.hora).slice(0,5)));
             const available = slots.filter(t => !bookedTimes.has(t) && !blockedSet.has(t));
 
             return { result: `Horas disponibles para ${date}: ${available.join(', ')}`, hours: available };
