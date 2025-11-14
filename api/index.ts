@@ -11,8 +11,9 @@ import { sendAppointmentConfirmationEmail, sendAppointmentReminderEmail } from '
 // Eliminado: nodemailer ya no es necesario para recuperación de contraseña
 const app = express();
 async function startServer() {
-    // Forzar la carga del archivo .env desde la raíz del proyecto
-    dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+    if (!process.env.VERCEL) {
+        dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+    }
 
     // Usar directamente las variables privadas del entorno
     const bedrockToken = process.env.AWS_BEARER_TOKEN_BEDROCK;
