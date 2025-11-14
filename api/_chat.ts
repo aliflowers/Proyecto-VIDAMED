@@ -806,6 +806,7 @@ Consultas de Estudios:
       lastModelUsed = intentResult.modelUsed;
     }
     console.log(`Intención Detectada: ${intent}`);
+    if (lastModelUsed) console.log(`[IA] Modelo usado: ${lastModelUsed}`);
 
     // 2) Ejecutar flujo según intención
     switch (intent) {
@@ -864,6 +865,7 @@ Consultas de Estudios:
         });
         const rawExtracted = extractorResult.text.trim();
         lastModelUsed = extractorResult.modelUsed;
+        if (lastModelUsed) console.log(`[IA] Modelo usado (extracción): ${lastModelUsed}`);
         const studyNameRaw = sanitizeExtractedStudyName(rawExtracted) || rawExtracted;
         const studyName = toCanonicalStudyName(studyNameRaw);
 
@@ -926,6 +928,8 @@ Consultas de Estudios:
           tools: bedrockTools,
         });
         lastModelUsed = first.modelUsed;
+        if (lastModelUsed) console.log(`[IA] Modelo usado (flujo-1): ${lastModelUsed}`);
+        if (lastModelUsed) console.log(`[IA] Modelo usado (agendar-1): ${lastModelUsed}`);
         if (first.toolCalls && first.toolCalls.length > 0) {
           const { toolMsgs, metaPayload } = await runBedrockToolCalls(first.toolCalls);
           const assistantToolCallMsg = buildAssistantToolCallMessage(first.raw, first.toolCalls);
@@ -938,6 +942,8 @@ Consultas de Estudios:
             tools: bedrockTools,
           });
           lastModelUsed = second.modelUsed;
+          if (lastModelUsed) console.log(`[IA] Modelo usado (flujo-2): ${lastModelUsed}`);
+          if (lastModelUsed) console.log(`[IA] Modelo usado (agendar-2): ${lastModelUsed}`);
           try {
             await logServerAudit({ req, action: 'Chat IA – agendar cita', module: 'IA', entity: 'chat', entityId: null, metadata: { model_used: lastModelUsed || 'N/A', intent, tool_calls: true }, success: true });
           } catch {}
@@ -995,6 +1001,7 @@ Consultas de Estudios:
             tools: bedrockTools,
           });
           lastModelUsed = first.modelUsed;
+          if (lastModelUsed) console.log(`[IA] Modelo usado (flujo-1): ${lastModelUsed}`);
           if (first.toolCalls && first.toolCalls.length > 0) {
             const { toolMsgs } = await runBedrockToolCalls(first.toolCalls);
             const assistantToolCallMsg = buildAssistantToolCallMessage(first.raw, first.toolCalls);
@@ -1007,6 +1014,7 @@ Consultas de Estudios:
               tools: bedrockTools,
             });
             lastModelUsed = second.modelUsed;
+            if (lastModelUsed) console.log(`[IA] Modelo usado (flujo-2): ${lastModelUsed}`);
             try {
               await logServerAudit({ req, action: 'Chat IA – flujo de agenda', module: 'IA', entity: 'chat', entityId: null, metadata: { model_used: lastModelUsed || 'N/A', intent, tool_calls: true }, success: true });
             } catch {}
