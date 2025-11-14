@@ -86,7 +86,7 @@ app.post('/api/interpretar', async (req: Request, res: Response) => {
 });
 
 // Notificaciones (dev mirror)
-app.post('/api/notify/whatsapp', async (req: Request, res: Response) => {
+app.post('/api/notify/whatsapp', async (_req: Request, res: Response) => {
   try {
     res.status(501).json({ error: 'WhatsApp notifications not implemented in dev' });
   } catch (err) {

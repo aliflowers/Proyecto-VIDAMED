@@ -31,9 +31,6 @@ async function startServer() {
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
     const BEDROCK_MODEL = process.env.BEDROCK_DEFAULT_MODEL || 'openai.gpt-oss-120b-1:0';
-    
-    
-    const port = process.env.PORT || 3001;
 
     app.use(cors());
     app.use(express.json());
@@ -947,7 +944,7 @@ ${valuesContext}
     });
 
     // Notificaciones: WhatsApp
-    app.post('/api/notify/whatsapp', async (req: Request, res: Response) => {
+    app.post('/api/notify/whatsapp', async (_req: Request, res: Response) => {
       try {
         // notifyWhatsappHandler no está importado ni definido; desactivamos la ruta temporalmente
         return res.status(501).json({ ok: false, error: 'Notificaciones WhatsApp no implementadas' });
