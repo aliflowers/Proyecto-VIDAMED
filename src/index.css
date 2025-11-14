@@ -21,16 +21,9 @@
   width: 100%;
   --rdp-cell-size: clamp(36px, 12vw, 44px);
 }
-.rdp-months {
-  width: 100%;
-}
-.rdp-month {
-  margin: 0 auto;
-}
-.rdp-table {
-  table-layout: fixed;
-  width: 100%;
-}
+.rdp-months { width: 100%; }
+.rdp .rdp-month { margin: 0 auto; max-width: 100%; min-width: 0; }
+.rdp .rdp-table { table-layout: fixed; width: 100%; }
 .rdp-caption {
   padding: 0 0.5rem;
 }

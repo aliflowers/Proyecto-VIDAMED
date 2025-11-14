@@ -18,7 +18,7 @@ async function main() {
   // Cargar .env del directorio api (compatibilidad ESM)
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
-  dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
+  dotenv.config({ path: path.resolve(__dirname, '../api/.env') });
 
   const to = getArg('to');
   const subject = getArg('subject') || 'Prueba SMTP VidaMed';

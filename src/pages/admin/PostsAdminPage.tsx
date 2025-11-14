@@ -202,16 +202,17 @@ const PostsAdminPage: React.FC = () => {
 
     return (
         <div>
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
                 <h1 className="text-3xl font-bold text-dark">Gestión de Publicaciones del Blog</h1>
-                <button onClick={() => { if (!can('crear')) return; setEditingPost(null); setIsModalOpen(true); }} className={`px-4 py-2 rounded-md flex items-center ${!can('crear') ? 'bg-primary/50 text-white cursor-not-allowed' : 'bg-primary text-white hover:bg-primary-dark'}`}>
+                <button onClick={() => { if (!can('crear')) return; setEditingPost(null); setIsModalOpen(true); }} className={`w-full sm:w-auto px-4 py-2 rounded-md flex items-center justify-center ${!can('crear') ? 'bg-primary/50 text-white cursor-not-allowed' : 'bg-primary text-white hover:bg-primary-dark'}`}>
                     <Plus size={20} className="mr-2" />
                     Crear Nueva Publicación
                 </button>
             </div>
 
             <div className="bg-white shadow-md rounded-lg overflow-hidden">
-                <table className="min-w-full">
+                <div className="overflow-x-auto max-w-full">
+                <table className="min-w-full text-sm">
                     <thead className="bg-gray-50">
                         <tr>
                             <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Título</th>
@@ -224,11 +225,11 @@ const PostsAdminPage: React.FC = () => {
                     <tbody className="divide-y divide-gray-200">
                         {posts.map(post => (
                             <tr key={post.id}>
-                                <td className="py-4 px-6 whitespace-nowrap font-medium text-gray-900 max-w-xs truncate">{post.title}</td>
-                                <td className="py-4 px-6 whitespace-nowrap text-gray-500">{post.category}</td>
-                                <td className="py-4 px-6 whitespace-nowrap text-gray-500">{post.author}</td>
-                                <td className="py-4 px-6 whitespace-nowrap text-gray-500">{post.date}</td>
-                                <td className="py-4 px-6 whitespace-nowrap text-right text-sm font-medium">
+                                <td className="py-3 px-3 sm:py-4 sm:px-6 whitespace-nowrap font-medium text-gray-900 max-w-xs truncate">{post.title}</td>
+                                <td className="py-3 px-3 sm:py-4 sm:px-6 whitespace-nowrap text-gray-500">{post.category}</td>
+                                <td className="py-3 px-3 sm:py-4 sm:px-6 whitespace-nowrap text-gray-500">{post.author}</td>
+                                <td className="py-3 px-3 sm:py-4 sm:px-6 whitespace-nowrap text-gray-500">{post.date}</td>
+                                <td className="py-3 px-3 sm:py-4 sm:px-6 whitespace-nowrap text-right text-sm font-medium">
                                     <button onClick={() => { if (!can('editar')) return; setEditingPost(post); setIsModalOpen(true); }} className={`${!can('editar') ? 'text-indigo-300 cursor-not-allowed' : 'text-indigo-600 hover:text-indigo-900'} mr-4`}><Edit size={18} /></button>
                                     <button onClick={() => { if (!can('eliminar')) return; handleDelete(post.id); }} className={`${!can('eliminar') ? 'text-red-300 cursor-not-allowed' : 'text-red-600 hover:text-red-900'}`}><Trash2 size={18} /></button>
                                 </td>
@@ -236,6 +237,7 @@ const PostsAdminPage: React.FC = () => {
                         ))}
                     </tbody>
                 </table>
+                </div>
             </div>
 
             {isModalOpen && (

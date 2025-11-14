@@ -134,36 +134,36 @@ const TestimonialsAdminPage: React.FC = () => {
             <h1 className="text-3xl font-bold text-dark mb-6">Gestión de Testimonios</h1>
             <div className="bg-white shadow-md rounded-lg overflow-hidden">
                 <div className="overflow-x-auto max-w-full">
-                <table className="min-w-full text-sm">
+                <table className="min-w-full text-xs sm:text-sm">
                     <thead className="bg-gray-50">
                         <tr>
-                            <th className="py-3 px-6 text-left">Autor</th>
-                            <th className="py-3 px-6 text-left">Testimonio</th>
-                            <th className="py-3 px-6 text-center">Calificación</th>
-                            <th className="py-3 px-6 text-center">Estado</th>
-                            <th className="py-3 px-6 text-right">Acciones</th>
+                            <th className="py-3 px-3 sm:px-6 text-left">Autor</th>
+                            <th className="py-3 px-3 sm:px-6 text-left">Testimonio</th>
+                            <th className="py-3 px-3 sm:px-6 text-center">Calificación</th>
+                            <th className="py-3 px-3 sm:px-6 text-center">Estado</th>
+                            <th className="py-3 px-3 sm:px-6 text-right">Acciones</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                         {testimonials.map(testimonial => (
                             <tr key={testimonial.id} className="hover:bg-gray-50">
-                                <td className="py-4 px-6 font-medium">{testimonial.author}</td>
-                                <td className="py-4 px-6 text-gray-500 max-w-md truncate">
+                                <td className="py-3 px-3 sm:py-4 sm:px-6 font-medium">{testimonial.author}</td>
+                                <td className="py-3 px-3 sm:py-4 sm:px-6 text-gray-500 max-w-[14rem] sm:max-w-md truncate">
                                     <button onClick={() => setViewingTestimonial(testimonial)} className="text-left hover:underline">
                                         {testimonial.texto}
                                     </button>
                                 </td>
-                                <td className="py-4 px-6 text-center">
+                                <td className="py-3 px-3 sm:py-4 sm:px-6 text-center">
                                     <div className="flex items-center justify-center">
                                         {testimonial.rating ? Array.from({ length: testimonial.rating }).map((_, i) => <Star key={i} size={16} className="text-yellow-400 fill-current" />) : 'N/A'}
                                     </div>
                                 </td>
-                                <td className="py-4 px-6 text-center">
+                                <td className="py-3 px-3 sm:py-4 sm:px-6 text-center">
                                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${testimonial.is_approved ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                         {testimonial.is_approved ? 'Aprobado' : 'Pendiente'}
                                     </span>
                                 </td>
-                                <td className="py-4 px-6 text-right">
+                                <td className="py-3 px-3 sm:py-4 sm:px-6 text-right">
                                     <button onClick={() => handleApprove(testimonial.id, !!testimonial.is_approved)} className={`mr-4 ${!can('editar') ? 'text-yellow-200 cursor-not-allowed' : (testimonial.is_approved ? 'text-yellow-500' : 'text-green-500')}`}>
                                         {testimonial.is_approved ? <X size={18} /> : <Check size={18} />}
                                     </button>

@@ -296,13 +296,14 @@ const SchedulingPage: React.FC = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
                                         <DayPicker
-                                            className="w-full"
+                                            className="w-full text-sm"
                                             mode="single"
                                             selected={formData.date}
                                             onSelect={(day) => setFormData(prev => ({ ...prev, date: day }))}
                                             disabled={unavailableDays}
                                             locale={es}
                                             modifiersStyles={{ disabled: { color: 'white', backgroundColor: '#F87171' } }}
+                                            style={{ '--rdp-cell-size': 'clamp(28px, 12vw, 42px)' } as React.CSSProperties}
                                         />
                                         <div className="flex items-center mt-2 text-sm">
                                             <span className="w-4 h-4 bg-red-400 rounded-full mr-2"></span>

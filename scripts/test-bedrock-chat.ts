@@ -1,13 +1,13 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { bedrockChat } from '../bedrock.js';
+import { bedrockChat } from '../api/bedrock.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Cargar variables desde api/.env
-dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
+dotenv.config({ path: path.resolve(__dirname, '../api/.env') });
 
 async function main() {
   const token = process.env.AWS_BEARER_TOKEN_BEDROCK;
