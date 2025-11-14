@@ -3,6 +3,7 @@ import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 import { nextDay, format, isFuture, parseISO } from 'date-fns';
 import { bedrockChat, BedrockMessage, BedrockTool } from './bedrock.js';
+import { DEFAULT_BEDROCK_MODEL } from './config.js';
 import notifyEmailHandler from './notify/email.js';
 import availabilitySlotsHandler from './availability/_slots.js';
 import blockAvailabilityHandler from './availability/_block.js';
@@ -12,7 +13,7 @@ import chatHandler from './_chat.js';
 import generateBlogHandler from './_generate-blog-post.js';
 import interpretarHandler from './_interpretar.js';
 import { logServerAudit } from './_utils/audit.js';
-import { sendAppointmentConfirmationEmail, sendAppointmentReminderEmail } from './notify/_appointment-email.js';
+import { sendAppointmentConfirmationEmail, } from './notify/_appointment-email.js';
 // Eliminado: nodemailer ya no es necesario para recuperación de contraseña
 const app = express();
 async function startServer() {
@@ -34,7 +35,7 @@ async function startServer() {
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-    const BEDROCK_MODEL = process.env.BEDROCK_DEFAULT_MODEL || 'openai.gpt-oss-120b-1:0';
+    const BEDROCK_MODEL = DEFAULT_BEDROCK_MODEL;
 
     app.use(cors());
     app.use(express.json());
