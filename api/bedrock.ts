@@ -47,7 +47,7 @@ export async function bedrockChat(options: {
     body.tool_choice = 'auto';
   }
 
-  const resp = await fetch(`${baseUrl}/chat/completions`, {
+  let resp = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -58,7 +58,24 @@ export async function bedrockChat(options: {
 
   if (!resp.ok) {
     const errText = await resp.text();
-    throw new Error(`Bedrock OpenAI API error ${resp.status}: ${errText}`);
+    const isModelNotFound = resp.status === 404 && /model_not_found/i.test(errText);
+    if (isModelNotFound) {
+      const fallbackBody = { ...body, model: 'openai.gpt-oss-120b-1:0' };
+      resp = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(fallbackBody),
+      });
+      if (!resp.ok) {
+        const retryText = await resp.text();
+        throw new Error(`Bedrock OpenAI API error ${resp.status}: ${retryText}`);
+      }
+    } else {
+      throw new Error(`Bedrock OpenAI API error ${resp.status}: ${errText}`);
+    }
   }
 
   const data = await resp.json();
