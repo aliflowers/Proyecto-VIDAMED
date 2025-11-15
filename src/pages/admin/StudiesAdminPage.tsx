@@ -116,7 +116,7 @@ const StudiesAdminPage: React.FC = () => {
                     preparation: item.preparacion,
                     price: item.costo_usd,
                     costo_bs: item.costo_bs,
-                    deliveryTime: item.tiempo_entrega,
+                    deliveryTime: item.tiempo_entrega_quimioluminiscencia || item.tiempo_entrega_elisa_otro || '',
                     campos_formulario: mappedCampos,
                     veces_realizado: item.veces_realizado,
                     metodo: item.metodo,
@@ -276,7 +276,8 @@ const StudiesAdminPage: React.FC = () => {
             preparacion: studyData.preparation,
             costo_usd: priceUSD,
             costo_bs: costoBS,
-            tiempo_entrega: studyData.deliveryTime,
+            tiempo_entrega_elisa_otro: studyData.deliveryTime,
+            tiempo_entrega_quimioluminiscencia: studyData.deliveryTime,
             campos_formulario: (studyData.campos_formulario || []).map(campo => ({
                 nombre: campo.name,
                 etiqueta: campo.label,

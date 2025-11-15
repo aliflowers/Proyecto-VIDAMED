@@ -1,0 +1,18 @@
+﻿Correcciones y mejoras: Estudios y Blogs
+
+Estudios/Admin:
+- Lectura de tiempo de entrega: usa `tiempo_entrega_quimioluminiscencia || tiempo_entrega_elisa_otro` en ResultsPage, SchedulingPage, PatientPortalPage y StudiesPage para evitar columnas inexistentes.
+- Guardado de tiempo de entrega en edición de estudios: reemplaza `tiempo_entrega` por `tiempo_entrega_elisa_otro` y `tiempo_entrega_quimioluminiscencia`.
+- Consistencia de tipos: mapeos de Study ajustados, sin dependencia de `tiempo_entrega`.
+
+Blogs:
+- Enlaces del listado: usan `encodeURIComponent(slug || id)` para soportar posts sin slug.
+- Carga de post: `.limit(1).maybeSingle()` por slug y fallback a id numérico; evita PGRST116.
+
+Infraestructura/Tipos:
+- ResultViewer: Patient.id acepta `string | number` para compatibilidad.
+- Resultados Admin: mapeos robustos de campos en lectura.
+
+Motivación:
+- Errores resueltos: "schema cache no encuentra tiempo_entrega" y navegación/consulta de posts con slugs faltantes.
+- Alineado con el esquema real de BD verificado vía MCP Supabase.

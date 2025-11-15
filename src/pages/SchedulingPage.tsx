@@ -61,7 +61,7 @@ const SchedulingPage: React.FC = () => {
                 price: item.costo_usd,
                 costo_bs: item.costo_bs,
                 tasa_bcv: item.tasa_bcv,
-                deliveryTime: item.tiempo_entrega,
+                deliveryTime: item.tiempo_entrega_quimioluminiscencia || item.tiempo_entrega_elisa_otro || '',
                 campos_formulario: item.campos_formulario,
                 veces_realizado: item.veces_realizado,
             }));
