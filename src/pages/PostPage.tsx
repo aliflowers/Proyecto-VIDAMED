@@ -16,16 +16,30 @@ const PostPage: React.FC = () => {
     useEffect(() => {
         const fetchPost = async () => {
             if (!slug) return;
-            const { data, error } = await supabase
+            // Consulta principal por slug
+            let { data, error } = await supabase
                 .from('publicaciones_blog')
                 .select('*')
                 .eq('slug', slug)
-                .single();
+                .limit(1)
+                .maybeSingle();
 
-            if (error) {
-                console.error('Error fetching post:', error);
-                setError('No se pudo encontrar la publicación.');
-            } else {
+            // Si no se encontró por slug, intentar con id numérico
+            if (!data) {
+                const numericId = Number(slug);
+                if (!Number.isNaN(numericId)) {
+                    const fb = await supabase
+                        .from('publicaciones_blog')
+                        .select('*')
+                        .eq('id', numericId)
+                        .limit(1)
+                        .maybeSingle();
+                    data = fb.data as any;
+                    error = fb.error as any;
+                }
+            }
+
+            if (data) {
                 const formattedPost: BlogPost = {
                     id: data.id.toString(), 
                     title: data.titulo,
@@ -40,6 +54,9 @@ const PostPage: React.FC = () => {
                     keywords: data.keywords || [],
                 };
                 setPost(formattedPost);
+            } else {
+                console.error('Error fetching post:', error);
+                setError('No se pudo encontrar la publicación.');
             }
             setIsLoading(false);
         };

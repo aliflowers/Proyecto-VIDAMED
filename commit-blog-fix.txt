@@ -1,0 +1,14 @@
+﻿Corrección de navegación y carga de posts del Blog
+
+- PostPage.tsx:
+  * Cambiada consulta por slug a `.limit(1).maybeSingle()` para evitar PGRST116.
+  * Agregado fallback por `id` numérico cuando el slug no trae datos.
+  * Manejo explícito de flujo: si hay `data` se formatea; si no, se muestra error.
+
+- BlogPage.tsx:
+  * Los enlaces ahora usan `encodeURIComponent(post.slug || post.id)` para evitar rutas inválidas.
+  * Fallback de ruta por `id` cuando `slug` es nulo en imagen, título y botón.
+
+- Diagnóstico con Supabase MCP:
+  * Confirmado que existen posts con `slug = NULL` y otros con `slug` válido.
+  * Ajustes hechos para soportar ambos casos en el frontend.

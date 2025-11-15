@@ -66,7 +66,7 @@ const BlogPage: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {blogPosts.map((post) => (
                         <div key={post.id} className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col transform hover:-translate-y-2 transition-transform duration-300">
-                            <Link to={`/blog/${post.slug}`} className="block">
+                            <Link to={`/blog/${encodeURIComponent(post.slug || post.id)}`} className="block">
                                 <img src={post.imageUrl} alt={post.title} className="w-full h-56 object-cover" />
                             </Link>
                             <div className="p-6 flex flex-col flex-grow">
@@ -74,7 +74,7 @@ const BlogPage: React.FC = () => {
                                     <Tag className="w-4 h-4 mr-1" />
                                     <span>{post.category}</span>
                                 </div>
-                                <Link to={`/blog/${post.slug}`} className="block">
+                                <Link to={`/blog/${encodeURIComponent(post.slug || post.id)}`} className="block">
                                     <h2 className="text-xl font-semibold text-dark hover:text-primary transition-colors">{post.title}</h2>
                                 </Link>
                                 <p className="mt-2 text-gray-600 flex-grow line-clamp-4">{post.summary}</p>
@@ -82,7 +82,7 @@ const BlogPage: React.FC = () => {
                                     <span>{post.author}</span>
                                     <span>{post.date}</span>
                                 </div>
-                                <Link to={`/blog/${post.slug}`} className="mt-4 self-start inline-flex items-center text-primary font-semibold hover:underline">
+                                <Link to={`/blog/${encodeURIComponent(post.slug || post.id)}`} className="mt-4 self-start inline-flex items-center text-primary font-semibold hover:underline">
                                     Leer artículo completo <ChevronRight className="ml-1 h-5 w-5" />
                                 </Link>
                             </div>
