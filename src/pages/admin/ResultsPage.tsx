@@ -3,7 +3,7 @@ import { supabase } from '@/services/supabaseClient';
 import { toast } from 'react-toastify';
 import { Upload, Plus, Search, Info } from 'lucide-react';
 import ResultsTable from '@/components/admin/ResultsTable';
-import { SchedulingStudy, ResultadoPaciente, ResultadoDataManual } from '@/types';
+import { SchedulingStudy, ResultadoPaciente, ResultadoDataManual, AdminGlobalResult as GlobalResult } from '@/types';
 import FileUploadModal from '@/components/admin/FileUploadModal';
 import ManualResultForm from '@/components/admin/ManualResultForm';
 import ResultViewer from '@/components/admin/ResultViewer';
@@ -15,22 +15,7 @@ import { apiFetch } from '@/services/apiFetch';
 import PatientSelectorModal, { Patient } from '@/components/admin/PatientSelectorModal';
 import UnifiedEntryModal from '@/components/admin/UnifiedEntryModal';
 
-interface GlobalResult {
-  id: number;
-  paciente_id: number;
-  estudio_id: number;
-  resultado_data: any;
-  fecha_creacion: string;
-  analisis_ia?: string;
-  analisis_estado?: string;
-  paciente_nombres: string;
-  paciente_apellidos: string;
-  paciente_cedula: string;
-  paciente_email?: string;
-  paciente_telefono?: string;
-  paciente_direccion?: string;
-  nombre_estudio: string;
-}
+ 
 
 const ResultsPage: React.FC = () => {
   // 📁 Estados para subida de archivos
@@ -400,7 +385,7 @@ const ResultsPage: React.FC = () => {
         tipo: 'manual',
         valores: plainResults,
         materiales_utilizados: selectedMaterials.map(m => ({ id: m.id, nombre: m.nombre, cantidad_usada: m.cantidad_usada })),
-        paciente_id: Number(selectedPatient!.id),
+        paciente_id: selectedPatient!.id as any,
         paciente_nombres: selectedPatient.nombres,
         paciente_apellidos: selectedPatient.apellidos,
         paciente_cedula: selectedPatient.cedula_identidad,
@@ -409,7 +394,7 @@ const ResultsPage: React.FC = () => {
       };
 
       const dataToInsert = {
-        paciente_id: Number(selectedPatient!.id),
+        paciente_id: selectedPatient!.id,
         estudio_id: parseInt(manualEntryStudy.id, 10),
         resultado_data: resultadoData,
         motivo_estudio: motivoEstudio // <- NUEVO: pobla la columna dedicada
@@ -523,14 +508,14 @@ const ResultsPage: React.FC = () => {
     // Si ya tiene análisis IA, solo mostrar el modal sin llamar a la API
     if (result.analisis_ia) {
       console.log('📋 Mostrando análisis IA existente');
-      setCurrentInterpretation(result as ResultadoPaciente);
+      setCurrentInterpretation(result as unknown as ResultadoPaciente);
       setInterpretationModalOpen(true);
       return;
     }
 
     // Si no tiene análisis, generar uno nuevo
     console.log('🤖 Generando nuevo análisis IA para resultado:', result.id);
-    setCurrentInterpretation(result as ResultadoPaciente);
+    setCurrentInterpretation(result as unknown as ResultadoPaciente);
     setInterpretationLoading(true);
 
     try {
@@ -945,9 +930,9 @@ const ResultsPage: React.FC = () => {
       {/* 📊 Tabla/Lista de Resultados Globales */}
       <ResultsTable
         results={filteredResults}
-        onViewResult={setViewingResult}
+        onViewResult={(r) => setViewingResult(r)}
         onDeleteResult={handleDeleteResult}
-        onGenerateInterpretation={handleGenerateInterpretation}
+        onGenerateInterpretation={(r) => { void handleGenerateInterpretation(r); }}
         isLoading={loading}
         generatingInterpretationId={interpretationLoading ? currentInterpretation?.id : null}
         onResultUpdated={handleResultUpdated}
@@ -1013,7 +998,7 @@ const ResultsPage: React.FC = () => {
             telefono: viewingResult.paciente_telefono || '',
             direccion: viewingResult.paciente_direccion || ''
           }}
-          result={viewingResult as ResultadoPaciente}
+          result={viewingResult as unknown as ResultadoPaciente}
           onClose={() => setViewingResult(null)}
         />
       )}

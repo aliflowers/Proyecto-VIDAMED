@@ -874,9 +874,9 @@ ${valuesContext}
         const analysisResult = await bedrockChat({
           model: BEDROCK_MODEL,
           messages: [{ role: 'user', content: prompt }],
-          temperature: 0.2,
+          temperature: 0.6,
           top_p: 0.9,
-          max_completion_tokens: 2048,
+          max_completion_tokens: 5000,
         });
         const interpretation = analysisResult.text;
 

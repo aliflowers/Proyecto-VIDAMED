@@ -6,7 +6,7 @@ import { supabasePublic as supabase } from '@/services/supabaseClient';
 
 import { ResultadoPaciente, ResultadoDataManual } from '@/types';
 interface Patient {
-    id: number;
+    id: string | number;
     nombres: string;
     apellidos: string;
     cedula_identidad: string;

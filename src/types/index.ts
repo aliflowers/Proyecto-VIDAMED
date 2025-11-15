@@ -218,3 +218,21 @@ export interface PatientDetails extends Patient {
     resultados_pacientes: ResultadoPaciente[];
     resultados_eliminados: ResultadoEliminado[];
 }
+
+// Tipo unificado para resultados usados en vistas/admin
+export interface AdminGlobalResult {
+  id: number;
+  paciente_id: string;
+  estudio_id: number;
+  resultado_data: any;
+  fecha_creacion: string;
+  analisis_ia?: string;
+  analisis_estado?: string;
+  paciente_nombres: string;
+  paciente_apellidos: string;
+  paciente_cedula: string;
+  paciente_email?: string;
+  paciente_telefono?: string;
+  paciente_direccion?: string;
+  nombre_estudio: string;
+}

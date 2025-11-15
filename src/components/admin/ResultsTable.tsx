@@ -6,20 +6,9 @@ import { supabase } from '@/services/supabaseClient';
 import { toast } from 'react-toastify';
 import { logAudit } from '@/services/audit';
 import { apiFetch } from '@/services/apiFetch';
+import { AdminGlobalResult as GlobalResult } from '@/types';
 
-interface GlobalResult {
-  id: number;
-  paciente_id: number;
-  estudio_id: number;
-  resultado_data: any;
-  fecha_creacion: string;
-  analisis_ia?: string;
-  analisis_estado?: string;
-  paciente_nombres: string;
-  paciente_apellidos: string;
-  paciente_cedula: string;
-  nombre_estudio: string;
-}
+ 
 
 interface ResultsTableProps {
   results: GlobalResult[];

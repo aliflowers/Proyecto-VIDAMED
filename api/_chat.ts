@@ -40,8 +40,28 @@ export default async function handler(req: any, res: any) {
     }
 
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const bedrockConfig = { model: DEFAULT_BEDROCK_MODEL, temperature: 0.2, top_p: 0.9 };
+    const bedrockConfig = { model: DEFAULT_BEDROCK_MODEL, temperature: 0.6, top_p: 0.9 };
     let lastModelUsed: string | undefined;
+
+    const bedrockWithTimeout = async (
+      options: Parameters<typeof bedrockChat>[0],
+      timeoutMs = 12000
+    ): Promise<Awaited<ReturnType<typeof bedrockChat>>> => {
+      const start = Date.now();
+      try {
+        const result = await Promise.race([
+          bedrockChat(options),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('BEDROCK_TIMEOUT')), timeoutMs)),
+        ]) as Awaited<ReturnType<typeof bedrockChat>>;
+        return result;
+      } catch (e: any) {
+        console.error('[Bedrock] Timeout/Error:', e?.message || e);
+        throw e;
+      } finally {
+        const dur = Date.now() - start;
+        try { await logServerAudit({ req, action: 'IA – bedrock timing', module: 'IA', entity: 'chat', entityId: null, metadata: { duration_ms: dur }, success: true }); } catch {}
+      }
+    };
 
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     const { history } = body || {};
@@ -77,7 +97,7 @@ export default async function handler(req: any, res: any) {
         .filter((m: { role: 'user'|'assistant'; content: string }) => m.content && String(m.content).trim().length > 0);
     };
     const confirmWords = ['si','sí','claro','dale','ok','okay','de acuerdo','correcto','confirmo','para ese estudio','para ese','ese','está bien','esta bien','vale'];
-    const schedulingHints = ['agendar','agenda','cita','reserv','disponible','programar','turno','fecha','horario','confirmo esta fecha','confirmo la fecha'];
+    const schedulingHints = ['agendar','agenda','cita','reserv','disponible','programar','turno','fecha','horario','confirmo esta fecha','confirmo la fecha','cedula','cédula','telefono','teléfono','nombre','apellido','ubicacion','ubicación','sede','domicilio','ciudad','direccion','dirección','hora','estudio','paciente'];
     const detectSchedulingContext = (hist: any[]): boolean => {
       const text = (hist || []).map(toText).join(' ').toLowerCase();
       return schedulingHints.some(h => text.includes(h));
@@ -96,7 +116,11 @@ export default async function handler(req: any, res: any) {
 
     const classifierSystemInstruction = `Clasifica la intención conversacional ACTUAL considerando TODO el historial y el último mensaje. Responde exactamente una de: CONSULTA_ESTUDIO, AGENDAR_CITA, SALUDO, DESCONOCIDO. Si el historial muestra que el usuario está agendando y el último mensaje es una confirmación breve como "sí", clasifica como AGENDAR_CITA.`;
 
-    const entityExtractorSystemInstruction = `Tu única función es extraer el nombre del examen o estudio médico del texto del usuario. Devuelve SOLO un nombre de estudio, sin comas ni texto extra. Si el texto menciona varios estudios, devuelve el más claro (idealmente el último mencionado). Si no hay un nombre de estudio claro, responde con "NO_ENCONTRADO". Responde únicamente con el nombre del estudio.`;
+    const entityExtractorSystemInstruction = `Eres un extractor de estudios para pacientes en Venezuela.
+Devuelve los estudios mencionados como una LISTA separada por comas (sin texto extra). Acepta abreviaturas, jerga local y errores ortográficos.
+Ejemplos: "hemograma, perfil lipidico" | "examen de orina" | "TSH".
+Si hay ambigüedad fuerte, incluye hasta 3 candidatos.
+Si no hay estudio claro, responde exactamente "NO_ENCONTRADO".`;
 
     // Normalizador y detección de fechas/días
     const normalize = (s: string) =>
@@ -133,8 +157,30 @@ export default async function handler(req: any, res: any) {
       if (/(examen|analisis|an[aá]lisis).*orina/.test(noAccents)) {
         if (!/(catecolaminas|citrato|oxalato|cocaina)/.test(noAccents)) return 'EXAMEN DE ORINA';
       }
+      // Orina general / EGO
+      if (/(\bego\b|orina\s+general)/.test(noAccents)) return 'EXAMEN DE ORINA';
       // Perfil lipídico
       if (/(perfil\s+lipidico|lipidico)/.test(noAccents)) return 'PERFIL LIPIDICO';
+      // Perfil 20
+      if (/(perfil\s*20|perfil\s*quimico|perfil\s*completo)/.test(noAccents)) return 'PERFIL 20';
+      // Prueba de embarazo / β-hCG
+      if (/(prueba\s+de\s+embarazo|test\s+de\s+embarazo|beta\s*h?cg|bhcg)/.test(noAccents)) return 'PRUEBA DE EMBARAZO';
+      // Glucosa
+      if (/\bglucosa\b/.test(noAccents)) return 'GLUCOSA';
+      // HbA1c
+      if (/(hb\s*a1c|hba1c|hemoglobina\s+glicosilada)/.test(noAccents)) return 'HEMOGLOBINA GLICOSILADA (HbA1c)';
+      // Colesterol LDL ("malo")
+      if (/(ldl|colesterol\s+malo)/.test(noAccents)) return 'COLESTEROL LDL';
+      // Colesterol HDL ("bueno")
+      if (/(hdl|colesterol\s+bueno)/.test(noAccents)) return 'COLESTEROL HDL';
+      // Triglicéridos
+      if (/(trigliceridos|triglicéridos)/.test(noAccents)) return 'TRIGLICERIDOS';
+      // TSH / Tiroides
+      if (/(tsh|tiroid(es)?)/.test(noAccents)) return 'TSH';
+      // VIH / VDRL / PCR
+      if (/(vih)/.test(noAccents)) return 'PRUEBA VIH';
+      if (/(vdrl)/.test(noAccents)) return 'VDRL';
+      if (/(pcr\b|proteina\s+c\s+reactiva)/.test(noAccents)) return 'PCR (Proteína C Reactiva)';
       return raw;
     };
 
@@ -148,7 +194,7 @@ export default async function handler(req: any, res: any) {
       return parts.filter(p => p.length >= 3);
     };
 
-    const dayTokens = ['lunes', 'martes', 'miercoles', 'miércoles', 'jueves', 'viernes', 'sabado', 'sábado', 'domingo', 'proximo', 'próximo', 'prox', 'siguiente'];
+    const dayTokens = ['hoy', 'mañana', 'pasado mañana', 'lunes', 'martes', 'miercoles', 'miércoles', 'jueves', 'viernes', 'sabado', 'sábado', 'domingo', 'proximo', 'próximo', 'prox', 'siguiente'];
     const containsDateLike = (text: string): boolean => {
       const t = normalize(text);
       if (/\b\d{4}-\d{2}-\d{2}\b/.test(t)) return true; // AAAA-MM-DD
@@ -157,48 +203,25 @@ export default async function handler(req: any, res: any) {
     };
 
     const conversationalSystemInstructionText = `
-Eres VidaBot, asistente de VidaMed. Tu objetivo es agendar citas con un flujo ESTRICTO de slot-filling. Reglas obligatorias:
-- Mantén el contexto del historial. NO reinicies ni cambies de tema salvo que el usuario lo pida expresamente.
-- No retrocedas a slots ya confirmados: si ya tienes studies[], fecha, hora o ubicación, NO los vuelvas a pedir; conserva y usa esos valores del historial. Si el usuario dice "ya te dije cuáles son", utiliza la lista previa.
-- UNA sola pregunta por turno, breve y concreta.
-- Si el usuario confirma con "sí/ok/bien", interpreta como confirmación del paso actual y avanza al SIGUIENTE slot.
-- Orden ESTRICTA de slots:
-  1) Tipo(s) de estudio: pregunta si es un solo estudio o varios. Si son varios, solicita la lista completa (studies[]).
-  2) Fecha y hora: primero la fecha (usa getAvailability si dan un día o fecha). Después de confirmar fecha disponible, OBLIGATORIAMENTE llama a getAvailableHours para listar horas libres de ese día y pide al paciente elegir una hora (HH:mm en 24h) de esa lista.
-  3) Ubicación: normaliza y confirma una de estas opciones EXACTAS:
-     - "Sede Principal Maracay"
-     - "Sede La Colonia Tovar"
-     - "Servicio a Domicilio"
-     Reglas de normalización de sinónimos:
-     - Cualquier mención de "domicilio", "a domicilio", "en casa", "ir a casa" ⇒ "Servicio a Domicilio".
-     - Menciones a "Maracay", "principal" o "la sede" ⇒ "Sede Principal Maracay".
-     - Menciones a "Colonia Tovar" ⇒ "Sede La Colonia Tovar".
-     Si el usuario dice solo "sede" sin especificar, pregunta: "¿Prefieres Sede Principal Maracay o Sede La Colonia Tovar?".
-     Si el usuario elige "Servicio a Domicilio", además DEBES pedir y confirmar:
-       • ciudad_domicilio: elige entre "Maracay" o "La Colonia Tovar".
-       • dirección exacta del domicilio.
-  4) Datos del paciente, en este ORDEN exacto:
-     - Primer nombre (obligatorio)
-     - Segundo nombre (si el paciente dice que no tiene, omítelo)
-     - Primer apellido (obligatorio)
-     - Segundo apellido (si el paciente dice que no tiene, omítelo)
-     - Número de cédula (obligatorio)
-     - Número telefónico (obligatorio)
-     - Email (opcional; si no tiene, omítelo)
-     - Dirección del domicilio (solo si ubicación fue "Servicio a Domicilio"; en caso contrario, omítelo)
-     - Ciudad del domicilio (solo si ubicación fue "Servicio a Domicilio"; valores permitidos: "Maracay" o "La Colonia Tovar")
-     Reglas de eco y validación:
-     - Al confirmar cada dato, MUESTRA el valor exactamente UNA sola vez y no lo dupliques ni lo concatenes. Ejemplo correcto: "Ok, primer nombre: Bob". Evita respuestas como "BobBob", "GomezGomez" o "GuzmanGuzman".
-     - Validación de cédula: acepta únicamente dígitos entre 7 y 9 caracteres (inclusive). Si el número tiene 7, 8 o 9 dígitos, confírmalo sin advertencias. Solo pide corrección si está fuera de ese rango con el mensaje: "La cédula debe tener entre 7 y 9 dígitos".
-  5) Resumen y confirmación: Muestra TODOS los datos recolectados y pregunta si son correctos. SOLO si el usuario confirma, llama a scheduleAppointment.
-- Llama scheduleAppointment únicamente cuando tengas TODOS los campos obligatorios del esquema, en especial: studies[], date (YYYY-MM-DD), time (HH:mm), location, y los datos obligatorios del paciente.
-- No inventes datos. No agregues temas ajenos. Mantén el tono profesional y conciso.
+Eres VidaBot, asistente de VidaMed en Venezuela. Tono cercano, empático y claro (puedes usar expresiones locales como "porfa" o "chévere" cuando corresponda).
+Objetivo: ayudar a consultar estudios/precios y agendar citas con un flujo ordenado pero humano.
 
-Consultas de Estudios:
-- Si el usuario pregunta por un estudio, utiliza getStudiesInfo para obtener información exacta desde la base de datos.
-- Responde con: nombre, categoría, descripción, preparación, precios en USD y Bs, tiempo de entrega (ELISA/Otros) y tipo de muestra.
-- Si hay múltiples coincidencias, sugiere las opciones encontradas y pide aclaración.
-- Mantén respuestas breves, claras y útiles para el paciente.
+Reglas:
+- Mantén el contexto y evita reinicios innecesarios.
+- Si el usuario dice "sí", "ok", "dale", "me sirve", avanza.
+- Haz una sola pregunta por turno, breve y amable.
+
+Slots:
+1) Estudios: uno o varios; acepta abreviaturas, slang y errores.
+2) Fecha y hora: confirma el día (usa getAvailability) y luego llama a getAvailableHours; pide elegir hora HH:mm 24h.
+3) Ubicación: normaliza y confirma: "Sede Principal Maracay" | "Sede La Colonia Tovar" | "Servicio a Domicilio". Sinónimos: "domicilio/en casa" ⇒ "Servicio a Domicilio"; "Maracay/principal/sede" ⇒ "Sede Principal Maracay"; "Colonia Tovar" ⇒ "Sede La Colonia Tovar".
+   Si dice sólo "sede", pregunta cuál prefiere. Para domicilio, pide ciudad (Maracay/La Colonia Tovar) y dirección.
+4) Datos del paciente: primer nombre; segundo nombre (opcional); primer apellido; segundo apellido (opcional); cédula (7–9 dígitos); teléfono; email (opcional); dirección y ciudad (solo si domicilio). Al confirmar, muestra cada dato una sola vez.
+5) Resumen y confirmación: si confirma, llama a scheduleAppointment.
+
+Consultas de estudios:
+- Usa getStudiesInfo. Responde con nombre, categoría, descripción, preparación, precios (USD/Bs), tiempo de entrega y tipo de muestra.
+- Si hay varias coincidencias, sugiere opciones y pide aclaración de forma amigable.
     `;
 
     // Guardrails de salida: anti-duplicación y validación de cédula (7–9 dígitos)
@@ -269,6 +292,14 @@ Consultas de Estudios:
           const asDate = parseISO(lower);
           if (isFuture(asDate)) return lower;
         } catch {}
+      }
+
+      // Especiales: hoy/mañana/pasado mañana
+      if (['hoy','mañana','pasado mañana'].includes(lower)) {
+        const base = new Date();
+        if (lower === 'mañana') base.setDate(base.getDate() + 1);
+        if (lower === 'pasado mañana') base.setDate(base.getDate() + 2);
+        return format(base, 'yyyy-MM-dd');
       }
 
       // 2) Intentar match exacto del día
@@ -455,6 +486,30 @@ Consultas de Estudios:
     };
 
     // Herramienta: Agendar cita (exige hora y evita choques)
+    const normalizeTimePhrase = (input?: string): string | undefined => {
+      if (!input) return undefined;
+      let s = normalize(String(input)).replace(/\s+/g, ' ').trim();
+      if (/^\d{2}:\d{2}$/.test(s)) return s;
+      if (/(mediodia|medio dia)/.test(s)) return '12:00';
+      const tipoMatch = s.match(/tipo\s*(\d{1,2})/);
+      if (tipoMatch) {
+        const h = Math.max(0, Math.min(23, Number(tipoMatch[1])));
+        return String(h).padStart(2,'0') + ':00';
+      }
+      const horasMatch = s.match(/(?:a\s*las\s*)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
+      if (horasMatch) {
+        let h = Number(horasMatch[1]);
+        const m = horasMatch[2] ? Number(horasMatch[2]) : 0;
+        const ap = horasMatch[3];
+        if (ap === 'pm' && h < 12) h += 12;
+        if (ap === 'am' && h === 12) h = 0;
+        h = Math.max(0, Math.min(23, h));
+        const hh = String(h).padStart(2,'0');
+        const mm = String(m).padStart(2,'0');
+        return `${hh}:${mm}`;
+      }
+      return undefined;
+    };
     const scheduleAppointment = async (args: {
       patientInfo: any;
       studies: string[];
@@ -521,7 +576,7 @@ Consultas de Estudios:
         }
 
         // Hora requerida y normalizada
-        const timeNorm = time && /^\d{2}:\d{2}$/.test(time) ? time : undefined;
+        const timeNorm = normalizeTimePhrase(time);
         if (!timeNorm) {
           return { error: 'Falta la hora de la cita (HH:mm en formato 24h).' };
         }
@@ -592,7 +647,8 @@ Consultas de Estudios:
         // Enviar email de confirmación si se proporcionó correo electrónico
         if (email && String(email).trim()) {
           try {
-            await sendAppointmentConfirmationEmail({
+            console.log(`[email] Enviando confirmación a ${email} para ${nombres} ${apellidos} – ${fechaCita}`);
+            const emailRes = await sendAppointmentConfirmationEmail({
               to: email,
               patientName: `${nombres} ${apellidos}`.trim(),
               cedula: cleanedCedula,
@@ -602,8 +658,9 @@ Consultas de Estudios:
               dateIso: fechaCita,
               summaryText: undefined,
             });
+            console.log(`[email] Confirmación enviada. messageId=${(emailRes as any)?.messageId || 'N/A'}`);
           } catch (e: any) {
-            console.warn('[notify] Falló envío de email de confirmación:', e?.message || e);
+            console.error('[email] Error al enviar confirmación:', e?.message || e);
           }
         }
 
@@ -773,16 +830,44 @@ Consultas de Estudios:
     // Solo aplica cuando NO estamos ya en contexto de agendamiento para evitar cortar el flujo de herramientas.
     if (!detectSchedulingContext(history) && containsDateLike(lastUserMessage)) {
       try {
-        const availability = (await getAvailability({ date: lastUserMessage })) as any;
+        const availability = (await Promise.race([
+          getAvailability({ date: lastUserMessage }) as Promise<any>,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_AVAILABILITY')), 7000)),
+        ])) as any;
         const text =
           availability?.result ||
           availability?.error ||
           'No pude verificar la disponibilidad en este momento. Indica otro día o una fecha AAAA-MM-DD.';
+        try {
+          await logServerAudit({ req, action: 'Chat IA – disponibilidad temprana', module: 'IA', entity: 'chat', entityId: null, metadata: { model_used: lastModelUsed || 'N/A', input: lastUserMessage }, success: true });
+        } catch {}
         res.status(200).json({ response: text });
         return;
-      } catch (e) {
+      } catch (e: any) {
         console.error('Early availability check failed:', e);
+        try {
+          await logServerAudit({ req, action: 'Chat IA – disponibilidad temprana (error)', module: 'IA', entity: 'chat', entityId: null, metadata: { model_used: lastModelUsed || 'N/A', input: lastUserMessage, error: e?.message || String(e) }, success: false });
+        } catch {}
+        res.status(200).json({ response: 'No pude verificar la disponibilidad por ahora. ¿Quieres intentar otra fecha (AAAA-MM-DD) o decirme un día de lunes a sábado?' });
+        return;
       }
+    }
+
+    // Heurística para avanzar cuando el usuario responde "no" a campos opcionales
+    const transcriptAll = buildTranscript(history).toLowerCase();
+    const userNo = normalize(lastUserMessage).startsWith('no');
+    if (userNo && transcriptAll.includes('segundo nombre')) {
+      try { await logServerAudit({ req, action: 'Chat IA – heurística segundo nombre omitido', module: 'IA', entity: 'chat', entityId: null, metadata: { input: lastUserMessage }, success: true }); } catch {}
+      res.status(200).json({ response: 'Perfecto, omitimos el segundo nombre. Primer apellido, por favor.' });
+      return;
+    }
+
+    const cedulaMatch = lastUserMessage.match(/\b\d{7,9}\b/);
+    if (cedulaMatch && transcriptAll.includes('número de cédula')) {
+      const num = cedulaMatch[0];
+      try { await logServerAudit({ req, action: 'Chat IA – heurística cédula confirmada', module: 'IA', entity: 'chat', entityId: null, metadata: { cedula: num }, success: true }); } catch {}
+      res.status(200).json({ response: `Número de cédula confirmado: ${num}. Ahora, número telefónico, por favor.` });
+      return;
     }
 
     // 1) Clasificar intención con contexto + heurística de continuidad
@@ -792,16 +877,22 @@ Consultas de Estudios:
     if (heuristic) {
       intent = heuristic;
     } else {
-      const intentResult = await bedrockChat({
+      let intentResult;
+      try {
+        intentResult = await bedrockWithTimeout({
         model: bedrockConfig.model,
-        temperature: bedrockConfig.temperature,
+        temperature: 0.6,
         top_p: bedrockConfig.top_p,
-        max_completion_tokens: 256,
+        max_completion_tokens: 1000,
         messages: [
           { role: 'system', content: classifierSystemInstruction },
           { role: 'user', content: `--- Historial ---\n${transcript}\n--- Fin ---\n\nÚltimo mensaje del usuario: "${lastUserMessage}"\nCategoría:` },
         ],
-      });
+        }, 12000);
+      } catch (e: any) {
+        console.error('Classifier timeout/error:', e?.message || e);
+        intentResult = { text: 'DESCONOCIDO', raw: null, toolCalls: [], modelUsed: bedrockConfig.model } as any;
+      }
       intent = intentResult.text.trim();
       lastModelUsed = intentResult.modelUsed;
     }
@@ -853,28 +944,67 @@ Consultas de Estudios:
         }
 
         // 2) Flujo estándar: extracción de un único estudio, con mapeo de sinónimos
-        const extractorResult = await bedrockChat({
+        let extractorResult;
+        try {
+          extractorResult = await bedrockWithTimeout({
           model: bedrockConfig.model,
-          temperature: bedrockConfig.temperature,
+          temperature: 0.6,
           top_p: bedrockConfig.top_p,
-          max_completion_tokens: 256,
+          max_completion_tokens: 1000,
           messages: [
             { role: 'system', content: entityExtractorSystemInstruction },
             { role: 'user', content: lastUserMessage },
           ],
-        });
+          }, 12000);
+        } catch (e: any) {
+          console.error('Extractor timeout/error:', e?.message || e);
+          res.status(200).json({ response: 'Con gusto te ayudo. ¿Qué estudio o examen te gustaría consultar?' });
+          return;
+        }
         const rawExtracted = extractorResult.text.trim();
         lastModelUsed = extractorResult.modelUsed;
         if (lastModelUsed) console.log(`[IA] Modelo usado (extracción): ${lastModelUsed}`);
         const studyNameRaw = sanitizeExtractedStudyName(rawExtracted) || rawExtracted;
-        const studyName = toCanonicalStudyName(studyNameRaw);
+        const multiCandidates = splitStudyQueries(String(rawExtracted)).map(toCanonicalStudyName);
+        const primary = toCanonicalStudyName(studyNameRaw);
+        const candidates = multiCandidates.length > 1 ? multiCandidates : (primary ? [primary] : []);
 
-        if (studyName === 'NO_ENCONTRADO' || !studyName) {
+        if (candidates.length === 0 || candidates.includes('NO_ENCONTRADO')) {
           res.status(200).json({ response: 'Claro, con gusto te ayudo. ¿Qué estudio o examen te gustaría consultar?' });
           return;
         }
 
-        const studyInfoResult = (await getStudiesInfo({ studyName })) as any;
+        if (candidates.length > 1) {
+          const pieces: string[] = [];
+          for (const name of candidates.slice(0, 3)) {
+            const studyInfoResult = (await getStudiesInfo({ studyName: name })) as any;
+            if (studyInfoResult.error) { pieces.push(studyInfoResult.error); continue; }
+            if (studyInfoResult.studies && studyInfoResult.studies.length > 0) {
+              const study = studyInfoResult.studies[0];
+              const tiempoEntregaBase = (study.tiempo_entrega_quimioluminiscencia && study.tiempo_entrega_quimioluminiscencia !== 'N/A') ? study.tiempo_entrega_quimioluminiscencia : study.tiempo_entrega_elisa_otro;
+              const tiempoEntrega = tiempoEntregaBase || 'N/A';
+              const muestra = study.tipo_de_muestra || 'N/A';
+              const precioUsd = typeof study.costo_usd !== 'undefined' ? study.costo_usd : 'N/D';
+              const precioBs = typeof study.costo_bs !== 'undefined' ? study.costo_bs : 'N/D';
+              const descripcionValida = study.descripcion && String(study.descripcion).trim().toLowerCase() !== 'null';
+              const preparacionValida = study.preparacion && String(study.preparacion).trim().toLowerCase() !== 'null';
+              let block = `Información sobre "${study.nombre}":\n- Categoría: ${study.categoria}\n`;
+              if (descripcionValida) block += `- Descripción: ${study.descripcion}\n`;
+              if (preparacionValida) block += `- Preparación: ${study.preparacion}\n`;
+              block += `- Tipo de muestra: ${muestra}\n- Costo: ${precioUsd} USD / ${precioBs} Bs.\n- Tiempo de Entrega: ${tiempoEntrega}`;
+              pieces.push(block);
+            } else {
+              pieces.push(studyInfoResult.result || `No se encontró información para "${name}".`);
+            }
+          }
+          const header = '¡Claro! Estos podrían ser los estudios que mencionas:';
+          const responseText = header + '\n\n' + pieces.join('\n\n') + '\n\n¿Quieres agendar alguno o consultar otro?';
+          try { await logServerAudit({ req, action: 'Chat IA – consulta candidatos', module: 'IA', entity: 'chat', entityId: null, metadata: { model_used: lastModelUsed || 'N/A', intent, candidates }, success: true }); } catch {}
+          res.status(200).json({ response: applyOutputGuardrails(responseText, lastUserMessage) });
+          return;
+        }
+
+        const studyInfoResult = (await getStudiesInfo({ studyName: candidates[0] })) as any;
 
         if (studyInfoResult.error) {
           res.status(200).json({ response: studyInfoResult.error });
@@ -906,7 +1036,7 @@ Consultas de Estudios:
 
         responseText += '\n\n¿Te gustaría agendar una cita para este estudio o consultar otro?';
         try {
-          await logServerAudit({ req, action: 'Chat IA – consulta estudio', module: 'IA', entity: 'chat', entityId: null, metadata: { model_used: lastModelUsed || 'N/A', intent, studyName }, success: true });
+          await logServerAudit({ req, action: 'Chat IA – consulta estudio', module: 'IA', entity: 'chat', entityId: null, metadata: { model_used: lastModelUsed || 'N/A', intent, studyName: candidates[0] }, success: true });
         } catch {}
         res.status(200).json({ response: applyOutputGuardrails(responseText, lastUserMessage) });
         return;
@@ -919,28 +1049,42 @@ Consultas de Estudios:
           ...toBedrockMessages(history),
           { role: 'user', content: lastUserMessage },
         ];
-        const first = await bedrockChat({
+        let first;
+        try {
+          first = await bedrockWithTimeout({
           model: bedrockConfig.model,
-          temperature: bedrockConfig.temperature,
+          temperature: 0.6,
           top_p: bedrockConfig.top_p,
-          max_completion_tokens: 512,
+          max_completion_tokens: 1000,
           messages: baseMessages,
           tools: bedrockTools,
-        });
+          }, 15000);
+        } catch (e: any) {
+          console.error('Agendar flujo-1 timeout/error:', e?.message || e);
+          res.status(200).json({ response: 'Gracias por la paciencia. Sigamos con el siguiente paso para agendar. ¿Podrías confirmar el siguiente dato que te pedí?' });
+          return;
+        }
         lastModelUsed = first.modelUsed;
         if (lastModelUsed) console.log(`[IA] Modelo usado (flujo-1): ${lastModelUsed}`);
         if (lastModelUsed) console.log(`[IA] Modelo usado (agendar-1): ${lastModelUsed}`);
         if (first.toolCalls && first.toolCalls.length > 0) {
           const { toolMsgs, metaPayload } = await runBedrockToolCalls(first.toolCalls);
           const assistantToolCallMsg = buildAssistantToolCallMessage(first.raw, first.toolCalls);
-          const second = await bedrockChat({
+          let second;
+          try {
+            second = await bedrockWithTimeout({
             model: bedrockConfig.model,
-            temperature: bedrockConfig.temperature,
+            temperature: 0.6,
             top_p: bedrockConfig.top_p,
-            max_completion_tokens: 512,
+            max_completion_tokens: 1000,
             messages: [...baseMessages, assistantToolCallMsg, ...toolMsgs],
             tools: bedrockTools,
-          });
+            }, 15000);
+          } catch (e: any) {
+            console.error('Agendar flujo-2 timeout/error:', e?.message || e);
+            res.status(200).json({ response: 'Estoy tardando un poco. Continuemos: elige una hora disponible del día confirmado o comparte el siguiente dato.' });
+            return;
+          }
           lastModelUsed = second.modelUsed;
           if (lastModelUsed) console.log(`[IA] Modelo usado (flujo-2): ${lastModelUsed}`);
           if (lastModelUsed) console.log(`[IA] Modelo usado (agendar-2): ${lastModelUsed}`);
@@ -974,16 +1118,28 @@ Consultas de Estudios:
         if (detectSchedulingContext(history)) {
           // También interceptamos aquí si el usuario aporta una fecha directamente
           if (containsDateLike(lastUserMessage)) {
-            const availability = (await getAvailability({ date: lastUserMessage })) as any;
-            const text =
-              availability?.result ||
-              availability?.error ||
-              'No pude verificar la disponibilidad en este momento. Intenta con otro día o una fecha en formato AAAA-MM-DD.';
             try {
-              await logServerAudit({ req, action: 'Chat IA – disponibilidad', module: 'IA', entity: 'chat', entityId: null, metadata: { model_used: lastModelUsed || 'N/A', intent }, success: true });
-            } catch {}
-            res.status(200).json({ response: text });
-            return;
+              const availability = (await Promise.race([
+                getAvailability({ date: lastUserMessage }) as Promise<any>,
+                new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_AVAILABILITY')), 7000)),
+              ])) as any;
+              const text =
+                availability?.result ||
+                availability?.error ||
+                'No pude verificar la disponibilidad en este momento. Intenta con otro día o una fecha en formato AAAA-MM-DD.';
+              try {
+                await logServerAudit({ req, action: 'Chat IA – disponibilidad', module: 'IA', entity: 'chat', entityId: null, metadata: { model_used: lastModelUsed || 'N/A', intent }, success: true });
+              } catch {}
+              res.status(200).json({ response: text });
+              return;
+            } catch (e: any) {
+              console.error('Availability check failed (flow):', e);
+              try {
+                await logServerAudit({ req, action: 'Chat IA – disponibilidad (error)', module: 'IA', entity: 'chat', entityId: null, metadata: { model_used: lastModelUsed || 'N/A', intent, error: e?.message || String(e) }, success: false });
+              } catch {}
+              res.status(200).json({ response: 'No pude verificar la disponibilidad por ahora. Elige otro día o indica una fecha en formato AAAA-MM-DD.' });
+              return;
+            }
           }
 
           const convInstructionText = conversationalSystemInstructionText;
@@ -996,7 +1152,7 @@ Consultas de Estudios:
             model: bedrockConfig.model,
             temperature: bedrockConfig.temperature,
             top_p: bedrockConfig.top_p,
-            max_completion_tokens: 512,
+            max_completion_tokens: 1000,
             messages: baseMessages,
             tools: bedrockTools,
           });
@@ -1009,7 +1165,7 @@ Consultas de Estudios:
               model: bedrockConfig.model,
               temperature: bedrockConfig.temperature,
               top_p: bedrockConfig.top_p,
-              max_completion_tokens: 512,
+              max_completion_tokens: 1000,
               messages: [...baseMessages, assistantToolCallMsg, ...toolMsgs],
               tools: bedrockTools,
             });
@@ -1029,16 +1185,23 @@ Consultas de Estudios:
         }
 
         // Mensaje corto y directo para entradas fuera de flujo
-        const concise = await bedrockChat({
+        let concise;
+        try {
+          concise = await bedrockWithTimeout({
           model: bedrockConfig.model,
-          temperature: bedrockConfig.temperature,
+          temperature: 0.6,
           top_p: bedrockConfig.top_p,
-          max_completion_tokens: 128,
+          max_completion_tokens: 1000,
           messages: [
             { role: 'system', content: 'Responde en español con tono cercano, espontáneo y amable. Mantén el tema del laboratorio. Ofrece según corresponda: consultar estudios/precios o agendar una cita. Usa 1–2 frases y evita mensajes rígidos o repetitivos.' },
             { role: 'user', content: `Mensaje: "${lastUserMessage}"` },
           ],
-        });
+          }, 10000);
+        } catch (e: any) {
+          console.error('Concise timeout/error:', e?.message || e);
+          res.status(200).json({ response: '¿Te gustaría consultar un estudio o agendar una cita? Puedo ayudarte con ambos.' });
+          return;
+        }
         lastModelUsed = concise.modelUsed;
         try {
           await logServerAudit({ req, action: 'Chat IA – mensaje conciso', module: 'IA', entity: 'chat', entityId: null, metadata: { model_used: lastModelUsed || 'N/A', intent }, success: true });

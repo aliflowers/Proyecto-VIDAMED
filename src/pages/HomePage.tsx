@@ -37,7 +37,16 @@ const HomePage: React.FC = () => {
             if (testimonialsError) {
                 console.error('Error fetching testimonials:', testimonialsError);
             } else if (testimonialsData) {
-                setTestimonials(testimonialsData);
+                const formattedData: Testimonial[] = testimonialsData.map((item: any) => ({
+                    id: item.id,
+                    texto: item.texto,
+                    author: item.autor,
+                    city: item.ciudad,
+                    is_approved: item.is_approved,
+                    rating: item.rating,
+                    estudio_realizado: item.estudio_realizado,
+                }));
+                setTestimonials(formattedData);
             }
         };
 
